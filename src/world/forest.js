@@ -11,6 +11,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { buildCrystalLake } from './lake.js';
 import { buildDesert } from './desert.js';
 import { buildHollow } from './hollow.js';
+import { buildPeak } from './peak.js';
 import { mergeSiblings } from '../look/merge.js';
 
 const R = 24; // main island radius
@@ -696,6 +697,8 @@ export function buildLanternForest() {
   const desert = buildDesert(zoneCtx);
   // ---- Whispering Hollow: over an old rope bridge from the desert's sun terrace (hollow.js) ----
   const hollow = buildHollow(zoneCtx, desert);
+  // ---- Snowy Aurora Peak: over a stone bridge from the Hollow's south-east edge (peak.js) ----
+  const peak = buildPeak(zoneCtx, hollow);
 
   const update = (t) => {
     for (const p of swingers) p.rotation.z = Math.sin(t * 1.3 + p.userData.ph) * 0.07, p.rotation.x = Math.cos(t * 1.1 + p.userData.ph) * 0.05;
@@ -721,6 +724,8 @@ export function buildLanternForest() {
     if (d !== null) best = Math.max(best ?? -1e9, d);
     const h = hollow.floor(x, z);
     if (h !== null) best = Math.max(best ?? -1e9, h);
+    const pk = peak.floor(x, z);
+    if (pk !== null) best = Math.max(best ?? -1e9, pk);
     return best;
   };
 
@@ -743,9 +748,21 @@ export function buildLanternForest() {
       activate() { if (this.active) return false; this.active = true; return true; }, update() {} };
     checkpoints.push(L.checkpoint);
   }
+  checkpoints.push(peak.cairn); // Snowy Aurora Peak: just past the stone bridge
+  // ...and each brazier you light (you wake by the last one, in its warm circle)
+  for (const Bz of peak.braziers) {
+    // on the meadow: towards the mountain; on a terrace: along the ring, the way you're going (it's narrow)
+    const toMid = new Vector3().subVectors(peak.mc, Bz.pos).setY(0).normalize();
+    const along = new Vector3(toMid.z, 0, -toMid.x);
+    const p = Bz.pos.clone().addScaledVector(Bz.level === 0 ? toMid : along, Bz.level === 0 ? 1.7 : 1.4);
+    p.y = peak.floor(p.x, p.z) ?? Bz.pos.y;
+    Bz.checkpoint = { obj: null, pos: p, active: false, pulse: 0, brazier: Bz, get ready() { return !!Bz.lit; },
+      activate() { if (this.active) return false; this.active = true; return true; }, update() {} };
+    checkpoints.push(Bz.checkpoint);
+  }
   const update2 = (t, dt) => { update(t); checkpoints.forEach((c) => c.update(t, dt)); shrine.userData.update(t); };
 
   const swingParts = [];
   for (const p of swingers) p.traverse((o) => { if (o.isMesh) swingParts.push(o); });
-  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, lake, desert, hollow, deep: lake.deep, waterAt: lake.waterAt, spawn: new Vector3(1.2, 0, 11.5) };
+  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, lake, desert, hollow, peak, deep: lake.deep, waterAt: lake.waterAt, spawn: new Vector3(1.2, 0, 11.5) };
 }

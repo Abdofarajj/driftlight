@@ -57,9 +57,15 @@ export class Hands {
     const { a, b } = this;
     if (!this.linked) { a.step(dt, world); b.step(dt, world); return; }
     const am = this.moving(a), bm = this.moving(b);
+    if (am !== bm) this.last = am ? a : b; // who walked last
+    const L = this.last, O = L === a ? b : a;
     if (am && !bm) this.lead(a, b, this.side, dt, world);
     else if (bm && !am) this.lead(b, a, -this.side, dt, world);
-    else {
+    else if (!am && !bm && L && L.grounded && O.grounded && Math.abs(O.pos.y - L.pos.y) > 1.0) {
+      const side = L === a ? this.side : -this.side;
+      if (O.pos.y > L.pos.y) this.lead(L, O, side, dt, world); // you hopped down off a ledge and stopped below it: they come down after you
+      else { L.step(dt, world); O.step(dt, world); this.pullUp(L, O, side, world, null, 2.2); } // you got up there and they didn't: pull them up
+    } else {
       // a jump by one carries the other along if they're just standing there
       if (a.intent.jump && a.grounded && !bm) b.intent.jump = true;
       if (b.intent.jump && b.grounded && !am) a.intent.jump = true;
@@ -125,25 +131,48 @@ export class Hands {
     this.follow(leader, follower, side, dt, world, jumpNow);
   }
 
-  /** pull the follower to the leader's side (the leader has already moved this step) */
-  follow(leader, follower, side, dt, world, jumpNow) {
+  /** where the follower stands: beside the leader, or (no room there: a bridge's end, stepping stones, a dock, a
+   *  ledge or a frost step) behind them, on their other side, or right behind them. [x, z, floor y or null] */
+  spot(leader, side, world) {
     localX(leader.heading, this._x);
     let tx = leader.pos.x + this._x.x * side * SPACING, tz = leader.pos.z + this._x.z * side * SPACING;
-    if (leader.grounded && ((world.deep && world.deep(tx, tz)) || world.floorAt(tx, tz) === null)) { // no room beside you (a bridge's end, stepping stones, a dock): walk behind
-      tx = leader.pos.x - Math.sin(leader.heading) * SPACING; tz = leader.pos.z - Math.cos(leader.heading) * SPACING;
+    let ty = null;
+    if (leader.grounded) {
+      const lp = leader.pos, sh = Math.sin(leader.heading), ch = Math.cos(leader.heading);
+      const room = (x, z) => { if (world.deep && world.deep(x, z)) return null; const fy = world.floorAt(x, z); return fy !== null && Math.abs(fy - lp.y) < 0.8 ? fy : null; };
+      const spots = [[tx, tz], [lp.x - sh * SPACING, lp.z - ch * SPACING], [lp.x - this._x.x * side * SPACING, lp.z - this._x.z * side * SPACING], [lp.x - sh * 0.45, lp.z - ch * 0.45]];
+      for (const [x, z] of spots) { ty = room(x, z); if (ty !== null) { tx = x; tz = z; break; } }
+      if (ty === null) { tx = spots[1][0]; tz = spots[1][1]; }
     }
+    return [tx, tz, ty];
+  }
+
+  /** you climbed up somewhere and they didn't quite make it: pull them up by the hand (not as you step off it again) */
+  pullUp(leader, f, side, world, at, reach = 1.6) {
+    const [tx, tz, ty] = at || this.spot(leader, side, world);
+    const dy = leader.pos.y - f.pos.y, lp = leader.pos, it = leader.intent;
+    if (!leader.grounded || !f.grounded || ty === null || dy <= 1.0 || dy >= 3.2 || Math.hypot(tx - f.pos.x, tz - f.pos.z) >= reach) return;
+    const ahead = world.floorAt(lp.x + it.x * 1.2, lp.z + it.z * 1.2); // a step ahead of where you're heading
+    if (ahead === null || ahead < lp.y - 1.0) return; // you're walking off the edge: they'll come down with you
+    f.pos.set(tx, ty, tz); f.vel.set(0, 0, 0);
+  }
+
+  /** pull the follower to the leader's side (the leader has already moved this step) */
+  follow(leader, follower, side, dt, world, jumpNow) {
+    const at = this.spot(leader, side, world), [tx, tz] = at;
     const f = follower;
     const vx = (tx - f.pos.x) * 10, vz = (tz - f.pos.z) * 10;
     const sp = Math.hypot(vx, vz), max = RUN * 1.4;
     f.vel.x = sp > max ? vx / sp * max : vx;
     f.vel.z = sp > max ? vz / sp * max : vz;
-    if ((jumpNow || f.intent.jump) && f.grounded) { f.vel.y = Math.max(leader.vel.y, JUMP * 0.97); f.grounded = false; }
+    if ((jumpNow || f.intent.jump) && f.grounded) { f.vel.y = Math.max(leader.vel.y, JUMP * 0.97 * f.boost); f.grounded = false; }
     f.intent.jump = false;
     f.faceTowards(leader.heading, dt, 10);
     // if they snag on a rock or post, let them slip past it rather than tearing the hands apart
     const snagged = Math.hypot(tx - f.pos.x, tz - f.pos.z) > 1.4;
     f.integrate(dt, world, leader.glide || leader.intent.jumpHeld, !snagged);
     if (!leader.grounded && !f.grounded) f.vel.y = Math.max(f.vel.y, leader.vel.y - 1); // fly together
+    this.pullUp(leader, f, side, world, at);
   }
 
   /** after both travelers are animated: place the spark of light between the clasped hands */

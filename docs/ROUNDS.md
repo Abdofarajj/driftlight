@@ -104,3 +104,26 @@ Code: `src/world/hollow.js` (the island), `src/world/hollowquest.js` (the quest,
 **Done when:** both bots get out of the dark solo (`playtest -- name --from-hollow`) and online (`npm run nettest`),
 and a lantern going out sends you back to the last lit lamp.
 
+## Round 9: Snowy Aurora Peak (built 2026-11-13)
+Code: `src/world/peak.js` (the island), `src/world/peakquest.js` (the quest, the cold, online sync).
+- A few seconds after the Lonely Shadow turns into fireflies, a **stone bridge** rises from the Hollow's far side to a
+  snowy island with a terraced mountain in the middle: the meadow, two terraces and the summit, with a stone arch and
+  the frozen aurora bell on top. Snow falls round you, the wind gets colder the higher you climb, and the sky turns to
+  a cold dusk. A waystone checkpoint stands just past the bridge.
+- **The cold:** on your own your lantern slowly dims (faster the higher you are). Holding hands keeps you both warm,
+  and so does a lit brazier's circle or the cabin. If it goes out you wake by the last brazier you lit.
+- **Jump together:** on the peak, holding hands, you both jump higher (2.5 m instead of 1.5 m). The frost steps
+  between the terraces, the bell and the star pillar all need it.
+- **Light the 3 braziers** (meadow, first terrace, upper terrace): stand by each together, holding hands. Each is a
+  checkpoint. A ramp climbs to the first terrace; a block of ice (the frost step) and a frozen waterfall lead up to
+  the upper terrace; a second ramp winds round to the summit.
+- **Ring the aurora bell:** it stays frozen until all three braziers burn, then its ice melts. It hangs too high for
+  one: jump together under it. It rings, the aurora spreads across a starry sky and the cold eases. Next goal:
+  "Look up", the cloud tower far to the west (round 10).
+- **Star 7** on a frozen pillar on the first terrace (jump up together). **Secret 8, the log cabin** on the meadow:
+  two mugs of cocoa (one red, one blue) by the fire, found when you both step inside; their steam makes a heart.
+- Online: the host keeps the score (bridge, braziers, bell); each of you loses and regains your own warmth and sends
+  your lantern level.
+**Done when:** both bots reach the top and ring the bell solo (`playtest -- name --from-peak`) and online
+(`npm run nettest`), and the cold putting a lantern out sends you back to the last lit brazier.
+

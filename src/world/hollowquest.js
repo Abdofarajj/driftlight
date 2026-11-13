@@ -107,6 +107,7 @@ export class HollowQuest {
     // ---- your own lantern (and, playing alone, your partner's) ----
     own.forEach((act) => {
       const i = act === a ? 0 : 1;
+      if (!H.onIsland(act.pos)) { this.clinging[i] = 0; return; } // elsewhere (the Snowy Peak's cold) owns the lantern
       let n = 0;
       if (this.lonelyAt(act, linked)) for (const s of this.shadows) if (s.k > 0.5 && this._v.subVectors(s.pos, act.pos).setY(0).length() < CLING + 0.35) n++;
       this.clinging[i] = n;

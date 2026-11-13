@@ -61,6 +61,10 @@ export class GameAudio {
     this.hollowLow = this.loopNoise(140, 0.8, 0.0, this.amb);  // Whispering Hollow: a low hollow wind
     this.hollowAir = this.loopNoise(900, 2.5, 0.0, this.amb);  // and a thin moan over it
     this.lastCreak = 0; this.lastWhisper = 0;
+    this.peakWind = this.loopNoise(520, 0.5, 0.0, this.amb);   // Snowy Peak: a cold wind, gustier the higher you climb
+    this.peakHowl = this.loopNoise(1500, 6, 0.0, this.amb);    // and a thin whistle over the ridge
+    this.fire = this.loopNoise(2600, 0.7, 0.0, this.amb);      // a lit brazier or the cabin's hearth: soft crackling hiss
+    this.lastCrackle = 0;
   }
 
   setMusic(on) {
@@ -142,6 +146,10 @@ export class GameAudio {
           this.burst(t, 0.16, 0.16 * v, 'bandpass', 2200 * p, 0.5, dest, 1100);
           this.burst(t + 0.02, 0.07, 0.05 * v, 'highpass', 5200 * p, 0.6, dest);
           this.tone(80 * p, t, 0.07, 0.05 * v, 'sine', dest);
+        } else if (s === 'snow') { // snow: a soft squeaky crunch
+          this.burst(t, 0.12, 0.17 * v, 'bandpass', 1800 * p, 1.1, dest, 900);
+          this.burst(t + 0.035, 0.08, 0.09 * v, 'bandpass', 3600 * p, 2.2, dest, 2400);
+          this.tone(110 * p, t, 0.07, 0.05 * v, 'sine', dest);
         } else if (s === 'path') { // dirt crunch: two quick gritty bursts
           this.burst(t, 0.08, 0.2 * v, 'bandpass', 1500 * p, 0.9, dest);
           this.burst(t + 0.025, 0.06, 0.12 * v, 'highpass', 3200 * p, 0.7, dest);
@@ -295,6 +303,36 @@ export class GameAudio {
         this.burst(t, 0.5, 0.08, 'lowpass', 900, 0.7, dest, 200);
         this.tone(NOTE(50), t + 0.05, 1.2, 0.03, 'sine', dest, 0.05);
         break;
+      case 'brazier': // a brazier catches: a big warm whoosh, a crackle, and three warm bells
+        this.burst(t, 1.0, 0.1, 'lowpass', 300, 0.7, dest, 2400);
+        for (let i = 0; i < 6; i++) this.burst(t + 0.25 + Math.random() * 0.6, 0.03, 0.05, 'highpass', 3000, 0.8, dest);
+        [60, 67, 72].forEach((n, i) => this.bell(NOTE(n), t + 0.15 + i * 0.13, 0.06, dest, 3.4));
+        this.swell(0.25, 3);
+        break;
+      case 'crackle': // one little pop from a fire
+        this.burst(t, 0.025 + Math.random() * 0.02, 0.03 * v, 'highpass', 2500 + Math.random() * 2000, 0.8, dest);
+        break;
+      case 'cold': // the cold bites: a thin shiver of air and a falling note
+        this.burst(t, 1.1, 0.04, 'bandpass', 2600, 4, dest, 1500);
+        this.tone(NOTE(76), t, 0.8, 0.02, 'sine', dest, 0.05); this.tone(NOTE(74), t + 0.25, 0.9, 0.018, 'sine', dest, 0.05);
+        break;
+      case 'bigbell': // the aurora bell: deep and long, with a glassy ring over it
+        this.bell(NOTE(43), t, 0.15, dest, 8);
+        this.bell(NOTE(50), t + 0.03, 0.08, dest, 7);
+        this.bell(NOTE(79), t + 0.05, 0.03, dest, 5);
+        this.tone(NOTE(31), t, 6, 0.06, 'sine', dest, 0.03);
+        break;
+      case 'aurora': { // the aurora spreads: a slow shimmer of high notes over a soft chord, and the music swells
+        for (let i = 0; i < 20; i++) this.bell(NOTE(84 + [0, 2, 4, 7, 9, 11][i % 6] + (i % 3 === 0 ? 12 : 0)), t + 0.6 + i * 0.16 + Math.random() * 0.05, 0.018, dest, 2.6);
+        [55, 59, 62, 66, 71].forEach((n, i) => this.tone(NOTE(n), t + i * 0.25, 6, 0.022, 'sine', dest, 1.2));
+        this.swell(0.7, 12);
+        break;
+      }
+      case 'cocoa': { // two mugs of cocoa: a cosy little clink and a warm two-note chime
+        this.tone(NOTE(96), t, 0.4, 0.035, 'sine', dest, 0.002); this.tone(NOTE(99), t + 0.09, 0.5, 0.03, 'sine', dest, 0.002);
+        [67, 71, 74, 79].forEach((n, i) => this.bell(NOTE(n), t + 0.4 + i * 0.16, 0.04, dest, 2.4));
+        break;
+      }
       case 'musicbox': { // a little tune of our own, twice over, slowing at the end
         const tune = [79, 83, 86, 84, 83, 79, 81, 83, 81, 78, 79, 0, 79, 83, 86, 88, 86, 83, 84, 83, 81, 79];
         let s0 = t;
@@ -365,6 +403,15 @@ export class GameAudio {
       const side = Math.random() < 0.5 ? -1 : 1;
       this.play('whisper', { pos: new Vector3().copy(s.playerPos).addScaledVector(this.listener.right, side * 5).setY(s.playerPos.y + 1.2) });
     }
+    // the Snowy Peak: a cold wind (quiet inside the cabin), and fires crackling near you
+    const pk = s.peak || 0, hi = s.peakHigh || 0, warm = s.inCabin ? 0.25 : 1;
+    this.peakWind.g.gain.value += ((0.05 + 0.04 * hi + Math.sin(now * 0.37) * 0.015) * pk * warm - this.peakWind.g.gain.value) * k;
+    this.peakWind.f.frequency.value = 450 + hi * 200 + Math.sin(now * 0.29) * 120;
+    this.peakHowl.g.gain.value += ((0.004 + 0.01 * hi) * (0.6 + Math.sin(now * 0.21) * 0.4) * pk * warm - this.peakHowl.g.gain.value) * k;
+    this.peakHowl.f.frequency.value = 1300 + Math.sin(now * 0.13) * 350;
+    const fd = s.fireDist ?? 99, fire = 1 / (1 + Math.max(0, fd - 1) * 0.5) ** 2;
+    this.fire.g.gain.value += (0.03 * fire - this.fire.g.gain.value) * k;
+    if (fire > 0.08 && now - this.lastCrackle > 0.15 + Math.random() * 0.5) { this.lastCrackle = now; this.play('crackle', { vol: Math.min(1, fire * 1.5) }); }
     if (s.onMain && now - this.lastBird > 4 + Math.random() * 6) {
       this.lastBird = now;
       const a = Math.random() * Math.PI * 2;

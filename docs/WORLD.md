@@ -10,7 +10,7 @@ is north at z = -49). The sun sits low in the north-west.
 | Crystal Lake | -30, -88 | 23 | 6 | reaching the shrine (crystal bridge) | Wake the crystal heart (lotus stone pairs) | Rowboat for two |
 | Sunset Desert Ruins | 25, -135 | 26 | 7 | the heart wakes | Guide the lost sun spirit (only follows while you hold hands) | Hidden oasis |
 | Whispering Hollow (the dark island) | 85, -150 | 22 | 8 | desert | Relight 3 lamps, ring 2 bells together, comfort the Lonely Shadow | Crooked house with a music box |
-| Snowy Aurora Peak | 100, -85 | 22 | 9 | hollow | Cold dims lanterns unless you hold hands; 3 braziers; aurora bell | Cabin with cocoa |
+| Snowy Aurora Peak | 100, -85 | 22 | 9 | hollow (stone bridge) | Cold dims lanterns unless you hold hands; jump higher together; 3 braziers; aurora bell | Cabin with two mugs of cocoa |
 | Cloud Kingdom | 45, -85, high at y ≈ 35 | 18 | 10 (finale) | peak (cloud steps) | Light the beacon together | closing card |
 
 Rules for every new island:

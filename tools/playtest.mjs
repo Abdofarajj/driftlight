@@ -28,10 +28,16 @@ const results = [];
 // --from-lake: skip straight to the Crystal Lake checks (set up as if the lantern quest and shrine were done)
 // --from-desert: skip to the Sunset Desert checks (the crystal heart already awake)
 // --from-hollow: skip to the Whispering Hollow checks (the little sun already home)
-const FROM = ['hollow', 'desert', 'lake'].find((z) => process.argv.includes(`--from-${z}`)) ?? null;
+// --from-peak: skip to the Snowy Aurora Peak checks (the Lonely Shadow already comforted)
+const FROM = ['peak', 'hollow', 'desert', 'lake'].find((z) => process.argv.includes(`--from-${z}`)) ?? null;
 let skipping = FROM;
 async function objective(name, fn) {
-  if (skipping === 'hollow') {
+  if (skipping === 'peak') {
+    if (!name.startsWith('the fireflies raise a stone bridge')) return;
+    skipping = null;
+    await G(() => { const g = window.__game; g.lightAll(); g.lakeAll(); g.desertAll(); g.hollowAll(); });
+    await page.waitForFunction(() => window.__game.peakQuest.rise >= 1, null, { timeout: 180000 });
+  } else if (skipping === 'hollow') {
     if (!name.startsWith('the little sun home raises an old rope bridge')) return;
     skipping = null;
     await G(() => { window.__game.lightAll(); window.__game.lakeAll(); window.__game.desertAll(); });
@@ -216,7 +222,14 @@ await objective('bridge of light rises and leads to the shrine star', async () =
 // ---- round 4: secrets ----
 // card: the discovery card has shown this secret's title (it fades after a few seconds, which can pass quickly here)
 const sec = () => G(() => { const S = window.__game.secrets; return { n: S.count, found: S.items.map((i) => i.found), card: document.getElementById('disc-t').textContent === 'Roro Jr', counter: document.getElementById('secrets').textContent }; });
-const unlink = async () => { if ((await pos()).linked) { await G(() => window.__game.holdHands()); await wait(1200); } };
+/** press "hold hands" once and wait until the game has taken the press (frames can be slow on a headless GPU:
+ *  pressing again before then could undo it) */
+const pressHands = async () => {
+  await G(() => window.__game.holdHands());
+  await page.waitForFunction(() => !window.__game.handsPending(), null, { timeout: 20000 }).catch(() => {});
+  await wait(300);
+};
+const unlink = async () => { if ((await pos()).linked) await pressHands(); };
 const friendTo = (x, z) => G(([x, z]) => { const g = window.__game; g.B.pos.set(x, g.world.floorAt(x, z), z); g.B.vel.set(0, 0, 0); }, [x, z]);
 
 // ---- round 6: Crystal Lake ----
@@ -695,8 +708,298 @@ await objective('secret: the crooked house\'s music box only plays when you\'re 
   await wait(1500);
   const q = await hq(), s1 = await sec(), inside = await G(() => { const g = window.__game, H = g.world.hollow; return [H.inHouse(g.A.pos), H.inHouse(g.B.pos)]; });
   await shot('music-box');
-  return { pass: r.ok && r1.ok && !alone && r2.ok && q.box && s1.found[6] && s1.n === s0.n + 1 && s1.counter === `${s0.n + 1}/7`,
+  return { pass: r.ok && r1.ok && !alone && r2.ok && q.box && s1.found[6] && s1.n === s0.n + 1 && s1.counter === `${s0.n + 1}/8`,
     note: `to the door=${r.reason} in alone=${r1.reason} played alone=${alone} | in together=${r2.reason} inside=${inside} playing=${q.box} secrets ${s0.n} -> ${s1.n} counter=${s1.counter}` };
+});
+
+// ---------------- Snowy Aurora Peak (round 9) ----------------
+const pq = () => G(() => { const q = window.__game.peakQuest; return { opened: q.opened, rise: q.rise, lit: q.braziers.map((b) => b.lit), count: q.count, rung: q.rung, aur: q.aur, melt: q.melt, lv: q.lv.slice(), cold: q.cold.slice(), climbed: q.climbed, last: q.lastBrazier, heart: q.heartK, arrived: q.arrived, aurora: window.__game.world.peak.aurora.group.visible }; });
+const KW = await G(() => { const g = window.__game, K = g.world.peak, a = (v) => v.toArray();
+  const ring = (k, th, f = 0.5) => a(K.ringAt(k, th, f));
+  const th = (v) => Math.atan2(v.z - K.mc.z, v.x - K.mc.x);
+  const s1 = K.step.pos, sp = K.pillar.pos, s1th = th(s1), spth = th(sp);
+  const mcR = (v) => Math.hypot(v.x - K.mc.x, v.z - K.mc.z);
+  const at = (r, t, y = 0) => [K.mc.x + Math.cos(t) * r, y, K.mc.z + Math.sin(t) * r];
+  return { c: a(K.center), r: K.radius, from: a(K.bridge.data.from), to: a(K.bridge.data.to), cairn: a(K.cairn.pos), mc: a(K.mc), levels: K.levels,
+    braziers: K.braziers.map((Z) => a(Z.pos)), brazierCps: K.braziers.map((Z) => a(Z.checkpoint.pos)),
+    cpCairn: g.world.checkpoints.indexOf(K.cairn), cpBraz: K.braziers.map((Z) => g.world.checkpoints.indexOf(Z.checkpoint)),
+    step: a(s1), stepR: K.step.r, stepTop: K.step.top, pillar: a(sp), pillarR: K.pillar.r, pillarTop: K.pillar.top, star: a(K.starPos),
+    bell: a(K.bell.pos), rimY: K.bellRimY, rampC: [a(K.ramps[1].at(0.02)), a(K.ramps[1].at(0.97))],
+    door: a(K.cabinDoor), inside: a(K.cabinInside), cold: a(K.cabinDoor.clone().lerp(K.cairn.pos, 0.45)),
+    // the frost step: its foot on the first terrace (towards the brazier), its outer side, and where you land above it
+    s1foot: at(mcR(s1), s1th - 2.2 / mcR(s1)), s1out: at(K.tierR(1, s1th) + 1.55, s1th), t2land: ring(2, s1th + 0.02, 0.45),
+    t2drop: ring(2, 0.92, 0.85), t1below: ring(1, 0.85, 0.45), pillarFoot: at(mcR(sp), spth - 1.6 / mcR(sp)) }; });
+
+// The peak has levels (meadow, two terraces, the summit), so its grid also keeps each cell's height and only steps between
+// cells that are within half a metre of each other (ramps yes, cliffs no). Colliders with a `top` only count for cells below it.
+const PNAV = await G(([cx, cz, R]) => {
+  const w = window.__game.world, S = 0.35, half = R + 3, N = Math.ceil(half * 2 / S), x0 = cx - half, z0 = cz - half;
+  const h = new Array(N * N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) h[j * N + i] = w.floorAt(x0 + i * S, z0 + j * S);
+  const cols = w.colliders.filter((c) => !c.off && (c.ax !== undefined ? Math.hypot(c.ax - cx, c.az - cz) < half + 2 : Math.hypot(c.x - cx, c.z - cz) < half + 2))
+    .map((c) => (c.ax !== undefined ? { ax: c.ax, az: c.az, bx: c.bx, bz: c.bz, r: c.r, top: c.top } : { x: c.x, z: c.z, r: c.r, top: c.top }));
+  return { S, N, x0, z0, h, cols };
+}, [KW.c[0], KW.c[2], KW.r]);
+const pnavCell = (() => {
+  const { S, N, x0, z0, h, cols } = PNAV, hard = new Uint8Array(N * N), soft = new Float32Array(N * N);
+  const segD = (x, z, c) => { const abx = c.bx - c.ax, abz = c.bz - c.az, t = Math.max(0, Math.min(1, ((x - c.ax) * abx + (z - c.az) * abz) / (abx * abx + abz * abz))); return Math.hypot(x - c.ax - abx * t, z - c.az - abz * t); };
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const k = j * N + i, x = x0 + i * S, z = z0 + j * S;
+    if (h[k] === null) { hard[k] = 1; continue; }
+    let edge = false;
+    for (const [di, dj] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N || h[jj * N + ii] === null) edge = true; }
+    if (edge) { hard[k] = 1; continue; }
+    for (const c of cols) {
+      if (c.top !== undefined && h[k] > c.top - 0.2) continue;
+      const d = (c.ax !== undefined ? segD(x, z, c) : Math.hypot(x - c.x, z - c.z)) - c.r;
+      if (d < 0.4) { hard[k] = 1; break; }
+      if (d < 1.0) soft[k] = Math.max(soft[k], (1.0 - d) * 4);
+    }
+    // keep away from drops: a cell beside a lower neighbour is costly
+    for (const [di, dj] of [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [0, -2]]) { const n = (j + dj) * N + i + di; if (h[n] !== null && h[k] - h[n] > 0.6) soft[k] = Math.max(soft[k], 3); }
+  }
+  return { hard, soft };
+})();
+function peakPath(from, to) {
+  const { S, N, x0, z0, h } = PNAV, { hard, soft } = pnavCell;
+  const cell = (x, z) => [Math.round((x - x0) / S), Math.round((z - z0) / S)];
+  const free = ([i, j], y) => { // the nearest open cell at about this height
+    let best = null, bd = 1e9;
+    for (let dj = -8; dj <= 8; dj++) for (let di = -8; di <= 8; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N || hard[jj * N + ii] || Math.abs(h[jj * N + ii] - y) > 0.8) continue; const d = di * di + dj * dj; if (d < bd) { bd = d; best = [ii, jj]; } }
+    return best;
+  };
+  const toY = to[1] || (h[cell(to[0], to[2])[1] * N + cell(to[0], to[2])[0]] ?? from[1]);
+  const a = free(cell(from[0], from[2]), from[1]), b = free(cell(to[0], to[2]), toY);
+  if (!a || !b) return [[to[0], to[2]]];
+  const start = a[1] * N + a[0], goal = b[1] * N + b[0];
+  const g = new Float32Array(N * N).fill(1e9), prev = new Int32Array(N * N).fill(-1), done = new Uint8Array(N * N);
+  const open = [[0, start]]; g[start] = 0;
+  const hh = (k) => Math.hypot((k % N) - b[0], Math.floor(k / N) - b[1]);
+  while (open.length) {
+    let bi = 0; for (let q = 1; q < open.length; q++) if (open[q][0] < open[bi][0]) bi = q;
+    const [, k] = open[bi]; open[bi] = open[open.length - 1]; open.pop();
+    if (done[k]) continue; done[k] = 1;
+    if (k === goal) break;
+    const i = k % N, j = Math.floor(k / N);
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      if (!di && !dj) continue;
+      const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue;
+      const n = jj * N + ii; if (hard[n] || done[n] || Math.abs(h[n] - h[k]) > 0.5) continue;
+      const c = g[k] + Math.hypot(di, dj) * (1 + soft[n]);
+      if (c < g[n]) { g[n] = c; prev[n] = k; open.push([c + hh(n), n]); }
+    }
+  }
+  if (prev[goal] === -1 && goal !== start) return null;
+  const cells = []; for (let k = goal; k !== -1; k = prev[k]) cells.unshift(k);
+  const P = (k) => [x0 + (k % N) * S, z0 + Math.floor(k / N) * S];
+  const clear = (p, q) => { const d = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.ceil(d / 0.12); let ly = null;
+    for (let s = 0; s <= n; s++) { const x = p[0] + (q[0] - p[0]) * s / n, z = p[1] + (q[1] - p[1]) * s / n, [i, j] = cell(x, z), k = j * N + i; if (hard[k] || soft[k] >= 3) return false; if (ly !== null && Math.abs(h[k] - ly) > 0.5) return false; ly = h[k]; } return true; };
+  const pts = []; let cur = [from[0], from[2]], idx = 0;
+  while (idx < cells.length - 1) {
+    let far = idx + 1;
+    for (let k = cells.length - 1; k > idx + 1; k--) if (clear(cur, P(cells[k]))) { far = k; break; }
+    cur = P(cells[far]); pts.push(cur); idx = far;
+  }
+  pts.push([to[0], to[2]]);
+  return pts;
+}
+async function pgo(to, opts = {}) {
+  const p = await pos();
+  const pts = peakPath(p.me, to);
+  if (!pts) return { ok: false, reason: 'no path', from: p.me, to };
+  const last = pts.pop();
+  const r = await legs(pts, { tol: 0.6, timeout: 25, ...opts, tol: 0.45 }); // tight: cutting a corner on a ramp can miss the top
+  if (!r.ok) return r;
+  return legs([last], { tol: 0.6, timeout: 25, ...opts });
+}
+let fetchLog = [];
+async function fetchHerP() {
+  fetchLog = [];
+  for (let k = 0; k < 3; k++) {
+    const p = await pos();
+    if (p.linked) return true;
+    let r = null;
+    if (dist2(p.me, p.friend) > 2.0) r = await pgo(p.friend, { tol: 1.4 }); // she may be tucked against a wall: just get close
+    await pressHands();
+    const p2 = await pos();
+    fetchLog.push(`me ${p2.me.map((v) => v.toFixed(1))} her ${p2.friend.map((v) => v.toFixed(1))} walk=${r ? r.reason || 'ok' : '-'} linked=${p2.linked} "${await toast()}"`);
+  }
+  return (await pos()).linked;
+}
+/** jump on the spot and wait until you're back on the ground (in game time: frames can be slow here) */
+async function jumpAndLand() {
+  await G(() => { const g = window.__game, w = window.__air = { up: false, down: false };
+    const tick = () => { if (!g.A.grounded) w.up = true; else if (w.up) w.down = true; if (!w.down) requestAnimationFrame(tick); }; tick(); });
+  await G(() => window.__game.jump(0));
+  await page.waitForFunction(() => window.__air.down, null, { timeout: 30000 }).catch(() => {});
+}
+/** walk at a spot and jump right away (holding hands, you both jump: higher on the peak). Returns the highest point reached. */
+async function hopTo(to, opts = {}) {
+  await G(() => { const g = window.__game; window.__hop = { maxA: g.A.pos.y, maxB: g.B.pos.y, stop: false, up: false, down: false };
+    const tick = () => { const w = window.__hop; w.maxA = Math.max(w.maxA, g.A.pos.y); w.maxB = Math.max(w.maxB, g.B.pos.y);
+      if (!g.A.grounded) w.up = true; else if (w.up) w.down = true;
+      if (!w.stop) requestAnimationFrame(tick); }; tick(); });
+  await G(() => window.__game.jump(0));
+  const r = await goTo(to[0], to[2], { tol: 0.35, timeout: 8, ...opts });
+  await page.waitForFunction(() => window.__hop.down, null, { timeout: 20000 }).catch(() => {}); // back on the ground (game time)
+  await wait(400);
+  const hop = await G(() => { window.__hop.stop = true; return window.__hop; });
+  return { r, ...hop };
+}
+
+await objective('the fireflies raise a stone bridge; cross it hand in hand to the Snowy Peak', async () => {
+  let q = await pq();
+  for (let k = 0; k < 40 && q.rise < 1; k++) { await wait(800); q = await pq(); }
+  await unlink();
+  const e = KW.from, dx = KW.to[0] - e[0], dz = KW.to[2] - e[2], d = Math.hypot(dx, dz), ux = dx / d, uz = dz / d;
+  await G(([x, z, h, fx, fz]) => { const g = window.__game; g.teleport(x, z, h); g.B.pos.set(fx, g.world.floorAt(fx, fz), fz); g.B.vel.set(0, 0, 0); },
+    [e[0] - ux * 1.6, e[2] - uz * 1.6, Math.atan2(ux, uz), e[0] - ux * 1.6 - uz * 0.95, e[2] - uz * 1.6 + ux * 0.95]);
+  await wait(600); await G(() => window.__game.holdHands()); await wait(900);
+  const rows0 = await objIds();
+  let r = await legs([[e[0], e[2]], [KW.to[0], KW.to[2]]], { tol: 0.9, timeout: 40 });
+  await shot('peak-bridge');
+  if (r.ok) r = await pgo(KW.cairn, { tol: 0.9 });
+  await wait(800);
+  q = await pq(); const p = await pos(), rows = await objIds(), msg = await toast(); await shot('peak-arrive');
+  return { pass: q.rise >= 1 && rows0.includes('peak') && r.ok && p.cp === KW.cpCairn && p.linked && q.arrived && rows.includes('braziers') && !rows.includes('peak') && !rows.includes('wayOn'),
+    note: `rise=${q.rise} before=${rows0} walk=${JSON.stringify(r)} checkpoint=${p.cp} linked=${p.linked} arrived=${q.arrived} "${msg}" objectives=${rows}` };
+});
+
+await objective('hand in hand by the meadow brazier, it roars to life and becomes where you wake', async () => {
+  const r = await pgo(KW.brazierCps[0], { tol: 0.5 });
+  let q = await pq();
+  for (let k = 0; k < 15 && !q.lit[0]; k++) { await wait(400); q = await pq(); }
+  await wait(400);
+  const p = await pos(), msg = await toast(); await shot('brazier-lit');
+  return { pass: r.ok && q.lit[0] && q.count === 1 && p.cp === KW.cpBraz[0] && /roars to life/.test(msg), note: `walk=${JSON.stringify(r)} lit=${q.lit} checkpoint=${p.cp} "${msg}"` };
+});
+
+await objective('let go out in the cold: your lantern dims until it goes out, and you wake by the brazier', async () => {
+  await unlink();
+  await G(() => { const q = window.__game.peakQuest; window.__lo = { minLv: 1, out: false, prev: 1, coldF: 0, stop: false };
+    const tick = () => { const w = window.__lo, lv = q.lv[0];
+      if (lv > w.prev + 0.5) w.out = true; w.prev = lv; w.minLv = Math.min(w.minLv, lv); w.coldF = Math.max(w.coldF, q.cold[1]);
+      if (!w.out) requestAnimationFrame(tick); };
+    tick(); });
+  const r = await pgo(KW.cold, { tol: 0.8 }); // out on the meadow, away from the brazier's warmth
+  await page.waitForFunction(() => window.__lo.minLv < 0.6, null, { timeout: 150000 }).catch(() => {});
+  await shot('lantern-cold');
+  const dimMsg = await toast();
+  await page.waitForFunction(() => window.__lo.out, null, { timeout: 200000 }).catch(() => {});
+  const outMsg = await toast();
+  await wait(1500);
+  const w = await G(() => window.__lo), p = await pos(), q = await pq();
+  const fromB = dist2(p.me, KW.brazierCps[0]);
+  return { pass: w.minLv < 0.1 && w.out && /cold is dimming your lantern/.test(dimMsg) && /cold put your lantern out/.test(outMsg) && fromB < 1.5 && q.lv[0] > 0.9 && p.cp === KW.cpBraz[0] && w.coldF === 0,
+    note: `walk=${JSON.stringify(r)} lantern down to ${w.minLv.toFixed(2)}, out=${w.out} "${dimMsg}" / "${outMsg}", woke ${fromB.toFixed(1)} m from the brazier, her cold (warm by the fire)=${w.coldF}` };
+});
+
+await objective('hand in hand up the ramp to the first terrace, and light the second brazier', async () => {
+  if (!(await fetchHerP())) return { pass: false, note: 'could not take her hand' };
+  await G(() => { const q = window.__game.peakQuest; window.__hh = { cold: 0, minLv: 1, stop: false };
+    const tick = () => { const w = window.__hh; if (window.__game.hands.linked) { w.cold = Math.max(w.cold, q.cold[0], q.cold[1]); w.minLv = Math.min(w.minLv, q.lv[0], q.lv[1]); } if (!w.stop) requestAnimationFrame(tick); }; tick(); });
+  const r = await pgo(KW.brazierCps[1], { tol: 0.5 });
+  await shot('terrace-one');
+  let q = await pq();
+  for (let k = 0; k < 15 && !q.lit[1]; k++) { await wait(400); q = await pq(); }
+  await wait(500);
+  const w = await G(() => { window.__hh.stop = true; return window.__hh; });
+  const p = await pos(), msg = await toast();
+  return { pass: r.ok && q.lit[1] && p.cp === KW.cpBraz[1] && Math.abs(p.me[1] - KW.levels[1]) < 0.2 && w.cold === 0 && p.linked,
+    note: `walk=${JSON.stringify(r)} lit=${q.lit} checkpoint=${p.cp} at y=${p.me[1]} (terrace ${KW.levels[1]}) cold while hand in hand=${w.cold} lanterns never below ${w.minLv.toFixed(2)} "${msg}"` };
+});
+
+await objective('the frost step is too tall alone; holding hands you jump up it together, and on up to the upper terrace', async () => {
+  // alone first
+  let r = await pgo(KW.s1foot, { tol: 0.4 });
+  await unlink();
+  const solo = await hopTo(KW.step);
+  const hint = await toast();
+  const p0 = await pos();
+  // back to her, and together
+  if (!(await fetchHerP())) return { pass: false, note: 'could not take her hand' };
+  const r2 = await pgo(KW.s1foot, { tol: 0.4 });
+  const duo = await hopTo(KW.step, { tol: 0.4 });
+  const p1 = await pos(); await shot('frost-step-together');
+  const onStep = (v) => Math.abs(v[1] - KW.stepTop) < 0.15;
+  // and from the step's outer side, up again onto the upper terrace
+  let r3 = await goTo(KW.s1out[0], KW.s1out[2], { tol: 0.35, timeout: 6 });
+  const up = await hopTo(KW.t2land, { tol: 0.6 });
+  const p2 = await pos(), q = await pq(); await shot('upper-terrace');
+  const onT2 = (v) => Math.abs(v[1] - KW.levels[2]) < 0.2;
+  return { pass: r.ok && solo.maxA < KW.stepTop - 0.3 && /Too tall to climb alone/.test(hint) && r2.ok && onStep(p1.me) && onStep(p1.friend) && p1.linked && onT2(p2.me) && onT2(p2.friend) && p2.linked && q.climbed,
+    note: `alone: walk=${r.reason} hop top ${solo.maxA.toFixed(2)} (step ${KW.stepTop}) stood at y=${p0.me[1]} "${hint}" | together: walk=${r2.reason} hop=${duo.r.reason} top ${duo.maxA.toFixed(2)}/${duo.maxB.toFixed(2)} me y=${p1.me[1]} her y=${p1.friend[1]} | up again: ${r3.reason}/${up.r.reason} me y=${p2.me[1]} her y=${p2.friend[1]} linked=${p2.linked}` };
+});
+
+await objective('light the third brazier on the upper terrace, and the bell\'s ice melts', async () => {
+  const r = await pgo(KW.brazierCps[2], { tol: 0.5 });
+  let q = await pq();
+  for (let k = 0; k < 15 && !q.lit[2]; k++) { await wait(400); q = await pq(); }
+  const msg = await toast();
+  await page.waitForFunction(() => window.__game.peakQuest.melt >= 1, null, { timeout: 60000 }).catch(() => {}); // game time: slower than real time here
+  q = await pq(); const p = await pos(), rows = await objIds(); await shot('three-braziers');
+  return { pass: r.ok && q.count === 3 && /bell starts to melt/.test(msg) && q.melt >= 1 && p.cp === KW.cpBraz[2] && rows.includes('bell') && !rows.includes('braziers'),
+    note: `walk=${JSON.stringify(r)} lit=${q.lit} "${msg}" melt=${q.melt.toFixed(2)} checkpoint=${p.cp} objectives=${rows}` };
+});
+
+await objective('up the summit ramp: the bell is too high alone, but a jump together rings it and the aurora spreads', async () => {
+  let r = await pgo(KW.rampC[0], { tol: 0.6 });
+  if (r.ok) r = await pgo(KW.bell, { tol: 0.35 });
+  await unlink();
+  await jumpAndLand();
+  await page.waitForFunction(() => /Too high for one/.test(document.querySelector('#toast').textContent), null, { timeout: 15000 }).catch(() => {});
+  const hint = await toast(), alone = (await pq()).rung;
+  if (!(await fetchHerP())) return { pass: false, note: 'could not take her hand' };
+  const r2 = await pgo(KW.bell, { tol: 0.3 });
+  await jumpAndLand();
+  await page.waitForFunction(() => window.__game.peakQuest.rung, null, { timeout: 15000 }).catch(() => {});
+  let q = await pq();
+  const msg = await toast();
+  await page.waitForFunction(() => window.__game.peakQuest.aur >= 1, null, { timeout: 60000 }).catch(() => {});
+  await wait(9000); // "look up", then the next goal
+  q = await pq(); const rows = await objIds();
+  await shot('aurora');
+  return { pass: r.ok && !alone && /Too high for one/.test(hint) && r2.ok && q.rung && /aurora bell rings out|Look up/.test(msg) && q.aur >= 1 && q.aurora && rows.includes('clouds') && !rows.includes('bell'),
+    note: `up=${JSON.stringify(r)} alone rang=${alone} "${hint}" | together: walk=${r2.reason} rung=${q.rung} "${msg}" aurora=${q.aur.toFixed(2)} visible=${q.aurora} objectives=${rows}` };
+});
+
+await objective('the star on the frozen pillar: down off the upper terrace, then jump up together', async () => {
+  const s0 = (await pos()).stars;
+  let r = await pgo(KW.rampC[0], { tol: 0.6 });
+  if (r.ok) r = await pgo(KW.t2drop, { tol: 0.5 });
+  if (r.ok) r = await goTo(KW.t1below[0], KW.t1below[2], { tol: 0.6, timeout: 8 }); // step off the edge, down to the first terrace
+  await wait(800);
+  const pDown = await pos();
+  if (r.ok) r = await pgo(KW.pillarFoot, { tol: 0.35 });
+  const hop = await hopTo(KW.pillar, { tol: 0.4 });
+  const p = await pos(); await shot('pillar-star');
+  return { pass: r.ok && Math.abs(pDown.me[1] - KW.levels[1]) < 0.3 && p.stars === s0 + 1 && Math.abs(p.me[1] - KW.pillarTop) < 0.15,
+    note: `walk=${JSON.stringify(r)} dropped to y=${pDown.me[1]} (her ${pDown.friend[1]}) hop=${hop.r.reason} top ${hop.maxA.toFixed(2)} stood at y=${p.me[1]} (her ${p.friend[1]}, pillar ${KW.pillarTop.toFixed(2)}) stars ${s0} -> ${p.stars} linked=${p.linked}` };
+});
+
+await objective('secret: the log cabin\'s two mugs of cocoa, found when you both step inside', async () => {
+  const s0 = await sec();
+  const tr = []; const at = async (label) => { const p = await pos(); tr.push(`${label}: me ${p.me.map((v) => v.toFixed(1))} her ${p.friend.map((v) => v.toFixed(1))} linked=${p.linked}`); };
+  await at('on the pillar');
+  let r = await legs([[KW.pillarFoot[0], KW.pillarFoot[2]]], { tol: 0.6, timeout: 8 }); // hop down off the pillar
+  await page.waitForFunction(() => { const g = window.__game; return g.A.grounded && g.B.grounded && Math.abs(g.A.pos.y - g.B.pos.y) < 0.3; }, null, { timeout: 20000 }).catch(() => {});
+  await at(`hopped down (${r.reason})`);
+  if (!(await pos()).linked && !(await fetchHerP())) return { pass: false, note: `could not take her hand: ${tr.join(' | ')}` };
+  if (r.ok) r = await pgo(KW.door, { tol: 0.5 });
+  await at(`at the door (${r.reason})`);
+  await unlink();
+  const r1 = await goTo(KW.inside[0], KW.inside[2], { tol: 0.35, timeout: 10 });
+  await wait(1500);
+  const alone = (await sec()).found[7];
+  await goTo(KW.door[0], KW.door[2], { tol: 0.5, timeout: 10 });
+  if (!(await fetchHerP())) return { pass: false, note: `could not take her hand again: ${tr.join(' | ')} || ${fetchLog.join(' | ')}` };
+  const r2 = await goTo(KW.inside[0], KW.inside[2], { tol: 0.3, timeout: 10 });
+  await wait(2500);
+  const q = await pq(), s1 = await sec(), inside = await G(() => { const g = window.__game, K = g.world.peak; return [K.inCabin(g.A.pos), K.inCabin(g.B.pos)]; });
+  const card = await page.$eval('#disc-t', (e) => e.textContent);
+  await shot('cocoa');
+  return { pass: r.ok && r1.ok && !alone && r2.ok && s1.found[7] && s1.n === s0.n + 1 && s1.counter === `${s0.n + 1}/8` && /cocoa/.test(card) && q.heart > 0.5,
+    note: `to the door=${r.reason} in alone=${r1.reason} found alone=${alone} | in together=${r2.reason} inside=${inside} heart=${q.heart.toFixed(2)} secrets ${s0.n} -> ${s1.n} counter=${s1.counter} "${card}"` };
 });
 
 await objective('secret: walk through the waterfall and find Roro Jr', async () => {
@@ -710,7 +1013,7 @@ await objective('secret: walk through the waterfall and find Roro Jr', async () 
   await wait(700);
   const s1 = await sec(); await shot('grotto-roro');
   const waving = await G(() => window.__game.secrets.waveT > 0);
-  return { pass: !s0.found[0] && s1.found[0] && s1.card && s1.counter === `${s0.n + 1}/7` && waving, note: `walk=${r.reason} found=${s1.found[0]} card=${s1.card} counter=${s1.counter} waving=${waving}` };
+  return { pass: !s0.found[0] && s1.found[0] && s1.card && s1.counter === `${s0.n + 1}/8` && waving, note: `walk=${r.reason} found=${s1.found[0]} card=${s1.card} counter=${s1.counter} waving=${waving}` };
 });
 
 await objective('Roro\'s grotto: walls hold, and you can walk back out', async () => {
@@ -822,12 +1125,12 @@ await objective('collect the star on the east island', async () => {
 
 await objective('objectives panel: every finished goal has been removed', async () => {
   await wait(2600);
-  // "follow the fireflies" stays until the snowy peak is built (round 9)
-  const left = (await G(() => window.__game.objectives.list())).filter((o) => o.id !== 'wayOn');
+  // "look up" stays until the cloud tower is built (round 10)
+  const left = (await G(() => window.__game.objectives.list())).filter((o) => o.id !== 'clouds');
   const rows = await page.$$eval('.obj', (els) => els.length);
   const s = await sec();
   await shot('objectives-cleared');
-  return { pass: left.length === 0 && rows <= 1 && s.counter === '7/7', note: `left=${JSON.stringify(left)} rows=${rows} secrets=${s.counter}` };
+  return { pass: left.length === 0 && rows <= 1 && s.counter === '8/8', note: `left=${JSON.stringify(left)} rows=${rows} secrets=${s.counter}` };
 });
 
 writeFileSync(`${out}/results.json`, JSON.stringify({ results, errors }, null, 2));

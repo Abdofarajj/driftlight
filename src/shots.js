@@ -321,6 +321,76 @@ export const SHOTS = {
       cam(camera, c0.toArray(), c1.toArray(), 72);
     },
   },
+  // the Snowy Aurora Peak from the Hollow end of the stone bridge: a snowy island with a terraced mountain
+  peak: {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q }) {
+      D.completeNow(); HQ.completeNow(); Q.open(true);
+      const K = world.peak, b = K.bridge.data, a = b.from, c = K.mc;
+      const h = Math.atan2(b.to.x - a.x, b.to.z - a.z);
+      place(me, world, a.x + Math.sin(h) * 3.0 + Math.cos(h) * 0.45, a.z + Math.cos(h) * 3.0 - Math.sin(h) * 0.45, h, { t: 2 });
+      place(friend, world, a.x + Math.sin(h) * 3.0 - Math.cos(h) * 0.45, a.z + Math.cos(h) * 3.0 + Math.sin(h) * 0.45, h, { t: 3.1 });
+      me.holdSide = 1; friend.holdSide = -1;
+      cam(camera, [a.x - Math.sin(h) * 5, a.y + 4.5, a.z - Math.cos(h) * 5], [c.x, 7.5, c.z], 50);
+    },
+  },
+  // a brazier lit on the first terrace, the frost step ahead (phone, portrait)
+  'peak-brazier': {
+    viewport: 'portrait',
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q }) {
+      D.completeNow(); HQ.completeNow(); Q.open(true); Q.lightBrazier(0, true); Q.lightBrazier(1, true);
+      const K = world.peak, Z = K.braziers[1], cp = Z.checkpoint.pos, st = K.step.pos;
+      const h = Math.atan2(st.x - cp.x, st.z - cp.z);
+      place(me, world, cp.x + Math.cos(h) * 0.45, cp.z - Math.sin(h) * 0.45, h, { t: 2 });
+      place(friend, world, cp.x - Math.cos(h) * 0.45, cp.z + Math.sin(h) * 0.45, h, { t: 3.1 });
+      me.holdSide = 1; friend.holdSide = -1;
+      // from behind the lit brazier, out over the edge of the terrace: the fire, the two of you, the frost step ahead
+      const out = Math.atan2(Z.pos.x - K.mc.x, Z.pos.z - K.mc.z);
+      cam(camera, [Z.pos.x - Math.sin(h) * 3.2 + Math.sin(out) * 3.0, cp.y + 3.6, Z.pos.z - Math.cos(h) * 3.2 + Math.cos(out) * 3.0], [st.x, cp.y + 1.0, st.z], 62);
+    },
+  },
+  // jumping together onto the frost step: too tall for one, easy for two
+  'peak-frost': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q }) {
+      D.completeNow(); HQ.completeNow(); Q.open(true); Q.lightBrazier(0, true); Q.lightBrazier(1, true);
+      const K = world.peak, st = K.step.pos, Z = K.braziers[1].pos;
+      const h = Math.atan2(st.x - Z.x, st.z - Z.z);
+      const px = st.x - Math.sin(h) * 2.1, pz = st.z - Math.cos(h) * 2.1;
+      place(me, world, px + Math.cos(h) * 0.45, pz - Math.sin(h) * 0.45, h, { t: 2, lift: 1.7, air: true });
+      place(friend, world, px - Math.cos(h) * 0.45, pz + Math.sin(h) * 0.45, h, { t: 3.1, lift: 1.6, air: true });
+      me.holdSide = 1; friend.holdSide = -1;
+      const out = Math.atan2(st.x - K.mc.x, st.z - K.mc.z);
+      cam(camera, [px - Math.sin(h) * 4.5 + Math.sin(out) * 3.2, st.y + 1.6, pz - Math.cos(h) * 4.5 + Math.cos(out) * 3.2], [st.x, st.y + 0.4, st.z], 54);
+    },
+  },
+  // the aurora bell rung at the top: the bell swings and the aurora spreads over a starry sky
+  'peak-bell': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q }) {
+      D.completeNow(); HQ.completeNow(); Q.completeNow(); Q.ringT = 1.2;
+      const K = world.peak, c = K.summit;
+      place(me, world, c.x + 0.45, c.z + 0.2, Math.PI, { t: 2, lift: 1.0, air: true });
+      place(friend, world, c.x - 0.45, c.z + 0.2, Math.PI, { t: 3.1, lift: 0.95, air: true });
+      me.holdSide = -1; friend.holdSide = 1;
+      cam(camera, [c.x + 1.2, c.y + 1.6, c.z + 5.2], [c.x - 0.6, c.y + 5.5, c.z - 8], 62);
+    },
+  },
+  // the log cabin: two mugs of cocoa by the fire, and their steam makes a heart
+  cocoa: {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q }) {
+      D.completeNow(); HQ.completeNow(); Q.open(true);
+      const K = world.peak, a = K.cabinAt(0, 0), f = K.cabinAt(0, 1);
+      const h = Math.atan2(f.x - a.x, f.z - a.z); // facing the hearth
+      const p1 = K.cabinAt(-0.75, -0.45), p2 = K.cabinAt(0.75, -0.45);
+      place(me, world, p1.x, p1.z, h, { t: 2 });
+      place(friend, world, p2.x, p2.z, h, { t: 3.1 });
+      Q.shotInside = true; Q.heartK = 1;
+      // from the corner by the hearth: your faces, the little table, the mugs and their steam
+      cam(camera, K.cabinAt(-1.75, 1.3, 2.0).toArray(), K.cabinAt(0.25, -0.35, 0.75).toArray(), 72);
+    },
+  },
   // the hidden sunflower garden on the meadow island
   garden: {
     viewport: 'landscape',

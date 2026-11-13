@@ -346,6 +346,49 @@ await objective('Lonely Shadow online: hold your light up together at the stone 
   return { pass: come && linked && Math.abs(k[0] - k[1]) < 0.2 && done && lifted, note: `Lonely Shadow came on both=${come}, linked=${linked}, its progress host/guest=${k.map((v) => v.toFixed(2)).join('/')}, done on both=${done}, dark lifted and shadows gone on both=${lifted}` };
 });
 
+// ---- round 9: the Snowy Aurora Peak ----
+const KWN = await H(() => { const K = window.__game.world.peak, a = (v) => v.toArray(); return { cps: K.braziers.map((Z) => a(Z.checkpoint.pos)), bell: a(K.bell.pos), door: a(K.cabinDoor), levels: K.levels }; });
+
+await objective('Snowy Peak online: the stone bridge rises on both screens, a brazier you light together burns on both, and each of you feels your own cold', async () => {
+  await letGo();
+  const risen = await until(() => onBoth(() => window.__game.peakQuest.rise >= 1), 40000);
+  const C = KWN.cps[0];
+  await H(([x, z]) => window.__game.teleport(x, z, Math.PI), [C[0], C[2]]);
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, Math.PI), [C[0] + 0.9, C[2] + 0.2]);
+  await wait(1500);
+  await H(() => window.__game.holdHands());
+  const linked = await until(() => onBoth(() => window.__game.hands.linked), 8000);
+  const lit = await until(() => onBoth(() => window.__game.peakQuest.braziers[0].lit), 12000);
+  const cp = await guest.evaluate(() => window.__game.checkpoint === window.__game.world.checkpoints.indexOf(window.__game.world.peak.braziers[0].checkpoint));
+  await both('16-peak-brazier');
+  // let go, and she walks off into the cold: her lantern dims on her screen, and his screen shows the same
+  await letGo();
+  const d = KWN.door;
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, Math.PI), [d[0], d[2]]);
+  await wait(7000);
+  const lv = [await guest.evaluate(() => window.__game.peakQuest.lv[0]), await H(() => window.__game.peakQuest.lv[1]), await H(() => window.__game.peakQuest.lv[0])];
+  return { pass: risen && linked && lit && cp && lv[0] < 0.95 && Math.abs(lv[0] - lv[1]) < 0.15 && lv[2] > 0.95,
+    note: `bridge up on both=${risen}, linked=${linked}, lit on both=${lit}, guest wakes by it=${cp}, her lantern in the cold ${lv[0].toFixed(2)} on her screen / ${lv[1].toFixed(2)} on his, his by the fire ${lv[2].toFixed(2)}` };
+});
+
+await objective('the aurora bell online: holding hands you both jump higher, and the bell rings with the aurora on both screens', async () => {
+  await H(() => { const q = window.__game.peakQuest; q.lightBrazier(1, true); q.lightBrazier(2, true); });
+  const ready = await until(() => onBoth(() => window.__game.peakQuest.count === 3), 8000);
+  const b = KWN.bell;
+  await H(([x, z]) => window.__game.teleport(x, z, Math.PI), [b[0] - 0.45, b[2]]);
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, Math.PI), [b[0] + 0.45, b[2]]);
+  await wait(1500);
+  await H(() => window.__game.holdHands());
+  const linked = await until(() => onBoth(() => window.__game.hands.linked), 8000);
+  await guest.evaluate(() => { const g = window.__game; window.__top = g.A.pos.y; const tick = () => { window.__top = Math.max(window.__top, g.A.pos.y); requestAnimationFrame(tick); }; tick(); });
+  await H(() => window.__game.jump(0));
+  const rung = await until(() => onBoth(() => window.__game.peakQuest.rung), 10000);
+  const top = await guest.evaluate(() => window.__top - window.__game.world.peak.levels[3]);
+  const aurora = await until(() => onBoth(() => window.__game.peakQuest.aur > 0.5 && window.__game.world.peak.aurora.group.visible), 20000);
+  await both('17-peak-aurora');
+  return { pass: ready && linked && rung && top > 2.0 && aurora, note: `braziers on both=${ready}, linked=${linked}, rung on both=${rung}, she jumped ${top.toFixed(2)} m on her screen (alone it's 1.47), aurora on both=${aurora}` };
+});
+
 await objective('guest leaves: the host is told and keeps playing', async () => {
   await guest.close({ runBeforeUnload: true }); guest = null; // like closing the tab
   const ok = await until(async () => !(await H(() => window.__game.net.online)), 20000);

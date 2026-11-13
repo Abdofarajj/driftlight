@@ -76,6 +76,17 @@ export const PAL = {
   wispCore: c('#eef6ff'), wispHalo: c('#8cbcff'), // cold blue wisps, the shadows' eyes
   flyCore: c('#fbffd0'), flyHalo: c('#c9ee7a'),   // fireflies
 
+  // Snowy Aurora Peak (round 9): cold snow in lavender shade, warm fires, an aurora after the bell
+  snow: [c('#f2edf8'), c('#b3acd6')],         // snow: soft white (glows stay brighter), lavender in shade
+  snowPath: [c('#ebe1f2'), c('#a99ec8')],     // trodden snow on the paths and ramps
+  ice: [c('#dcf2f8'), c('#94acd4')],          // frost steps, the frozen pillar, the bell's ice
+  rockCold: [c('#b3aacb'), c('#665f8e')],     // the mountain's cliffs and boulders
+  pine: [c('#86b4a2'), c('#406b7c')],         // snowy pines: blue-green
+  logs: [c('#d19f80'), c('#7d5b70')],         // the cabin
+  cocoa: [c('#b07a6a'), c('#71505f')],        // two mugs of cocoa
+  emberCore: c('#fff2c8'), emberHalo: c('#ff8f58'), // brazier and fireplace flames
+  auroraA: c('#8ff2c6'), auroraB: c('#d6a2ff'), auroraC: c('#a2d6ff'), // the aurora's curtains
+
   glowCore: c('#fff3c6'),
   glowHalo: c('#ffb45e'),
   rim: c('#ffd08a'),

@@ -136,3 +136,32 @@ progress agrees and the dark lifts on both screens.
   puffs together and hiding its small moving pieces from more than 110 m away). Inside the Hollow: 65-77 draws.
 - `node tools/playtest.mjs <name> --from-hollow` runs only the Hollow checks (about 8 minutes).
 
+
+## 2026-11-13, round 9 Snowy Aurora Peak (`playtest --from-peak` 9/9, `npm run nettest` 23/23; full playtest saved for when the whole game is done)
+New solo checks: the fireflies raise the stone bridge and you cross it hand in hand (waystone checkpoint, "Brr" hint);
+hand in hand by the meadow brazier it roars to life and becomes your checkpoint; let go out in the cold and your
+lantern dims to nothing, and you wake by the brazier; hand in hand up the ramp the cold never touches either lantern,
+and the second brazier lights; the frost step is too tall alone (1.5 m jump) but holding hands you jump up it
+together (2.5 m) and on up to the upper terrace; the third brazier melts the bell's ice; the bell is too high alone,
+together a jump rings it and the aurora spreads; star 7 on the frozen pillar with a jump together; the cocoa cabin
+(secret 8) stays quiet with one of you inside and is found with both.
+New online checks: the bridge rises, a brazier lit together shows on both screens, and her cold lantern level shows
+the same on his screen; the guest's jump together reaches over 2 m, and the bell rings and the aurora spreads on both
+screens.
+- The bot walks the peak on a grid that keeps each cell's height (ramps yes, cliffs no). See `peakPath()`.
+- First runs: the walls came out snow-white (wedding cake), the hint rings drew dark, the cocoa shot missed the
+  heart. Fixed (see LOOK.md, 2026-11-13 peak).
+- First run: arriving on the peak never counted (the waystone stands 2 m from the bridge's end, the check wanted you
+  within 1.5 m of it). It now counts once you're 1.5 m past the bridge.
+- First run: the cold never dimmed a lantern: the Hollow's code warmed lanterns back up wherever you were. Each
+  island now only touches lanterns on its own ground.
+- First run: the bot snagged on the terrace wall at the top of each ramp. Ramp tops now open onto a 0.8 m landing
+  with no wall in the way.
+- Hand in hand, hopping down off a ledge and stopping right below it left her standing up there. She now comes down
+  after you. And if you jump up somewhere together and she just misses the top (the star pillar is small), she's
+  pulled up beside you even if you stand still. Walking off a ledge no longer pops her up onto it first.
+- Headless runs here draw about 1 frame a second, so the bot now waits on the game (a hand press taken, back on the
+  ground, the bell rung) instead of fixed pauses.
+- Draws: the peak adds 6 draws seen from the forest spawn, 15 from the Hollow's heart next door, and 7-12 while
+  you're on it (its still meshes are baked into one piece per material; snow only falls while the camera is over it).
+- `node tools/playtest.mjs <name> --from-peak` runs only the peak checks (about 7 minutes).

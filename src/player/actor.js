@@ -19,6 +19,7 @@ export class Actor {
     this.predicted = false; // online partner placed by hand-holding on this screen (see Hands.stepOnline)
     this.jumpedNow = false; // online partner just hopped
     this.carried = false; // online: your partner is walking you by the hand (see Hands.stepOnline)
+    this.boost = 1; // jump strength: on the Snowy Peak, holding hands, you jump higher together (main.js)
     this.intent = { x: 0, z: 0, run: false, jump: false, jumpHeld: false };
   }
 
@@ -35,7 +36,7 @@ export class Actor {
     }
     if (this.inWind && Math.hypot(this.vel.x, this.vel.z) > 1) this.faceTowards(Math.atan2(this.vel.x, this.vel.z), dt, 5);
     else if (Math.hypot(it.x, it.z) > 0.05) this.faceTowards(Math.atan2(it.x, it.z), dt);
-    if (it.jump && this.grounded) { this.vel.y = JUMP; this.grounded = false; }
+    if (it.jump && this.grounded) { this.vel.y = JUMP * this.boost; this.grounded = false; }
     it.jump = false;
     this.integrate(dt, world, it.jumpHeld);
   }
