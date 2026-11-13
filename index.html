@@ -35,7 +35,22 @@
     .round svg { width: 26px; height: 26px; }
     #bset .slash { display: none; } #bset.muted .slash { display: inline; } #bset.muted svg { opacity: .6; }
     #bset { top: calc(env(safe-area-inset-top) + 14px); right: calc(env(safe-area-inset-right) + 14px); }
-    #bbag { top: calc(env(safe-area-inset-top) + 76px); right: calc(env(safe-area-inset-right) + 14px); }
+    #btogether { top: calc(env(safe-area-inset-top) + 76px); right: calc(env(safe-area-inset-right) + 14px); cursor: pointer; }
+    #btogether.on { box-shadow: 0 0 22px rgba(255, 205, 120, 0.9); background: radial-gradient(circle, rgba(255, 228, 160, 0.75), rgba(255, 196, 110, 0.4)); }
+    #sheet { position: fixed; inset: 0; z-index: 4; display: none; place-items: center; background: rgba(110, 70, 90, 0.28); font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif; }
+    #sheet.on { display: grid; }
+    #sheet .card { position: relative; width: min(340px, calc(100vw - 40px)); box-sizing: border-box; padding: 22px 20px 18px; border-radius: 26px; background: rgba(255, 245, 234, 0.92);
+      border: 1.5px solid #fff; box-shadow: 0 10px 40px rgba(140, 80, 100, 0.35), 0 0 30px rgba(255, 210, 140, 0.45); color: var(--ink); text-align: center; }
+    #sheet h2 { margin: 0 0 6px; font-size: 21px; color: #b2585a; }
+    #sheet p { margin: 0 0 14px; font-size: 15px; line-height: 1.4; font-weight: 600; }
+    #sheet input { width: 100%; box-sizing: border-box; padding: 10px 12px; border-radius: 14px; border: 1.5px solid #f0cdb8; background: #fffaf3; color: var(--ink); font: 600 13px ui-monospace, Menlo, monospace; text-align: center; -webkit-user-select: all; user-select: all; }
+    #sheet .row { display: flex; gap: 10px; margin-top: 12px; }
+    #sheet button { all: unset; flex: 1; padding: 11px 0; border-radius: 16px; font-size: 16px; font-weight: 800; cursor: pointer; text-align: center; -webkit-tap-highlight-color: transparent; }
+    #sheet .main { background: linear-gradient(#ffcf7f, #f6a865); color: #fff; text-shadow: 0 1px 4px rgba(160, 80, 50, 0.5); box-shadow: 0 4px 14px rgba(240, 150, 90, 0.45); }
+    #sheet .soft { background: #f8e3d4; color: var(--ink); }
+    #sheet .x { position: absolute; top: 8px; right: 10px; flex: none; width: 34px; height: 34px; padding: 0; line-height: 34px; font-size: 22px; color: #b48a90; }
+    #sheet .wait { margin-top: 12px; font-size: 13px; opacity: 0.8; font-weight: 700; }
+    #sheet [hidden] { display: none !important; }
     #joy { position: fixed; z-index: 2; left: calc(env(safe-area-inset-left) + 92px); bottom: calc(env(safe-area-inset-bottom) + 92px); top: auto; width: 128px; height: 128px; margin: -64px 0 0 -64px;
       border-radius: 50%; background: var(--glass); border: 1.5px solid var(--edge); pointer-events: none; opacity: 0.85; transform: translateY(50%); }
     #joy.on { bottom: auto; transform: none; opacity: 1; }
@@ -66,13 +81,23 @@
   <div class="ui pill"><svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg><span id="stars">0</span></div>
   <div class="ui" id="objectives" aria-label="Objectives"></div>
   <div class="ui round" id="bset" title="Music (M)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2" stroke-linecap="round"><path d="M9 17V5l10-2v12"/><circle cx="6.5" cy="17" r="2.5" fill="#8a6670" fill-opacity=".3"/><circle cx="16.5" cy="15" r="2.5" fill="#8a6670" fill-opacity=".3"/><path class="slash" d="M3 3l18 18"/></svg></div>
-  <div class="ui round" id="bbag"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2"><path d="M6 8h12l-1 12H7z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></div>
+  <div class="ui round" id="btogether" title="Play together"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="1.8" stroke-linecap="round"><circle cx="7.5" cy="7" r="2.6"/><circle cx="16.5" cy="7" r="2.6"/><path d="M3.5 20v-3.5a4 4 0 0 1 8 0V20M12.5 20v-3.5a4 4 0 0 1 8 0V20"/><path d="M12 12.6c-.9-1-2.3-.2-1.6.9L12 15l1.6-1.5c.7-1.1-.7-1.9-1.6-.9z" fill="#e98a8a" stroke="none"/></svg></div>
   <div id="joy" class="touch"><div id="knob"></div></div>
   <div class="ui round touch" id="bjump"><svg viewBox="0 0 24 24"><path d="M12 2 C13 9 15 11 22 12 C15 13 13 15 12 22 C11 15 9 13 2 12 C9 11 11 9 12 2Z" fill="#fff4d6"/></svg></div>
   <div class="ui round touch" id="bhands"><svg viewBox="0 0 48 48" fill="#fff7ea"><circle cx="15" cy="10" r="5"/><circle cx="33" cy="10" r="5"/><path d="M9 18h12l3 8 3-8h12v4l-6 2v20h-5V31h-2v13h-2V31h-2v13h-5V24l-6-2z"/></svg></div>
   <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · M music · drag to look</div>
   <div class="ui" id="toast"></div>
   <div id="fade"></div>
+  <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
+    <div class="card">
+      <button class="x" id="sheet-x" aria-label="Close">×</button>
+      <h2 id="sheet-h">Play together</h2>
+      <p id="sheet-msg"></p>
+      <input id="sheet-link" readonly hidden />
+      <div class="row" id="sheet-btns" hidden><button class="main" id="sheet-share">Share link</button><button class="soft" id="sheet-copy">Copy</button></div>
+      <div class="wait" id="sheet-wait"></div>
+    </div>
+  </div>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

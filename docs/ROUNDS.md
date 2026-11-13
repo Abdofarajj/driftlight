@@ -14,8 +14,9 @@ Lantern quest with the shrine bridge, two warm wind currents to a west meadow is
 ## Round 2b: Abdo's notes (done 2026-11-13)
 New dreamy piano music, louder footsteps, music-only mute, objectives panel (tap to expand, finished ones fade away).
 
-## Round 3: together online (waiting on the GitHub repo)
-Second traveler, host/join by link (`?room=CODE`), positions + animation synced, hold hands (button / key) with shared light.
+## Round 3: together online (built 2026-11-13, waiting on Abdo's real-device test)
+Second traveler, host/join by link (`?room=CODE&as=her`), positions + animation synced, hold hands (button / key) with shared light.
+Lanterns are scored by the host; stars by whoever touches them; hands by small messages. `npm run nettest` plays it with two bots.
 **Done when:** Abdo on iPhone and PC sees both travelers move in real time and can hold hands.
 
 ## Round 4: secrets

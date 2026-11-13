@@ -15,7 +15,9 @@ export class Actor {
     this.glide = false;
     this.airTime = 0;
     this.speed01 = 0;
-    this.inWind = false; // 0..1 walk, up to RUN/WALK when running
+    this.inWind = false;
+    this.predicted = false; // online partner placed by hand-holding on this screen (see Hands.stepOnline)
+    this.jumpedNow = false; // online partner just hopped
     this.intent = { x: 0, z: 0, run: false, jump: false, jumpHeld: false };
   }
 

@@ -14,6 +14,9 @@ import { Stars } from './world/stars.js';
 import { GameAudio } from './audio.js';
 import { pathMask, onIsland, groundHeight } from './world/forest.js';
 import { Objectives } from './ui/objectives.js';
+import { NetPlay } from './net/netplay.js';
+import { cleanCode } from './net/session.js';
+import { Invite } from './ui/invite.js';
 
 ColorManagement.enabled = false; // palette colours are used as-is
 
@@ -51,6 +54,8 @@ const spawn = world.spawn.clone(); spawn.y = world.floorAt(spawn.x, spawn.z);
 const A = new Actor(meT, spawn);
 const B = new Actor(friendT, new Vector3(spawn.x - 1.2, 0, spawn.z - 1.6));
 B.pos.y = world.floorAt(B.pos.x, B.pos.z);
+const room = shot ? '' : cleanCode(params.get('room'));
+if (room) { const p = A.pos.clone(); A.pos.copy(B.pos); B.pos.copy(p); } // joining: stand beside where the host starts
 const hands = new Hands(A, B, scene);
 const cam = { yaw: 0, pitch: 0.36, dist: 9, manualT: 10 };
 const audio = new GameAudio();
@@ -77,6 +82,52 @@ const OBJ = {
 };
 for (const id of ['hands', 'lanterns', 'wind', 'stars']) objectives.add(id, OBJ[id]);
 if (params.get('open')) objectives.setOpen(params.get('open')); // captures: show a row expanded
+
+// ---- online: invite by link, or join with ?room=CODE ----
+const She = partner === 'her' ? 'She' : 'He';
+const peerOpts = {};
+if (params.get('peerhost')) Object.assign(peerOpts, { host: params.get('peerhost'), port: Number(params.get('peerport')) || 9000, path: '/', secure: false });
+if (params.get('ice') === 'none') peerOpts.config = { iceServers: [] }; // local tests
+const online = () => !!net && net.online;
+const net = shot ? null : new NetPlay({
+  A, B, hands, quest, stars, playAs, peerOpts,
+  on: {
+    connected(back) {
+      quest.remote = net.role === 'guest';
+      toast(back ? `${She}'s back ✦` : net.role === 'host' ? `${She} joined your world ✦` : `You're together ✦`);
+      audio.play('checkpoint', { pos: A.pos });
+      invite.refresh();
+    },
+    left(reason) { quest.remote = false; toast(reason === 'quiet' ? `${She} lost connection…` : `${She} left the game`); invite.refresh(); },
+    hello(kind) {
+      // the invite link says who you are; if both of you picked the same traveler, take the other one
+      if (net.role === 'guest' && kind === playAs) { const u = new URL(location.href); u.searchParams.set('as', kind === 'him' ? 'her' : 'him'); location.replace(u); }
+    },
+    hands(linked) { toast(linked ? `${She} took your hand ✦` : `${She} let go`); },
+    error(e) {
+      const why = e && e.type;
+      if (why === 'peer-unavailable') toast(net.role === 'guest' ? 'That game has ended. Ask for a new invite link' : `${She} lost connection`);
+      else if (['network', 'server-error', 'socket-error', 'socket-closed', 'browser-incompatible'].includes(why)) toast('Can\'t reach the online service right now');
+      invite.refresh(why);
+    },
+  },
+});
+const linkFor = (code) => {
+  const u = new URL(location.origin + location.pathname);
+  u.searchParams.set('room', code);
+  u.searchParams.set('as', partner);
+  for (const k of ['peerhost', 'peerport', 'ice']) if (params.get(k)) u.searchParams.set(k, params.get(k)); // local tests
+  return u.toString();
+};
+const invite = new Invite({ net, partner, partnerHer, linkFor, toast: (m) => toast(m) });
+if (net) {
+  addEventListener('pagehide', () => net.bye()); // closing the tab: tell your partner now
+  addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); }); // back from the page cache: start fresh
+}
+if (room && net) {
+  setTimeout(() => toast(`Joining ${partnerHer} world…`), 0); // toast() is set up further down
+  net.join(room).catch(() => {});
+}
 let checkpoint = world.checkpoints[0];
 checkpoint.active = true;
 
@@ -163,7 +214,7 @@ function respawn() {
     if (auto) { const r = auto.resolve; auto = null; r({ ok: false, reason: 'respawned' }); }
     const p = checkpoint.pos;
     A.pos.set(p.x, p.y + 0.1, p.z); A.vel.set(0, 0, 0); A.heading = Math.PI;
-    if (hands.linked || B.pos.y < -18) { B.pos.set(p.x - 1.0, p.y + 0.1, p.z); B.vel.set(0, 0, 0); B.heading = Math.PI; }
+    if (!online() && (hands.linked || B.pos.y < -18)) { B.pos.set(p.x - 1.0, p.y + 0.1, p.z); B.vel.set(0, 0, 0); B.heading = Math.PI; }
     cam.yaw = 0;
     fade.classList.remove('on');
     respawning = false;
@@ -177,14 +228,21 @@ function onEvent(name, d) {
   switch (name) {
     case 'hint': toast(d); break;
     case 'lantern':
-      toast(`Lantern ${d.n} / ${d.of} lit ✦`); audio.play('lantern', { pos: d.pos });
+      if (!d.quiet) { toast(`Lantern ${d.n} / ${d.of} lit ✦`); audio.play('lantern', { pos: d.pos }); }
       objectives.update('lanterns', { progress: `${d.n}/${d.of}` });
       break;
-    case 'quest-complete': toast('All lanterns lit! The way north opens…'); audio.play('complete'); objectives.complete('lanterns'); break;
+    case 'quest-complete': if (!d.quiet) { toast('All lanterns lit! The way north opens…'); audio.play('complete'); } objectives.complete('lanterns'); break;
     case 'bridge-open': toast('A bridge of light leads to the shrine ✦'); objectives.add('shrine', OBJ.shrine); break;
     default: break;
   }
 }
+function onStar(st, n, quiet) {
+  hud.stars.textContent = n;
+  if (!quiet) { audio.play('star', { pos: st.pos }); toast(`Star found! ${n} / ${stars.items.length}`); }
+  objectives.update('stars', { progress: `${n}/${stars.items.length}` });
+  if (n >= stars.items.length) objectives.complete('stars');
+}
+stars.onCollect = onStar;
 function surfaceAt(p) {
   if (onIsland(p.x, p.z) && Math.abs(groundHeight(p.x, p.z) - p.y) < 0.2) return pathMask(p.x, p.z) > 0.5 ? 'path' : 'grass';
   if (world.isles.some((i) => Math.hypot(p.x - i.x, p.z - i.z) < i.r && Math.abs(i.y - p.y) < 0.2)) return 'grass';
@@ -226,20 +284,27 @@ function step(dt) {
   }
   Object.assign(A.intent, { x: ix, z: iz, run, jumpHeld: input.jumpHeld || botJumpHeld });
   if (input.consumeJump() || botJump) { A.intent.jump = true; botJump = false; }
-  B.intent.x = 0; B.intent.z = 0; B.intent.run = false; B.intent.jumpHeld = false;
+  if (!online()) { B.intent.x = 0; B.intent.z = 0; B.intent.run = false; B.intent.jumpHeld = false; } // the stay-at-home partner idles
 
   if (input.consumeHands()) {
     const r = hands.toggle();
     if (r === 'too-far') toast('Get closer to hold hands');
+    else if (online()) net.sendHands();
+  }
+  if (net && A.intent.jump && A.grounded) net.myJumps++;
+  if (online()) {
+    net.updateRemote(dt); // your partner's traveler, from the network
+    if (hands.stepOnline(dt, world) === 'broke') net.sendHands();
+  } else hands.step(dt, world);
+  if (hands.linked !== wasLinked) {
+    audio.play(hands.linked ? 'hands' : 'release', { pos: A.pos }); wasLinked = hands.linked;
     document.getElementById('bhands').classList.toggle('on', hands.linked);
   }
-  hands.step(dt, world);
-  if (hands.linked !== wasLinked) { audio.play(hands.linked ? 'hands' : 'release', { pos: A.pos }); wasLinked = hands.linked; }
   if (hands.linked) objectives.complete('hands');
 
   // wind currents carry anyone inside them
   windState = { inWind: -1, windDist: [] };
-  for (const act of [A, B]) {
+  for (const act of online() ? [A] : [A, B]) {
     const was = act.inWind;
     act.inWind = false;
     winds.forEach((w, i) => {
@@ -255,11 +320,7 @@ function step(dt) {
   const ch = quest.items.reduce((m, it) => Math.max(m, it.lit ? 0 : it.charge), 0);
   if (ch > 0.05 && Math.floor(ch * 6) !== Math.floor(lastCharge * 6)) audio.play('charge', { k: ch, pos: A.pos });
   lastCharge = ch;
-  stars.update(dt, t, [A, B], camera, (st, n) => {
-    hud.stars.textContent = n; audio.play('star', { pos: st.pos }); toast(`Star found! ${n} / ${stars.items.length}`);
-    objectives.update('stars', { progress: `${n}/${stars.items.length}` });
-    if (n >= stars.items.length) objectives.complete('stars');
-  });
+  stars.update(dt, t, online() ? [A] : [A, B], camera, onStar);
   // place-based objectives: land on the meadow island / reach the shrine
   if (A.grounded) {
     const on = (i) => i && Math.hypot(A.pos.x - i.x, A.pos.z - i.z) < i.r - 0.5 && Math.abs(A.pos.y - i.y) < 0.5;
@@ -283,7 +344,8 @@ function step(dt) {
       checkpoint = c;
     }
   }
-  if (A.pos.y < -18 || B.pos.y < -30) respawn();
+  if (A.pos.y < -18 || (!online() && B.pos.y < -30)) respawn();
+  if (net) net.send(performance.now());
 }
 function smooth(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
 let botJump = false, botJumpHeld = false;
@@ -365,7 +427,7 @@ window.__game = {
   goTo(x, z, opts = {}) { return new Promise((resolve) => { auto = { x, z, t: 0, lastT: 0, lastD: 1e9, resolve, ...opts }; }); },
   jump(hold = 0) { botJump = true; botJumpHeld = hold > 0; if (hold > 0) setTimeout(() => (botJumpHeld = false), hold); },
   holdHands() { input.handsPressed = true; },
-  quest, stars, winds, audio, objectives,
+  quest, stars, winds, audio, objectives, net, invite, playAs,
   lightAll() { quest.completeNow(); },
   teleport(x, z, heading = Math.PI) { A.pos.set(x, world.floorAt(x, z) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
   pos() { return { lanterns: quest.count, stars: stars.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },

@@ -33,8 +33,20 @@ export class Stars {
       s.g.position.y = s.pos.y + Math.sin(t * 2 + s.pos.x) * 0.15;
       s.halo.quaternion.copy(camera.quaternion);
       for (const a of actors) {
-        if (a.pos.distanceTo(s.pos) < 1.4) { s.got = true; this.count++; onCollect(s, this.count); break; }
+        if (a.pos.distanceTo(s.pos) < 1.4) { this.onCollect = onCollect; this.take(this.items.indexOf(s), false); break; }
       }
     }
   }
+
+  /** collect star i (also when your partner collected it on their screen). quiet: no fanfare, e.g. on joining */
+  take(i, quiet) {
+    const s = this.items[i];
+    if (!s || s.got) return;
+    s.got = true; this.count++;
+    if (quiet) { s.pop = 1; s.g.visible = false; }
+    this.onCollect?.(s, this.count, quiet);
+  }
+
+  /** bit i set = star i collected */
+  mask() { return this.items.reduce((m, s, i) => m | (s.got ? 1 << i : 0), 0); }
 }

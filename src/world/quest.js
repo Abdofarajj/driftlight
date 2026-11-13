@@ -30,12 +30,10 @@ export class LanternQuest {
       const db = Math.hypot(b.pos.x - it.pos.x, b.pos.z - it.pos.z);
       const together = linked && da < RANGE && db < RANGE;
       if (!it.lit) {
-        it.charge = together ? it.charge + dt / NEED : Math.max(0, it.charge - dt * 0.8);
         if (!linked && da < RANGE && t - it.hinted > 8) { it.hinted = t; this.events.emit('hint', 'Hold hands here to light it together'); }
-        if (it.charge >= 1) {
-          it.lit = true; this.count++;
-          this.events.emit('lantern', { n: this.count, of: this.items.length, pos: it.pos });
-          if (this.count === this.items.length) { this.done = true; this.events.emit('quest-complete', {}); }
+        if (!this.remote) { // online, the host keeps score and sends it over (applyState)
+          it.charge = together ? it.charge + dt / NEED : Math.max(0, it.charge - dt * 0.8);
+          if (it.charge >= 1) this.light(it, false);
         }
       }
       // visuals: a ring fills while charging; window glow + light pool when lit
@@ -53,6 +51,23 @@ export class LanternQuest {
       this.world.shrine.userData.setGlow(this.rise);
       if (this.rise >= 1) this.events.emit('bridge-open', {});
     }
+  }
+
+  light(it, quiet) {
+    if (it.lit) return;
+    it.lit = true; it.charge = 1; this.count++;
+    this.events.emit('lantern', { n: this.count, of: this.items.length, pos: it.pos, quiet });
+    if (this.count === this.items.length) { this.done = true; this.events.emit('quest-complete', { quiet }); }
+  }
+
+  /** host -> guest: charge of each lantern (0..1) and which are lit */
+  state() { return { c: this.items.map((it) => Math.round(it.charge * 100) / 100), l: this.items.reduce((m, it, i) => m | (it.lit ? 1 << i : 0), 0) }; }
+
+  applyState(q, quiet) {
+    this.items.forEach((it, i) => {
+      if (it.lit) return;
+      if (q.l & (1 << i)) this.light(it, quiet); else it.charge = q.c[i] ?? 0;
+    });
   }
 
   /** debug: light everything at once */

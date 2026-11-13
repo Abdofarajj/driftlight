@@ -4,7 +4,7 @@
 import { Vector3, Mesh, PlaneGeometry } from 'three';
 import { makeSoftMaterial } from '../look/material.js';
 import { PAL } from '../look/palette.js';
-import { RUN } from './actor.js';
+import { RUN, JUMP } from './actor.js';
 
 const SPACING = 0.95;   // distance between the two travelers when holding hands
 const LINK_RANGE = 2.6; // how close you must be to take hands
@@ -34,6 +34,14 @@ export class Hands {
     a.t.holdSide = this.side;
     b.t.holdSide = -this.side;
     return 'linked';
+  }
+
+  /** the partner took your hand over the network; side = which of your sides they're on */
+  linkAs(side) {
+    this.linked = true;
+    this.side = side || 1;
+    this.a.t.holdSide = this.side;
+    this.b.t.holdSide = -this.side;
   }
 
   unlink() {
@@ -70,10 +78,43 @@ export class Hands {
     if (a.pos.distanceTo(b.pos) > BREAK) this.unlink();
   }
 
+  /**
+   * Online version: `a` is you, `b` is your partner, whose own screen moves them. If they lead and you
+   * stand still, you're pulled beside them. If you lead and they stand still, this screen shows them
+   * beside you straight away (b.predicted) instead of waiting for their update to come back.
+   * Returns 'broke' if a fall pulled the hands apart.
+   */
+  stepOnline(dt, world) {
+    const { a, b } = this;
+    const partnerJumped = b.jumpedNow; b.jumpedNow = false;
+    b.predicted = false;
+    if (!this.linked) { a.step(dt, world); return null; }
+    const am = this.moving(a), bm = this.moving(b);
+    if (bm && !am) {
+      this.follow(b, a, -this.side, dt, world, partnerJumped);
+    } else if (am && !bm) {
+      this.lead(a, b, this.side, dt, world);
+      b.predicted = true;
+    } else {
+      if (partnerJumped && !am && a.grounded) a.intent.jump = true; // standing together: hop when they hop
+      a.step(dt, world);
+      const d = this._v.subVectors(b.pos, a.pos); d.y = 0;
+      const len = d.length();
+      if (len > SPACING * 1.25) a.pos.addScaledVector(d, (len - SPACING * 1.25) / len * 0.5);
+    }
+    if (a.pos.distanceTo(b.pos) > BREAK) { this.unlink(); return 'broke'; }
+    return null;
+  }
+
   /** leader walks by its own intent; follower is pulled to its side. */
   lead(leader, follower, side, dt, world) {
     const jumpNow = leader.intent.jump && leader.grounded;
     leader.step(dt, world);
+    this.follow(leader, follower, side, dt, world, jumpNow);
+  }
+
+  /** pull the follower to the leader's side (the leader has already moved this step) */
+  follow(leader, follower, side, dt, world, jumpNow) {
     localX(leader.heading, this._x);
     const tx = leader.pos.x + this._x.x * side * SPACING, tz = leader.pos.z + this._x.z * side * SPACING;
     const f = follower;
@@ -81,7 +122,8 @@ export class Hands {
     const sp = Math.hypot(vx, vz), max = RUN * 1.4;
     f.vel.x = sp > max ? vx / sp * max : vx;
     f.vel.z = sp > max ? vz / sp * max : vz;
-    if (jumpNow && f.grounded) { f.vel.y = leader.vel.y; f.grounded = false; }
+    if ((jumpNow || f.intent.jump) && f.grounded) { f.vel.y = Math.max(leader.vel.y, JUMP * 0.97); f.grounded = false; }
+    f.intent.jump = false;
     f.faceTowards(leader.heading, dt, 10);
     // if they snag on a rock or post, let them slip past it rather than tearing the hands apart
     const snagged = Math.hypot(tx - f.pos.x, tz - f.pos.z) > 1.4;

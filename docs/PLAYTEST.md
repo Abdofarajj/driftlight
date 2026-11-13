@@ -38,3 +38,13 @@ Found and fixed:
 - On a real browser the first frame's timestamp can land a hair before the start time, so time went negative for one
   frame, the wind petals asked for a point before the start of their path, and the game loop stopped. The bot never saw
   it because it runs fixed time steps; a direct load of the single-file preview did. Frame time is now clamped at 0.
+
+## 2026-11-13, round 3 online (`npm run nettest`, 9/9 pass)
+Two browsers with a local PeerJS signalling server (the real game uses the free public one). Objectives: host makes an
+invite link; guest opens it and both connect (guest plays her); each sees the other walk; hold hands on both screens;
+host leads and the guest is pulled along on her own screen; light a lantern together (both count it); guest finds a
+star (host counts it); guest closes the tab (host is told and keeps playing). Solo playtest still 20/20.
+
+Found and fixed:
+- Closing the tab left the partner standing there for ~30 s; the page now says goodbye on close, and a partner who goes
+  silent for 12 s is shown as gone (and comes back if they resume, e.g. after switching apps on the phone).
