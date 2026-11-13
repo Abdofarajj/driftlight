@@ -74,7 +74,7 @@ const hud = { stars: document.getElementById('stars'), secrets: document.getElem
 // ---- objectives (tap a row to see more; finished ones fade away) ----
 const touchUI = matchMedia('(hover: none), (pointer: coarse)').matches;
 const partner = playAs === 'him' ? 'her' : 'him', partnerHer = playAs === 'him' ? 'her' : 'his';
-const objectives = new Objectives(document.getElementById('objectives'), { instant: !!shot });
+const objectives = new Objectives(document.getElementById('objectives'), { instant: !!shot, limit: document.getElementById('joy') });
 const westIsle = world.isles.find((i) => i.x < -40);
 const shrineIsle = world.isles.find((i) => i.z < -40);
 const OBJ = {
@@ -87,6 +87,7 @@ const OBJ = {
 };
 for (const id of ['hands', 'lanterns', 'wind', 'stars', 'secrets']) objectives.add(id, OBJ[id]);
 if (params.get('open')) objectives.setOpen(params.get('open')); // captures: show a row expanded
+requestAnimationFrame(() => objectives.layout()); // again once the page has its real size
 
 // ---- online: invite by link, or join with ?room=CODE ----
 const She = partner === 'her' ? 'She' : 'He';
@@ -474,7 +475,7 @@ window.__game = {
   frames() { return frames; },
   setRender(on) { renderOn = on; },
   redraw() { updateLights(shot ? camera.position : A.pos); post.render(scene, camera, t); }, // tests: draw one frame now
-  scene, camera,
+  scene, camera, renderer,
   lightAll() { quest.completeNow(); },
   teleport(x, z, heading = Math.PI) { A.pos.set(x, world.floorAt(x, z) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
   pos() { return { lanterns: quest.count, stars: stars.count, secrets: secrets.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
@@ -483,8 +484,9 @@ window.__game = {
 // tiny FPS readout with ?fps
 if (params.has('fps')) {
   const el = document.createElement('div');
-  el.style.cssText = 'position:fixed;left:8px;bottom:8px;z-index:9;font:12px monospace;color:#fff;text-shadow:0 0 3px #000';
+  // bottom middle, inside the safe area (a phone's rounded corners hide anything right in the corner)
+  el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 10px);z-index:9;padding:3px 10px;border-radius:999px;background:rgba(110,70,90,.55);font:700 13px ui-monospace,Menlo,monospace;color:#fff7ea;pointer-events:none';
   document.body.appendChild(el);
   let n = 0, t0 = performance.now();
-  setInterval(() => { const t1 = performance.now(); el.textContent = `${Math.round((frames - n) * 1000 / (t1 - t0))} fps @${dpr}x`; n = frames; t0 = t1; }, 1000);
+  setInterval(() => { const t1 = performance.now(); el.textContent = `${Math.round((frames - n) * 1000 / (t1 - t0))} fps · ${dpr}x · ${renderer.domElement.width}×${renderer.domElement.height}`; n = frames; t0 = t1; }, 1000);
 }

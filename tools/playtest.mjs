@@ -187,18 +187,19 @@ await objective('bridge of light rises and leads to the shrine star', async () =
 });
 
 // ---- round 4: secrets ----
-const sec = () => G(() => { const S = window.__game.secrets; return { n: S.count, found: S.items.map((i) => i.found), card: document.getElementById('discover').classList.contains('on'), counter: document.getElementById('secrets').textContent }; });
+// card: the discovery card has shown this secret's title (it fades after a few seconds, which can pass quickly here)
+const sec = () => G(() => { const S = window.__game.secrets; return { n: S.count, found: S.items.map((i) => i.found), card: document.getElementById('disc-t').textContent === 'Roro Jr', counter: document.getElementById('secrets').textContent }; });
 const unlink = async () => { if ((await pos()).linked) { await G(() => window.__game.holdHands()); await wait(1200); } };
 const friendTo = (x, z) => G(([x, z]) => { const g = window.__game; g.B.pos.set(x, g.world.floorAt(x, z), z); g.B.vel.set(0, 0, 0); }, [x, z]);
 
 await objective('secret: walk through the waterfall and find Roro Jr', async () => {
   await unlink();
   const out = await G(() => window.__game.secrets.gToWorld(0, 4.6));
-  const inside = await G(() => window.__game.secrets.gToWorld(0, -0.15));
+  const inside = await G(() => window.__game.secrets.gToWorld(0, 0.85)); // just behind the water, where Roro's cushion stops you
   await G(([x, z]) => window.__game.teleport(x, z, 0), [out.x, out.z]);
   await wait(800); await shot('grotto-outside');
   const s0 = await sec();
-  const r = await goTo(inside.x, inside.z, { tol: 0.5, timeout: 12 });
+  const r = await goTo(inside.x, inside.z, { tol: 0.25, timeout: 12 });
   await wait(700);
   const s1 = await sec(); await shot('grotto-roro');
   const waving = await G(() => window.__game.secrets.waveT > 0);

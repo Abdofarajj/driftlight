@@ -8,5 +8,5 @@ export const SECRETS_TEXT = {
 };
 
 // Gentle hints in the objectives panel (tap "Find the secrets" to read them).
-export const SECRET_HINTS = 'Someone soft waits behind falling water. A small light sleeps in the roots of a big tree. '
-  + 'Mushrooms in a circle only dance for two. And somewhere the warm wind goes, sunflowers are hiding.';
+export const SECRET_HINTS = 'Someone soft waits behind falling water. A small light sleeps under a big tree. '
+  + 'Mushrooms in a circle dance only for two. Sunflowers hide where the warm wind goes.';
