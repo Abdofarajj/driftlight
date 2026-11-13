@@ -44,13 +44,14 @@ await objective('objectives panel: tap a row to see its details, tap again to cl
   // the page is busy with fast physics here, so give the CSS transitions time to settle
   const openNow = () => G(() => window.__game.objectives.open);
   const detailH = () => page.$eval('.obj[data-id="lanterns"] .d', (e) => e.getBoundingClientRect().height);
+  const settle = async (want) => { for (let i = 0; i < 10; i++) { const h = await detailH(); if (want(h)) return h; await wait(500); } return detailH(); };
   await page.click('.obj[data-id="lanterns"]');
   await wait(1500);
-  const o1 = await openNow(), h1 = await detailH();
+  const o1 = await openNow(), h1 = await settle((h) => h > 20);
   await shot('objectives-expanded');
   await page.click('.obj[data-id="lanterns"]');
   await wait(1500);
-  const o2 = await openNow(), h2 = await detailH();
+  const o2 = await openNow(), h2 = await settle((h) => h < 2);
   return { pass: before === 'hands,lanterns,wind,stars' && o1 === 'lanterns' && h1 > 20 && o2 === null && h2 < 2, note: `rows=${before} open=${o1} (${h1.toFixed(0)}px) then ${o2} (${h2.toFixed(0)}px)` };
 });
 

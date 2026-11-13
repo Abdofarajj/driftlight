@@ -10,8 +10,10 @@ export const makeCode = () => Array.from({ length: 5 }, () => LETTERS[Math.floor
 export const cleanCode = (s) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 12);
 
 export class NetSession {
-  constructor(peerOpts = {}) {
+  constructor(peerOpts = {}, lag = null) {
     this.peerOpts = peerOpts;
+    this.lag = lag; // tests: { ms, jitter } simulated one-way internet delay on incoming messages
+    this.lastDeliver = 0;
     this.peer = null;
     this.conn = null;
     this.role = null; // 'host' | 'guest'
@@ -68,7 +70,13 @@ export class NetSession {
   attach(c) {
     this.conn = c;
     c.on('open', () => { this.connected = true; this.redials = 0; this.emit('open'); });
-    c.on('data', (m) => this.emit('msg', m));
+    c.on('data', (m) => {
+      if (!this.lag) { this.emit('msg', m); return; }
+      // in order, like the real channel, but late
+      const at = Math.max(this.lastDeliver, performance.now() + this.lag.ms + Math.random() * this.lag.jitter);
+      this.lastDeliver = at;
+      setTimeout(() => this.emit('msg', m), at - performance.now());
+    });
     c.on('close', () => {
       if (this.conn !== c) return;
       const was = this.connected;

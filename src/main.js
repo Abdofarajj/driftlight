@@ -91,6 +91,7 @@ if (params.get('ice') === 'none') peerOpts.config = { iceServers: [] }; // local
 const online = () => !!net && net.online;
 const net = shot ? null : new NetPlay({
   A, B, hands, quest, stars, playAs, peerOpts,
+  lag: params.get('lag') ? { ms: Number(params.get('lag')), jitter: Number(params.get('jitter')) || 0 } : null, // tests: fake internet delay
   on: {
     connected(back) {
       quest.remote = net.role === 'guest';
@@ -116,7 +117,7 @@ const linkFor = (code) => {
   const u = new URL(location.origin + location.pathname);
   u.searchParams.set('room', code);
   u.searchParams.set('as', partner);
-  for (const k of ['peerhost', 'peerport', 'ice']) if (params.get(k)) u.searchParams.set(k, params.get(k)); // local tests
+  for (const k of ['peerhost', 'peerport', 'ice', 'lag', 'jitter']) if (params.get(k)) u.searchParams.set(k, params.get(k)); // local tests
   return u.toString();
 };
 const invite = new Invite({ net, partner, partnerHer, linkFor, toast: (m) => toast(m) });
@@ -294,7 +295,7 @@ function step(dt) {
   if (net && A.intent.jump && A.grounded) net.myJumps++;
   if (online()) {
     net.updateRemote(dt); // your partner's traveler, from the network
-    if (hands.stepOnline(dt, world) === 'broke') net.sendHands();
+    if (hands.stepOnline(dt, world, carry) === 'broke') net.sendHands();
   } else hands.step(dt, world);
   if (hands.linked !== wasLinked) {
     audio.play(hands.linked ? 'hands' : 'release', { pos: A.pos }); wasLinked = hands.linked;
@@ -305,6 +306,7 @@ function step(dt) {
   // wind currents carry anyone inside them
   windState = { inWind: -1, windDist: [] };
   for (const act of online() ? [A] : [A, B]) {
+    if (act.carried) continue; // your partner's screen is moving you (and their wind) right now
     const was = act.inWind;
     act.inWind = false;
     winds.forEach((w, i) => {
@@ -347,6 +349,7 @@ function step(dt) {
   if (A.pos.y < -18 || (!online() && B.pos.y < -30)) respawn();
   if (net) net.send(performance.now());
 }
+const carry = (act, dt) => net.applyCarry(act, dt); // your partner is walking you by the hand
 function smooth(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
 let botJump = false, botJumpHeld = false;
 
@@ -412,12 +415,13 @@ function frame(now) {
     });
   }
   updateLights(shot ? camera.position : A.pos);
-  post.render(scene, camera, t);
+  if (renderOn) post.render(scene, camera, t);
   frames++;
   if (shot && frames === 3) { window.__ready = true; return; } // freeze: captures need a still frame
   requestAnimationFrame(frame);
 }
 let frames = 0;
+let renderOn = true; // tests can pause drawing so physics + network run in real time on a slow headless GPU
 requestAnimationFrame(frame);
 
 // Debug / playtest hooks (used by tools/playtest.mjs).
@@ -428,6 +432,9 @@ window.__game = {
   jump(hold = 0) { botJump = true; botJumpHeld = hold > 0; if (hold > 0) setTimeout(() => (botJumpHeld = false), hold); },
   holdHands() { input.handsPressed = true; },
   quest, stars, winds, audio, objectives, net, invite, playAs,
+  camPos() { return camera.position.toArray().map((v) => +v.toFixed(2)); },
+  frames() { return frames; },
+  setRender(on) { renderOn = on; },
   lightAll() { quest.completeNow(); },
   teleport(x, z, heading = Math.PI) { A.pos.set(x, world.floorAt(x, z) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
   pos() { return { lanterns: quest.count, stars: stars.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },

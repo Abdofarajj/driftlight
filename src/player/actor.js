@@ -18,6 +18,7 @@ export class Actor {
     this.inWind = false;
     this.predicted = false; // online partner placed by hand-holding on this screen (see Hands.stepOnline)
     this.jumpedNow = false; // online partner just hopped
+    this.carried = false; // online: your partner is walking you by the hand (see Hands.stepOnline)
     this.intent = { x: 0, z: 0, run: false, jump: false, jumpHeld: false };
   }
 

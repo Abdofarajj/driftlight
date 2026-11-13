@@ -1,24 +1,28 @@
 // Glue between the network session and the game. Each player owns their own traveler: we send ours
 // ~15 times a second and show the partner's a little in the past, smoothly interpolated between the
-// updates we received. Hands, lanterns and stars are shared: hands by small messages, lanterns scored
-// by the host, stars collected by whoever touches them (both sides merge the collected set).
+// updates we received. While holding hands, whoever walks carries the pair: their updates also say where
+// they put you (`fp`...), and your screen plays that back for your own traveler (applyCarry).
+// Hands state travels with a sequence number in every update, so the two screens can never disagree for
+// long about whether you're holding hands. Lanterns are scored by the host; stars are collected by
+// whoever touches them (both sides merge the collected set).
 import { Vector3 } from 'three';
 import { NetSession } from './session.js';
 import { WALK } from '../player/actor.js';
 
-const SEND_MS = 66;   // ~15 updates a second
+const SEND_MS = 66;     // ~15 updates a second
 const QUIET_MS = 12000; // no word from the partner this long: show them as gone (they come back if it resumes)
-const DELAY_MS = 120; // show the partner this far in the past so there are two updates to blend between
+const DELAY_MS = 120;   // show the partner this far in the past so there are two updates to blend between
 const r2 = (v) => Math.round(v * 100) / 100;
+const v3 = (v) => [r2(v.x), r2(v.y), r2(v.z)];
 
 export class NetPlay {
   /**
-   * ctx: { A (you), B (partner), hands, quest, stars, playAs, peerOpts,
-   *        on: { connected(), left(), hello(kind), hands(linked), error(e), starTaken(i, quiet), quiet } }
+   * ctx: { A (you), B (partner), hands, quest, stars, playAs, peerOpts, lag,
+   *        on: { connected(back), left(reason), hello(kind), hands(linked), error(e) } }
    */
   constructor(ctx) {
     Object.assign(this, ctx);
-    this.session = new NetSession(ctx.peerOpts);
+    this.session = new NetSession(ctx.peerOpts, ctx.lag);
     this.online = false; // partner connected right now
     this.buf = [];
     this.offsets = [];
@@ -27,7 +31,9 @@ export class NetPlay {
     this.myJumps = 0;
     this.lastJ = -1;
     this.first = true;
+    this.hseq = 0; // hands state version: bumped on every change you make
     this.partnerKind = null;
+    this.ip = { a: null, b: null, k: 0, ex: 0 }; // this frame's interpolation between two updates
     this._p = new Vector3(); this._v = new Vector3();
     this.session
       .on('open', () => this.onOpen())
@@ -45,7 +51,10 @@ export class NetPlay {
     this.online = true;
     this.buf.length = 0; this.offsets.length = 0; this.first = true; this.lastJ = -1;
     this.lastMsg = performance.now();
-    if (this.hands.linked) this.hands.unlink(); // you were holding the stay-at-home partner's hand
+    if (!back) { // a fresh start: you were holding the stay-at-home partner's hand
+      if (this.hands.linked) this.hands.unlink();
+      this.hseq = 0;
+    }
     this.session.send({ t: 'hello', kind: this.playAs, v: 1 });
     this.on.connected?.(back);
   }
@@ -73,10 +82,17 @@ export class NetPlay {
     if (!this.online && this.session.connected) this.onOpen(true); // they were quiet for a while and are back
     if (m.t === 'hello') { this.partnerKind = m.kind; this.on.hello?.(m.kind); }
     else if (m.t === 's') this.receive(m);
-    else if (m.t === 'hands') {
-      if (m.linked) this.hands.linkAs(-m.side); else this.hands.unlink();
-      this.on.hands?.(m.linked);
-    }
+    else if (m.t === 'hands') this.reconcileHands(m.linked, m.side, m.seq ?? 0);
+  }
+
+  /** take the partner's view of the hands if it's newer than ours (host wins a tie) */
+  reconcileHands(linked, side, seq) {
+    const newer = seq > this.hseq || (seq === this.hseq && this.role === 'guest' && !!linked !== this.hands.linked);
+    if (!newer) return;
+    this.hseq = seq;
+    const was = this.hands.linked;
+    if (linked) { if (!was || this.hands.side !== -side) this.hands.linkAs(-side); } else if (was) this.hands.unlink();
+    if (was !== !!linked) this.on.hands?.(!!linked);
   }
 
   receive(m) {
@@ -85,6 +101,7 @@ export class NetPlay {
     this.buf.push(m); if (this.buf.length > 40) this.buf.shift();
     if (this.lastJ >= 0 && m.j > this.lastJ) this.B.jumpedNow = true; // the partner hopped
     this.lastJ = m.j;
+    if (m.hs !== undefined) this.reconcileHands(!!m.hl, m.hd, m.hs);
     // stars: anything either of you collected
     for (let i = 0; i < this.stars.items.length; i++) if (m.st & (1 << i)) this.stars.take(i, this.first);
     // lanterns: the host keeps the score
@@ -97,21 +114,29 @@ export class NetPlay {
     if (this.online && now - this.lastMsg > QUIET_MS) this.markGone('quiet');
     if (!this.session.connected || now - this.lastSend < SEND_MS) return;
     this.lastSend = now;
-    const A = this.A, it = A.intent;
+    const { A, B, hands } = this, it = A.intent;
     const m = {
       t: 's', ts: now,
-      p: [r2(A.pos.x), r2(A.pos.y), r2(A.pos.z)], v: [r2(A.vel.x), r2(A.vel.y), r2(A.vel.z)], h: Math.round(A.heading * 1000) / 1000,
+      p: v3(A.pos), v: v3(A.vel), h: Math.round(A.heading * 1000) / 1000,
       g: A.grounded ? 1 : 0, gl: A.glide ? 1 : 0, w: A.inWind ? 1 : 0,
       i: [r2(it.x), r2(it.z)], r: it.run ? 1 : 0, jh: it.jumpHeld ? 1 : 0, j: this.myJumps,
+      hl: hands.linked ? 1 : 0, hd: hands.side, hs: this.hseq,
       st: this.stars.mask(),
     };
+    if (hands.carrying) { // you're walking them: say where they are on your screen
+      Object.assign(m, { fp: v3(B.pos), fv: v3(B.vel), fh: Math.round(B.heading * 1000) / 1000, fg: B.grounded ? 1 : 0, fgl: B.glide ? 1 : 0 });
+    }
     if (this.role === 'host') m.q = this.quest.state();
     this.session.send(m);
   }
 
-  sendHands() { this.session.send({ t: 'hands', linked: this.hands.linked, side: this.hands.side }); }
+  /** you changed the hands (took, let go, or a fall broke them): tell your partner now */
+  sendHands() {
+    this.hseq++;
+    this.session.send({ t: 'hands', linked: this.hands.linked, side: this.hands.side, seq: this.hseq });
+  }
 
-  /** place the partner's traveler where they were DELAY_MS ago (unless hands prediction is moving them) */
+  /** place the partner's traveler where they were DELAY_MS ago (unless you're carrying them) */
   updateRemote(dt) {
     const B = this.B, buf = this.buf;
     if (!buf.length) return;
@@ -125,23 +150,39 @@ export class NetPlay {
     }
     const span = b.ts - a.ts;
     const k = span > 0 ? Math.max(0, Math.min(1, (target - a.ts) / span)) : 0;
-    const p = this._p.set(a.p[0] + (b.p[0] - a.p[0]) * k, a.p[1] + (b.p[1] - a.p[1]) * k, a.p[2] + (b.p[2] - a.p[2]) * k);
-    if (target > b.ts) { // ran out of updates: carry on along their velocity for a moment
-      const ex = Math.min(0.25, (target - b.ts) / 1000);
-      p.x += b.v[0] * ex; p.z += b.v[2] * ex; if (!b.g) p.y += b.v[1] * ex;
-    }
+    const ex = target > b.ts ? Math.min(0.25, (target - b.ts) / 1000) : 0; // ran out of updates: coast briefly
+    Object.assign(this.ip, { a, b, k, ex });
     const s = k < 0.5 ? a : b;
     Object.assign(B.intent, { x: s.i[0], z: s.i[1], run: !!s.r, jumpHeld: !!s.jh });
-    if (B.predicted) return; // hands are pulling them beside you on this screen
-    const wasGround = B.grounded;
-    if (B.pos.distanceToSquared(p) > 9) B.pos.copy(p); else B.pos.lerp(p, Math.min(1, dt * 18));
-    B.vel.set(a.v[0] + (b.v[0] - a.v[0]) * k, a.v[1] + (b.v[1] - a.v[1]) * k, a.v[2] + (b.v[2] - a.v[2]) * k);
-    let dh = b.h - a.h; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
-    const h = a.h + dh * k;
-    let d = h - B.heading; d = Math.atan2(Math.sin(d), Math.cos(d));
-    B.heading += d * Math.min(1, dt * 20);
-    B.grounded = !!s.g; B.glide = !!s.gl; B.inWind = !!s.w;
-    B.speed01 = Math.hypot(B.vel.x, B.vel.z) / WALK;
-    if (!wasGround && B.grounded) B.t.land(0.5);
+    if (B.predicted) return; // you're carrying them: hands put them beside you on this screen
+    this.place(B, dt, a, b, k, ex, 'p', 'v', 'h', 'g', 'gl');
+    B.inWind = !!s.w;
+  }
+
+  /** while your partner walks you by the hand: put your traveler where their screen put it */
+  applyCarry(A, dt) {
+    let { a, b, k, ex } = this.ip;
+    if (!a || !(a.fp || b.fp)) return false;
+    if (!a.fp) { a = b; k = 0; } else if (!b.fp) { b = a; k = 0; ex = 0; }
+    this.place(A, dt, a, b, k, ex, 'fp', 'fv', 'fh', 'fg', 'fgl');
+    A.inWind = false;
+    return true;
+  }
+
+  /** blend an actor to the state between updates a and b (field names say which traveler) */
+  place(act, dt, a, b, k, ex, P, V, H, G, GL) {
+    const p = this._p.set(a[P][0] + (b[P][0] - a[P][0]) * k, a[P][1] + (b[P][1] - a[P][1]) * k, a[P][2] + (b[P][2] - a[P][2]) * k);
+    if (ex > 0) { p.x += b[V][0] * ex; p.z += b[V][2] * ex; if (!b[G]) p.y += b[V][1] * ex; }
+    const wasGround = act.grounded;
+    if (act.pos.distanceToSquared(p) > 9) act.pos.copy(p); else act.pos.lerp(p, Math.min(1, dt * 18));
+    act.vel.set(a[V][0] + (b[V][0] - a[V][0]) * k, a[V][1] + (b[V][1] - a[V][1]) * k, a[V][2] + (b[V][2] - a[V][2]) * k);
+    let dh = b[H] - a[H]; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    let d = a[H] + dh * k - act.heading; d = Math.atan2(Math.sin(d), Math.cos(d));
+    act.heading += d * Math.min(1, dt * 20);
+    const s = k < 0.5 ? a : b;
+    act.grounded = !!s[G]; act.glide = !!s[GL];
+    act.speed01 = Math.hypot(act.vel.x, act.vel.z) / WALK;
+    act.airTime = act.grounded ? 0 : act.airTime + dt;
+    if (!wasGround && act.grounded) act.t.land(0.5);
   }
 }

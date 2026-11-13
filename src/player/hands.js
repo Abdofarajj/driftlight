@@ -46,6 +46,8 @@ export class Hands {
 
   unlink() {
     this.linked = false;
+    this.carrying = false;
+    this.b.predicted = false;
     this.a.t.holdSide = 0; this.b.t.holdSide = 0;
   }
 
@@ -79,28 +81,38 @@ export class Hands {
   }
 
   /**
-   * Online version: `a` is you, `b` is your partner, whose own screen moves them. If they lead and you
-   * stand still, you're pulled beside them. If you lead and they stand still, this screen shows them
-   * beside you straight away (b.predicted) instead of waiting for their update to come back.
+   * Online version. `a` is you, `b` is your partner. While holding hands, whoever walks "carries" the
+   * pair: their screen moves both travelers and sends where it put the other one, and the other screen
+   * plays that back for its own traveler (`carry(a, dt)` returns true while it's doing so). Without
+   * that, each screen would pull its traveler towards a slightly old copy of the other, and the two of
+   * you would tug each other back whenever someone stopped.
    * Returns 'broke' if a fall pulled the hands apart.
    */
-  stepOnline(dt, world) {
+  stepOnline(dt, world, carry) {
     const { a, b } = this;
     const partnerJumped = b.jumpedNow; b.jumpedNow = false;
-    b.predicted = false;
-    if (!this.linked) { a.step(dt, world); return null; }
+    a.carried = false;
+    if (!this.linked) { this.carrying = false; b.predicted = false; a.step(dt, world); return null; }
     const am = this.moving(a), bm = this.moving(b);
-    if (bm && !am) {
-      this.follow(b, a, -this.side, dt, world, partnerJumped);
-    } else if (am && !bm) {
+    if (bm) this.carrying = false;     // they walk by themselves: their own screen moves them
+    else if (am) this.carrying = true; // you walk: this screen moves them beside you until they walk again
+    b.predicted = this.carrying;
+    if (this.carrying) {
+      if (partnerJumped) { b.intent.jump = true; if (!am && a.grounded) a.intent.jump = true; } // they hopped
       this.lead(a, b, this.side, dt, world);
-      b.predicted = true;
+    } else if (!am && carry && carry(a, dt)) {
+      a.carried = true; // their screen is walking you: play back where it put you
+      a.intent.jump = false; // a hop of yours reaches their screen as a jump and comes back in their updates
+    } else if (bm && !am) {
+      this.follow(b, a, -this.side, dt, world, partnerJumped); // until their first word about you arrives
     } else {
       if (partnerJumped && !am && a.grounded) a.intent.jump = true; // standing together: hop when they hop
       a.step(dt, world);
-      const d = this._v.subVectors(b.pos, a.pos); d.y = 0;
-      const len = d.length();
-      if (len > SPACING * 1.25) a.pos.addScaledVector(d, (len - SPACING * 1.25) / len * 0.5);
+      if (am && bm) { // both walking: drift back within reach, gently
+        const d = this._v.subVectors(b.pos, a.pos); d.y = 0;
+        const len = d.length();
+        if (len > SPACING * 1.25) a.pos.addScaledVector(d, (len - SPACING * 1.25) / len * Math.min(1, dt * 2));
+      }
     }
     if (a.pos.distanceTo(b.pos) > BREAK) { this.unlink(); return 'broke'; }
     return null;
