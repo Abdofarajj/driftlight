@@ -6,8 +6,9 @@ export const SECRETS_TEXT = {
   ring: { title: 'The fairy ring', line: 'The fairies only dance for two.' },
   garden: { title: 'The secret sunflower garden', line: 'Every sunflower turns to look at you both.' },
   boat: { title: 'The rowboat for two', line: 'Nobody has to row. It just drifts, as long as you\'re both in it.' },
+  oasis: { title: 'The hidden oasis', line: 'Two palms, one pool, two stones to sit on. Somebody planned this for two.' },
 };
 
 // Gentle hints in the objectives panel (tap "Find the secrets" to read them).
 export const SECRET_HINTS = 'Someone soft waits behind falling water. A small light sleeps under a big tree. '
-  + 'Mushrooms in a circle dance only for two. Sunflowers hide where the warm wind goes. A little boat at Crystal Lake waits for two.';
+  + 'Mushrooms in a circle dance only for two. Sunflowers hide where the warm wind goes. A little boat at Crystal Lake waits for two. Somewhere in the desert, a broken arch hides something green.';

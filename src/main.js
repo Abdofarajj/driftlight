@@ -10,6 +10,7 @@ import { Actor } from './player/actor.js';
 import { Hands } from './player/hands.js';
 import { LanternQuest } from './world/quest.js';
 import { CrystalQuest } from './world/lakequest.js';
+import { DesertQuest, SUN } from './world/desertquest.js';
 import { buildWinds } from './world/wind.js';
 import { Stars } from './world/stars.js';
 import { GameAudio } from './audio.js';
@@ -18,9 +19,11 @@ import { Objectives } from './ui/objectives.js';
 import { NetPlay } from './net/netplay.js';
 import { cleanCode } from './net/session.js';
 import { Invite } from './ui/invite.js';
+import { WorldMap } from './ui/map.js';
 import { Secrets } from './world/secrets.js';
 import { SECRET_HINTS } from './world/jokes.js';
 import { mergeStatic, mergeSiblings, Instancer } from './look/merge.js';
+import { PAL } from './look/palette.js';
 
 ColorManagement.enabled = false; // palette colours are used as-is
 
@@ -69,18 +72,20 @@ const quest = new LanternQuest(world, scene, events);
 const winds = buildWinds(world);
 winds.forEach((w) => scene.add(w.group));
 audio.winds = winds;
-const stars = new Stars(scene, [[-49, 3.9, -4], [53, 1.4, 10.5], [4, 2.3, -44.5], world.lake.starPos.toArray()]);
+const stars = new Stars(scene, [[-49, 3.9, -4], [53, 1.4, 10.5], [4, 2.3, -44.5], world.lake.starPos.toArray(), world.desert.starPos.toArray()]);
 const secrets = new Secrets(world, scene, events);
 const lakeQuest = new CrystalQuest(world, events, secrets);
+const desertQuest = new DesertQuest(world, events, secrets, lakeQuest);
 // fewer, bigger draws (phones pay for every separate one): bake the still pieces into one mesh per
 // material and area, and draw the swinging lanterns instanced. ?nomerge turns it off to compare.
 const baked = new Group(); scene.add(baked);
 const instancer = new Instancer(baked);
 if (!params.has('nomerge')) {
   mergeStatic([world.lake.root], baked, { cell: 64 }); // far from the forest and small: one piece per material is plenty
+  mergeStatic([world.desert.root], baked, { cell: 64 });
   mergeStatic([world.root, secrets.grottoGroup, secrets.ringGroup, secrets.gardenGroup], baked);
   instancer.add(world.swingParts);
-  for (const model of [meT.root, friendT.root, secrets.roro, secrets.gardenGroup, world.lake.boat]) mergeSiblings(model); // hair curls, eyes, stems + leaves
+  for (const model of [meT.root, friendT.root, secrets.roro, secrets.gardenGroup, world.lake.boat, world.desert.spirit.rays]) mergeSiblings(model); // hair curls, eyes, stems + leaves
 }
 const hud = { stars: document.getElementById('stars'), secrets: document.getElementById('secrets'), secIcon: document.querySelector('.pill .sec') };
 
@@ -94,13 +99,17 @@ const OBJ = {
   hands: { title: `Take ${partnerHer} hand`, detail: `Walk up beside ${partner} and ${touchUI ? 'tap the big hands button' : 'press E'}. Holding hands you move together, share your light, and can pull ${partner} along.` },
   lanterns: { title: 'Light the lanterns', progress: '0/5', detail: 'Five stone lanterns sleep in the forest. Hold hands and stand together beside one until its golden ring fills. Light all five to wake the shrine.' },
   wind: { title: 'Ride the warm wind', detail: `On the west edge of the forest a ring of drifting petals marks a warm current. Step in${touchUI ? '' : ' (hold Space to glide)'} and it carries you to the meadow island.` },
-  stars: { title: 'Find the stars', progress: '0/4', detail: 'Four stars are hidden: one past the east rope bridge, one on the meadow island, one waiting by the shrine, and one in the middle of Crystal Lake.' },
-  secrets: { title: 'Find the secrets', progress: '0/5', detail: SECRET_HINTS },
+  stars: { title: 'Find the stars', progress: '0/5', detail: 'Five stars are hidden: one past the east rope bridge, one on the meadow island, one waiting by the shrine, one in the middle of Crystal Lake, and one behind the sun gate in the desert.' },
+  secrets: { title: 'Find the secrets', progress: '0/6', detail: SECRET_HINTS },
   shrine: { title: 'Visit the shrine', detail: 'A bridge of light now leads north from the forest. Cross it together to reach the shrine.' },
   lake: { title: 'Cross to Crystal Lake', detail: 'The shrine woke a crystal bridge. It leads west from the shrine island to Crystal Lake.' },
   heart: () => ({ title: 'Wake the crystal heart', progress: `${lakeQuest.count}/3`, detail: 'Three crystals sleep round the lake, each with two lotus stones in front of it. '
     + 'Stand on both stones at the same time, one of you on each, and the crystal sends its light to the heart in the middle.'
     + (online() ? '' : ` Playing on your own? Walk ${partner} by the hand onto one stone, let go, then step onto the other.`) }),
+  desert: { title: 'Cross to the Sunset Desert', detail: 'The crystal heart raised a sandstone bridge from the north-east shore of Crystal Lake. It leads to the Sunset Desert.' },
+  sun: () => ({ title: 'Guide the lost sun spirit', detail: 'A little sun sleeps in a stone bowl near the bridge. It only follows your shared light, so hold hands and it comes along. '
+    + 'Bring it through the Windy Pass to the sundial on the far side. Sand gusts blow down the pass: wait behind a shelter wall together, and go on between gusts.'
+    + (online() ? '' : ` Playing on your own? Walk ${partner} by the hand the whole way.`) }),
 };
 for (const id of ['hands', 'lanterns', 'wind', 'stars', 'secrets']) objectives.add(id, OBJ[id]);
 if (params.get('open')) objectives.setOpen(params.get('open')); // captures: show a row expanded
@@ -113,16 +122,16 @@ if (params.get('peerhost')) Object.assign(peerOpts, { host: params.get('peerhost
 if (params.get('ice') === 'none') peerOpts.config = { iceServers: [] }; // local tests
 const online = () => !!net && net.online;
 const net = shot ? null : new NetPlay({
-  A, B, hands, quest, lake: lakeQuest, stars, secrets, playAs, peerOpts,
+  A, B, hands, quest, lake: lakeQuest, desert: desertQuest, stars, secrets, playAs, peerOpts,
   lag: params.get('lag') ? { ms: Number(params.get('lag')), jitter: Number(params.get('jitter')) || 0 } : null, // tests: fake internet delay
   on: {
     connected(back) {
-      quest.remote = lakeQuest.remote = net.role === 'guest';
+      quest.remote = lakeQuest.remote = desertQuest.remote = net.role === 'guest';
       toast(back ? `${She}'s back ✦` : net.role === 'host' ? `${She} joined your world ✦` : `You're together ✦`);
       audio.play('checkpoint', { pos: A.pos });
       invite.refresh();
     },
-    left(reason) { quest.remote = lakeQuest.remote = false; toast(reason === 'quiet' ? `${She} lost connection…` : `${She} left the game`); invite.refresh(); },
+    left(reason) { quest.remote = lakeQuest.remote = desertQuest.remote = false; toast(reason === 'quiet' ? `${She} lost connection…` : `${She} left the game`); invite.refresh(); },
     hello(kind) {
       // the invite link says who you are; if both of you picked the same traveler, take the other one
       if (net.role === 'guest' && kind === playAs) { const u = new URL(location.href); u.searchParams.set('as', kind === 'him' ? 'her' : 'him'); location.replace(u); }
@@ -144,6 +153,62 @@ const linkFor = (code) => {
   return u.toString();
 };
 const invite = new Invite({ net, partner, partnerHer, linkFor, toast: (m) => toast(m) });
+
+// ---- the world map (map button / Tab): the islands you've found, both of you, and the next goal ----
+const D0 = world.desert, L0 = world.lake;
+const xz = (v) => [v.x, v.z];
+const MAP_LOOKS = {
+  forest: { edge: PAL.cliff[0], top: [PAL.grass[0], PAL.moss[1]], dots: [[-11, -5, 2.6, '#f4a9bf'], [11, -9, 2.4, '#f4a9bf'], [-14, 9, 2.2, '#e9b6d2'], [13, -19, 2.0, '#f4a9bf'], [7, 16, 1.9, '#e9b6d2'], [16, 0.5, 1.8, '#f4a9bf']] },
+  isle: { edge: PAL.cliff[0], top: [PAL.grass[0], PAL.moss[1]] },
+  shrine: { edge: PAL.cliff[0], top: [PAL.stone[0], PAL.grass[1]], dots: [[4, -51, 1.6, '#ffd98a']] },
+  lake: { edge: PAL.cliff[0], top: [PAL.grass[0], PAL.moss[1]], water: [L0.lakeCenter.x, L0.lakeCenter.z, 10.5] },
+  desert: { edge: PAL.cliff[0], top: [PAL.sand[0], PAL.sandstone[0]], dots: [[D0.dialPos.x, D0.dialPos.z, 2.6, '#ff9c50'], [D0.oasisWorld.x, D0.oasisWorld.z, 1.7, '#9fbf6a']] },
+};
+function nextGoal() {
+  if (quest.count < quest.items.length) {
+    let best = null, bd = Infinity;
+    for (const it of quest.items) if (!it.lit) { const d = it.pos.distanceTo(A.pos); if (d < bd) { bd = d; best = it; } }
+    return { x: best.pos.x, z: best.pos.z, text: 'Light the lanterns, holding hands' };
+  }
+  const lakeOpen = lakeQuest.opened || lakeQuest.awake;
+  if (!lakeOpen) return { x: shrineIsle.x, z: shrineIsle.z, text: 'Visit the shrine together' };
+  if (!lakeQuest.awake) {
+    const p = lakeQuest.pairs.find((q) => !q.lit);
+    return { x: p.pos.x, z: p.pos.z, text: `Wake the crystals (${lakeQuest.count}/3)` };
+  }
+  if (!desertQuest.opened) return { x: L0.lakeCenter.x, z: L0.lakeCenter.z, text: 'The heart is waking…' };
+  const S = desertQuest.sun;
+  if (!desertQuest.done) {
+    if (S.state === SUN.FOLLOW) return { x: D0.dialPos.x, z: D0.dialPos.z, text: 'Bring the little sun to the sundial' };
+    return { x: S.pos.x, z: S.pos.z, text: S.state === SUN.SLEEP ? 'Find the lost sun spirit' : 'The little sun is waiting for you' };
+  }
+  if (!stars.items[4].got) return { x: D0.starPos.x, z: D0.starPos.z, text: 'Something shines past the sun gate' };
+  return { x: D0.hollowEnd.x, z: D0.hollowEnd.z, text: 'The way on opens soon…' };
+}
+const worldMap = new WorldMap({
+  partnerName: partner,
+  state: () => ({
+    islands: [
+      { id: 'forest', name: 'Lantern Forest', x: 0, z: 0, r: 24, known: true, look: MAP_LOOKS.forest },
+      { id: 'east', name: '', x: 50, z: 8, r: 8, known: true, look: MAP_LOOKS.isle },
+      { id: 'meadow', name: 'Meadow', x: -50, z: -7, r: 9, known: true, look: MAP_LOOKS.isle },
+      { id: 'shrine', name: 'Shrine', x: shrineIsle.x, z: shrineIsle.z, r: 9.5, known: quest.done, next: !quest.done, look: MAP_LOOKS.shrine },
+      { id: 'lake', name: 'Crystal Lake', x: L0.center.x, z: L0.center.z, r: 23, known: lakeQuest.opened || lakeQuest.awake, next: quest.done && !lakeQuest.opened && !lakeQuest.awake, look: MAP_LOOKS.lake },
+      { id: 'desert', name: 'Sunset Desert', x: D0.center.x, z: D0.center.z, r: 26, known: desertQuest.opened, next: lakeQuest.awake && !desertQuest.opened, look: MAP_LOOKS.desert },
+      { id: 'hollow', name: '', x: 85, z: -150, r: 22, known: false, next: desertQuest.done, look: null },
+    ],
+    links: [
+      { a: [22.5, 6.8], b: [42, 8] },
+      { a: [-18, -3], b: [-42, -7], kind: 'wind' },
+      ...(quest.done ? [{ a: [2, -22.4], b: [3.5, -41] }] : []),
+      ...(lakeQuest.opened || lakeQuest.awake ? [{ a: xz(L0.bridge.data.from), b: xz(L0.bridge.data.to) }] : []),
+      ...(desertQuest.opened ? [{ a: xz(D0.bridge.data.from), b: xz(D0.bridge.data.to) }] : []),
+    ],
+    me: { x: A.pos.x, z: A.pos.z, kind: playAs },
+    friend: { x: B.pos.x, z: B.pos.z, kind: partner, here: !online() || net.online },
+    goal: nextGoal(),
+  }),
+});
 if (net) {
   addEventListener('pagehide', () => net.bye()); // closing the tab: tell your partner now
   addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); }); // back from the page cache: start fresh
@@ -308,6 +373,34 @@ function onEvent(name, d) {
       else if (d.kind === 'boat') toast('The little boat waits for two…');
       break;
     case 'lake-boat': if (d.riding && !d.quiet) audio.play('splash', { pos: world.lake.boatWorld(), vol: 0.5 }); break;
+    // ---- Sunset Desert ----
+    case 'desert-bridge': toast('The heart\'s light reaches the north-east shore, and a sandstone bridge rises ✦'); audio.play('complete'); break;
+    case 'desert-open':
+      if (!d.quiet) toast('A sandstone bridge leads to the Sunset Desert ✦');
+      if (!world.desert.onIsland(A.pos) && desertQuest.sun.state === SUN.SLEEP) objectives.add('desert', OBJ.desert);
+      break;
+    case 'sun-follow':
+      addSun();
+      if (d.quiet) break;
+      if (d.first) { toast('The lost sun spirit wakes and follows your light ✦'); audio.play('sunwake', { pos: d.pos }); secrets.motes.emit(d.pos, 24, { speed: 2, up: 2, life: 1.4, size: 0.2, spread: 0.4 }); } else { toast('The little sun follows you again ✦'); audio.play('hands', { pos: d.pos }); }
+      break;
+    case 'sun-wait':
+      if (d.quiet) break;
+      toast(d.why === 'gust' ? 'The gust tore your hands apart! The little sun waits for you' : 'The little sun waits. It only follows while you hold hands');
+      break;
+    case 'sun-home': if (!d.quiet) toast('Home at last ✦'); break;
+    case 'desert-sundial':
+      objectives.complete('desert'); objectives.complete('sun');
+      if (!d.quiet) { toast('The sundial wakes, the wind settles and the sun gate opens ✦'); audio.play('sunhome', { pos: d.pos }); secrets.motes.emit(world.desert.sunHome, 50, { speed: 3, up: 3, life: 2.2, size: 0.26, spread: 0.8, grav: -0.3 }); }
+      break;
+    case 'desert-gate': toast('Something shines past the sun gate…'); break;
+    case 'desert-gust':
+      if (A.pos.distanceTo(d.pos) < 22) { if (d.phase === 'warn') audio.play('gustWarn', { pos: d.pos }); else if (d.phase === 'gust') audio.play('gust', { pos: d.pos }); }
+      break;
+    case 'desert-hint':
+      if (d.kind === 'pass') toast('Sand gusts! Wait behind a wall together, then go between gusts');
+      else if (d.kind === 'hands') toast(online() ? `Hold hands with ${partner}: the little sun only follows your shared light` : `Bring ${partner} by the hand: the little sun only follows your shared light`);
+      break;
     default: break;
   }
 }
@@ -321,6 +414,7 @@ function discover(kicker, title, line) {
   discEl.classList.add('on'); document.body.classList.add('discovering'); // the HUD steps back while the card shows
   clearTimeout(discTimer); discTimer = setTimeout(() => { discEl.classList.remove('on'); document.body.classList.remove('discovering'); }, 5200);
 }
+function addSun() { if (!objectives.has('sun') && !desertQuest.done) { objectives.complete('desert'); objectives.add('sun', OBJ.sun()); } }
 function addHeart() { if (!objectives.has('heart') && !lakeQuest.awake) { objectives.complete('lake'); objectives.add('heart', OBJ.heart()); } }
 function onStar(st, n, quiet) {
   hud.stars.textContent = n;
@@ -330,7 +424,7 @@ function onStar(st, n, quiet) {
 }
 stars.onCollect = onStar;
 function surfaceAt(p) {
-  const ls = world.lake.surface(p);
+  const ls = world.lake.surface(p) || world.desert.surface(p);
   if (ls) return ls;
   if (onIsland(p.x, p.z) && Math.abs(groundHeight(p.x, p.z) - p.y) < 0.2) return pathMask(p.x, p.z) > 0.5 ? 'path' : 'grass';
   if (world.isles.some((i) => Math.hypot(p.x - i.x, p.z - i.z) < i.r && Math.abs(i.y - p.y) < 0.2)) return 'grass';
@@ -417,6 +511,7 @@ function step(dt) {
       act.heading = world.lake.boatState.yaw;
     }
   }
+  desertQuest.update(dt, t, A, B, hands.linked, online() ? [A] : [A, B], breakHands, camera);
   for (const act of online() ? [A] : [A, B]) water(act);
   const ch = Math.max(quest.items.reduce((m, it) => Math.max(m, it.lit ? 0 : it.charge), 0), lakeQuest.pairs.reduce((m, p) => Math.max(m, p.lit ? 0 : p.charge), 0));
   if (ch > 0.05 && Math.floor(ch * 6) !== Math.floor(lastCharge * 6)) audio.play('charge', { k: ch, pos: A.pos });
@@ -429,6 +524,7 @@ function step(dt) {
     if (objectives.has('wind') && on(westIsle)) objectives.complete('wind');
     if (objectives.has('shrine') && on(shrineIsle)) { objectives.complete('shrine'); toast('You reached the shrine together ✦'); }
     if (lakeQuest.opened && !lakeQuest.awake && world.lake.onIsland(A.pos)) addHeart(); // arrived at Crystal Lake
+    if (desertQuest.opened && !desertQuest.done && world.desert.onIsland(A.pos)) addSun(); // arrived in the desert
   }
 
   // camera: drifts behind the direction you walk, unless you moved it by hand recently
@@ -451,6 +547,7 @@ function step(dt) {
   if (net) net.send(performance.now());
 }
 const carry = (act, dt) => net.applyCarry(act, dt); // your partner is walking you by the hand
+const breakHands = () => { if (!hands.linked) return; hands.unlink(); if (online()) net.sendHands(); }; // a sand gust tore them apart
 const onShrine = (act) => act.grounded && Math.hypot(act.pos.x - shrineIsle.x, act.pos.z - shrineIsle.z) < shrineIsle.r - 0.5 && Math.abs(act.pos.y - shrineIsle.y) < 0.5;
 // deep water: walking can't take you in (actor.keepDry), but a jump or a slip can. Splash, and back to
 // the last dry spot (a hand-held partner comes back to your side).
@@ -504,9 +601,10 @@ function frame(now) {
   last = now;
   if (shot) {
     t = shot.time ?? 2.0;
-    shot.apply({ me: meT, friend: friendT, camera, world, secrets, lake: lakeQuest });
+    shot.apply({ me: meT, friend: friendT, camera, world, secrets, lake: lakeQuest, desert: desertQuest });
     secrets.update(0, t, [], camera); // still poses (shots can set e.g. secrets.roroK)
     lakeQuest.update(0, t, A, B, () => false);
+    desertQuest.update(0, t, A, B, false, [], () => {}, camera);
   } else {
     // ?fast=N runs N fixed physics steps per rendered frame (used by the playtest bot on slow headless GPUs)
     const n = FAST || 1, sdt = FAST ? 1 / 30 : dt;
@@ -582,7 +680,7 @@ window.__game = {
   goTo(x, z, opts = {}) { return new Promise((resolve) => { auto = { x, z, t: 0, lastT: 0, lastD: 1e9, resolve, ...opts }; }); },
   jump(hold = 0) { botJump = true; botJumpHeld = hold > 0; if (hold > 0) setTimeout(() => (botJumpHeld = false), hold); },
   holdHands() { input.handsPressed = true; },
-  quest, lakeQuest, stars, secrets, winds, audio, objectives, net, invite, playAs,
+  worldMap, quest, lakeQuest, desertQuest, stars, secrets, winds, audio, objectives, net, invite, playAs,
   camPos() { return camera.position.toArray().map((v) => +v.toFixed(2)); },
   frames() { return frames; },
   setRender(on) { renderOn = on; },
@@ -591,6 +689,7 @@ window.__game = {
   res() { return { dpr: curDpr, ...res }; }, setDpr, // adaptive resolution (tests)
   lightAll() { quest.completeNow(); },
   lakeAll() { lakeQuest.completeNow(); },
+  desertAll() { desertQuest.completeNow(); },
   teleport(x, z, heading = Math.PI) { A.pos.set(x, world.floorAt(x, z) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
   pos() { return { lanterns: quest.count, stars: stars.count, secrets: secrets.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
 };

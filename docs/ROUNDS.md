@@ -58,3 +58,25 @@ Code: `src/world/lake.js` (the island) and `src/world/lakequest.js` (the quest, 
 - Online: the host keeps the score (bridge, crystals, boat ride) and sends it with every update, like the lanterns.
 **Done when:** the bot can cross, wake all three crystals with its idle partner, cross the stones hand in hand,
 take the star and ride the boat (`npm run playtest`), and a crystal woken online shows on both screens (`npm run nettest`).
+
+## Round 7: Sunset Desert Ruins + world map (built 2026-11-13)
+Code: `src/world/desert.js` (the island), `src/world/desertquest.js` (the quest, gusts, online sync), `src/ui/map.js`.
+- **World map:** the round map button under the together button (or Tab) opens a painted map of the islands you've
+  found, the bridges and the wind current, both of you on it, and your next goal glowing with a "Next: ..." line.
+  The next island you haven't reached shows as a dashed outline with a question mark. Tap, Tab or Esc closes it.
+- Waking the crystal heart raises a **sandstone bridge** from Crystal Lake's north-east shore to the Sunset Desert:
+  a round sand island with a ruined city wall across it, a checkpoint just past the bridge and one past the pass.
+- **Guide the lost sun spirit:** a little sun sleeps in a nest by the bridge. It only follows your shared light, so
+  it wakes and floats behind your joined hands while you hold hands, and waits where you let go.
+- **The Windy Pass:** the only way through the city wall. A sand gust blows down it every 6 s (dust lifts first as
+  a warning). Out in the open a gust pushes you back, and if you're holding hands it tears them apart and the sun
+  waits. Three shelter walls stick out from alternate sides, with a calm shaded patch behind each that fits two:
+  wait there together, then go between gusts.
+- **The sundial:** bring the sun to the sundial on the plaza and it flies home, the hour lines light, the gusts stop
+  for good and the **sun gate** on the east terrace sinks. **Star 5** waits behind the gate on the terrace.
+- **Secret 6, the hidden oasis:** a ring of ruined wall in the south-east with a pool and palms, entered through a
+  broken arch on its north side.
+- Online: the host keeps the score (bridge, sun, gust clock, sundial) and sends it with every update; each of you is
+  pushed by the gusts on your own screen, on the host's gust clock.
+**Done when:** the bot brings the sun to the sundial with its idle partner (`npm run playtest`) and the sun follows,
+the gusts agree and the gate opens on both screens online (`npm run nettest`).

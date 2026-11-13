@@ -50,8 +50,8 @@
       box-shadow: 0 0 34px rgba(255, 214, 150, 0.75), 0 8px 30px rgba(150, 90, 110, 0.25); opacity: 0; pointer-events: none; transition: opacity .7s, transform .7s; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.5); }
     #discover.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
     @media (orientation: landscape) and (max-height: 520px) { #discover { padding: 10px 18px 12px; } #discover .t { font-size: 21px; } }
-    body.discovering #objectives, body.discovering .pill, body.discovering #bset, body.discovering #btogether { opacity: 0.12; }
-    #objectives, .pill, #bset, #btogether { transition: opacity .6s; }
+    body.discovering #objectives, body.discovering .pill, body.discovering #bset, body.discovering #btogether, body.discovering #bmap { opacity: 0.12; }
+    #objectives, .pill, #bset, #btogether, #bmap { transition: opacity .6s; }
     #discover .k { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .9; }
     #discover .t { margin-top: 4px; font-size: 23px; font-weight: 800; color: #fff3c8; text-shadow: 0 0 12px rgba(255, 190, 110, 0.9), 0 1px 6px rgba(120, 70, 90, 0.5); }
     #discover .l { margin-top: 6px; font-size: 15px; font-weight: 650; line-height: 1.4; }
@@ -60,6 +60,15 @@
     #bset .slash { display: none; } #bset.muted .slash { display: inline; } #bset.muted svg { opacity: .6; }
     #bset { top: calc(env(safe-area-inset-top) + 14px); right: calc(env(safe-area-inset-right) + 14px); }
     #btogether { top: calc(env(safe-area-inset-top) + 76px); right: calc(env(safe-area-inset-right) + 14px); cursor: pointer; }
+    #bmap { top: calc(env(safe-area-inset-top) + 138px); right: calc(env(safe-area-inset-right) + 14px); cursor: pointer; }
+    #bmap.on { box-shadow: 0 0 22px rgba(255, 205, 120, 0.9); }
+    #map { position: fixed; inset: 0; z-index: 3; display: none; place-items: center; background: rgba(110, 70, 90, 0.3); font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif; }
+    #map.on { display: grid; }
+    #map .card { position: relative; width: min(560px, calc(100vw - 32px)); height: min(720px, calc(100vh - 32px), calc(100dvh - 32px)); box-sizing: border-box; border-radius: 26px; overflow: hidden;
+      border: 1.5px solid #fff; box-shadow: 0 10px 40px rgba(140, 80, 100, 0.35), 0 0 30px rgba(255, 210, 140, 0.45); background: #fbeedd; }
+    #map canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #map .cap { position: absolute; left: 0; right: 0; bottom: 14px; text-align: center; color: var(--ink); font-size: 16px; font-weight: 800; padding: 0 16px; }
+    #map .ttl { position: absolute; left: 0; right: 0; top: 12px; text-align: center; color: var(--ink); font-size: 13px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .75; }
     #btogether.on { box-shadow: 0 0 22px rgba(255, 205, 120, 0.9); background: radial-gradient(circle, rgba(255, 228, 160, 0.75), rgba(255, 196, 110, 0.4)); }
     #sheet { position: fixed; inset: 0; z-index: 4; display: none; place-items: center; background: rgba(110, 70, 90, 0.28); font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif; }
     #sheet.on { display: grid; }
@@ -102,14 +111,16 @@
 </head>
 <body>
   <canvas id="c"></canvas>
-  <div class="ui pill"><svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg><span id="stars">0</span><svg class="sec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fbe3f6" stroke="#e7a6e2" stroke-width="1.6"/><circle cx="12" cy="10" r="3" fill="#a77aa8"/><path d="M10.6 11.5h2.8l.9 6h-4.6z" fill="#a77aa8"/></svg><span id="secrets">0/5</span></div>
+  <div class="ui pill"><svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg><span id="stars">0</span><svg class="sec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fbe3f6" stroke="#e7a6e2" stroke-width="1.6"/><circle cx="12" cy="10" r="3" fill="#a77aa8"/><path d="M10.6 11.5h2.8l.9 6h-4.6z" fill="#a77aa8"/></svg><span id="secrets">0/6</span></div>
   <div class="ui" id="objectives" aria-label="Objectives"></div>
   <div class="ui round" id="bset" title="Music (M)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2" stroke-linecap="round"><path d="M9 17V5l10-2v12"/><circle cx="6.5" cy="17" r="2.5" fill="#8a6670" fill-opacity=".3"/><circle cx="16.5" cy="15" r="2.5" fill="#8a6670" fill-opacity=".3"/><path class="slash" d="M3 3l18 18"/></svg></div>
   <div class="ui round" id="btogether" title="Play together"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="1.8" stroke-linecap="round"><circle cx="7.5" cy="7" r="2.6"/><circle cx="16.5" cy="7" r="2.6"/><path d="M3.5 20v-3.5a4 4 0 0 1 8 0V20M12.5 20v-3.5a4 4 0 0 1 8 0V20"/><path d="M12 12.6c-.9-1-2.3-.2-1.6.9L12 15l1.6-1.5c.7-1.1-.7-1.9-1.6-.9z" fill="#e98a8a" stroke="none"/></svg></div>
+  <div class="ui round" id="bmap" title="Map (Tab)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="1.8" stroke-linejoin="round"><path d="M3 6.5l5.5-2.5 7 2.5 5.5-2.5v13.5l-5.5 2.5-7-2.5-5.5 2.5z" fill="#fff4de" fill-opacity=".5"/><path d="M8.5 4v13.5M15.5 6.5V20"/><circle cx="12" cy="11" r="1.6" fill="#f2a65a" stroke="none"/></svg></div>
+  <div id="map" role="dialog" aria-label="World map"><div class="card"><canvas id="map-c"></canvas><div class="ttl">The islands</div><div class="cap" id="map-cap"></div></div></div>
   <div id="joy" class="touch"><div id="knob"></div></div>
   <div class="ui round touch" id="bjump"><svg viewBox="0 0 24 24"><path d="M12 2 C13 9 15 11 22 12 C15 13 13 15 12 22 C11 15 9 13 2 12 C9 11 11 9 12 2Z" fill="#fff4d6"/></svg></div>
   <div class="ui round touch" id="bhands"><svg viewBox="0 0 48 48" fill="#fff7ea"><circle cx="15" cy="10" r="5"/><circle cx="33" cy="10" r="5"/><path d="M9 18h12l3 8 3-8h12v4l-6 2v20h-5V31h-2v13h-2V31h-2v13h-5V24l-6-2z"/></svg></div>
-  <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · M music · drag to look</div>
+  <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · Tab map · M music · drag to look</div>
   <div class="ui" id="toast"></div>
   <div class="ui" id="discover" aria-live="polite"><div class="k" id="disc-k"></div><div class="t" id="disc-t"></div><div class="l" id="disc-l"></div></div>
   <div id="fade"></div>

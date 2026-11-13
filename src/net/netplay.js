@@ -109,6 +109,7 @@ export class NetPlay {
     // lanterns: the host keeps the score
     if (m.q && this.role === 'guest') this.quest.applyState(m.q, this.first);
     if (m.lk && this.lake && this.role === 'guest') this.lake.applyState(m.lk, this.first); // Crystal Lake: the host keeps that score too
+    if (m.ds && this.desert && this.role === 'guest') this.desert.applyState(m.ds, this.first); // and the Sunset Desert's
     this.first = false;
   }
 
@@ -129,7 +130,7 @@ export class NetPlay {
     if (hands.carrying) { // you're walking them: say where they are on your screen
       Object.assign(m, { fp: v3(B.pos), fv: v3(B.vel), fh: Math.round(B.heading * 1000) / 1000, fg: B.grounded ? 1 : 0, fgl: B.glide ? 1 : 0 });
     }
-    if (this.role === 'host') { m.q = this.quest.state(); if (this.lake) m.lk = this.lake.state(); }
+    if (this.role === 'host') { m.q = this.quest.state(); if (this.lake) m.lk = this.lake.state(); if (this.desert) m.ds = this.desert.state(); }
     this.session.send(m);
   }
 

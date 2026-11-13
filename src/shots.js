@@ -171,6 +171,54 @@ export const SHOTS = {
       cam(camera, [back.x, 4.6, back.z], [c.x, 2.4, c.z], 62);
     },
   },
+  // the Sunset Desert from above the bridge: the spirit's nest, the city wall and the Windy Pass, the plaza beyond
+  desert: {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: Q }) {
+      Q.open(true);
+      const D = world.desert, c = D.center, a = D.arrive, n = D.nestPos;
+      const h = Math.atan2(n.x - a.x, n.z - a.z);
+      place(me, world, n.x - 2.2, n.z + 1.6, h + 0.5, { t: 2 });
+      place(friend, world, n.x - 2.6, n.z + 2.6, h + 0.3, { t: 3.1 });
+      cam(camera, [c.x - 24, 17, c.z + 25], [c.x - 1, 2.5, c.z - 3], 50);
+    },
+  },
+  // in the Windy Pass as a gust blows: sheltering behind a wall, the little sun above your joined hands
+  'desert-pass': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: Q }) {
+      Q.open(true);
+      const D = world.desert, s = D.shelters[0];
+      Q.g = 2.9 + 1.3 + 0.7; // mid-gust
+      Q.sun.state = 1; Q.sun.pos.set(s.x - 0.2, s.y + 2.0, s.z + 0.9); Q.sun.yaw = Math.PI;
+      place(me, world, s.x + 0.45, s.z, Math.PI, { t: 2 });
+      place(friend, world, s.x - 0.5, s.z, Math.PI, { t: 2.6 });
+      me.holdSide = -1; friend.holdSide = 1;
+      cam(camera, [s.x + 2.4, s.y + 4.6, s.z + 10], [s.x - 0.2, s.y + 0.8, s.z - 4], 50);
+    },
+  },
+  // the little sun home on the sundial, the dial lit and the sun gate open (phone, portrait)
+  'desert-dial': {
+    viewport: 'portrait',
+    apply({ me, friend, camera, world, desert: Q }) {
+      Q.open(true); Q.finish(true);
+      const D = world.desert, p = D.dialPos;
+      place(me, world, p.x - 2.6, p.z - 1.3, 0.75, { t: 2 });
+      place(friend, world, p.x - 1.7, p.z - 2.0, 0.75, { t: 3.1 });
+      me.holdSide = 1; friend.holdSide = -1;
+      cam(camera, [p.x - 6.5, p.y + 3.2, p.z - 6.0], [p.x + 3.5, p.y + 1.4, p.z + 4.5], 62);
+    },
+  },
+  // the hidden oasis, through the broken arch
+  oasis: {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world }) {
+      const D = world.desert, o = D.oasisWorld, a = D.oasisArch;
+      place(me, world, o.x + 0.45, o.z + 2.5, Math.PI + 0.25, { t: 2 }); // on the far side of the pool, facing you
+      place(friend, world, o.x - 0.45, o.z + 2.6, Math.PI - 0.25, { t: 3.1 });
+      cam(camera, [a.x + 1.0, a.y + 8.0, a.z - 5.5], [o.x - 0.3, o.y, o.z + 0.2], 50); // high over the arch: the pool shows
+    },
+  },
   // the hidden sunflower garden on the meadow island
   garden: {
     viewport: 'landscape',

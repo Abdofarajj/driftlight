@@ -30,3 +30,5 @@ Rules for every new island:
 - **Sky on the journey** (Abdo left it to Claude): golden afternoon in the forest and lake, sunset in the desert,
   night in the Hollow and under the aurora, sunrise at the tower when the beacon is lit. Built in the look pass,
   which only starts when Abdo says so.
+- **Order** (Abdo): the desert next (round 7), then Whispering Hollow (8), the snowy peak (9) and the cloud tower
+  finale (10).

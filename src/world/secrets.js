@@ -4,6 +4,7 @@
 //   ring    - a fairy ring of mushrooms in a clearing east of the path; it lights up only for two
 //   garden  - a secret sunflower garden on the meadow island, whose flowers turn to watch you
 //   boat    - the rowboat at Crystal Lake drifts round the lake when you both sit in it (lakequest.js)
+//   oasis   - a hidden oasis in the Sunset Desert, in through a broken arch (desertquest.js)
 // Each has a small discovery moment (events: 'secret'), and the found set is shared online like stars.
 import { Group, Mesh, IcosahedronGeometry, PlaneGeometry, CircleGeometry, ConeGeometry, CylinderGeometry, SphereGeometry, Vector3 } from 'three';
 import { makeWatercolorMaterial, makeGlowMaterial, makeSoftMaterial, makeWaterMaterial } from '../look/material.js';
@@ -29,11 +30,12 @@ export class Secrets {
     this.world = world;
     this.events = events;
     this.motes = new Motes(scene, 220);
-    this.items = ['grotto', 'fox', 'ring', 'garden', 'boat'].map((id) => ({ id, found: false, pos: new Vector3() }));
+    this.items = ['grotto', 'fox', 'ring', 'garden', 'boat', 'oasis'].map((id) => ({ id, found: false, pos: new Vector3() }));
     this.count = 0;
     this.buildGrotto(scene);
     this.fox = new LightFox(scene, FOX_NEST[0], FOX_NEST[1], -2.2, world.colliders, this.motes);
     this.items[1].pos.copy(this.fox.nest);
+    if (world.desert) this.items[5].pos.copy(world.desert.oasisWorld);
     this.buildRing(scene);
     this.buildGarden(scene);
   }

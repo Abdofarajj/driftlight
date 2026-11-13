@@ -9,6 +9,7 @@ import { rng, fbm2, noise3 } from './rng.js';
 import { displace, setMix } from './shapes.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildCrystalLake } from './lake.js';
+import { buildDesert } from './desert.js';
 import { mergeSiblings } from '../look/merge.js';
 
 const R = 24; // main island radius
@@ -683,12 +684,15 @@ export function buildLanternForest() {
   // (the waterfall and its grotto live in secrets.js)
 
   // ---- Crystal Lake: the next island, across a crystal bridge from the shrine (lake.js) ----
-  const lake = buildCrystalLake({
+  const zoneCtx = {
     root, lights, swingers, colliders, bridges, M, makeBridge, makeTree, makeRock, makeMushroom, makeWaystone, buildCliff,
-    scatter: (kind, count, place, seed) => kind === 'tuft'
-      ? scatterInstanced(tuftGeo, M.tuft, count, place, seed, tuftTints)
-      : scatterInstanced(flowerGeo, M.flower, count, place, seed, PAL.flowers),
-  });
+    scatter: (kind, count, place, seed, tints) => kind === 'tuft'
+      ? scatterInstanced(tuftGeo, M.tuft, count, place, seed, tints || tuftTints)
+      : scatterInstanced(flowerGeo, M.flower, count, place, seed, tints || PAL.flowers),
+  };
+  const lake = buildCrystalLake(zoneCtx);
+  // ---- Sunset Desert: across a sandstone bridge from the lake's north-east shore (desert.js) ----
+  const desert = buildDesert(zoneCtx);
 
   const update = (t) => {
     for (const p of swingers) p.rotation.z = Math.sin(t * 1.3 + p.userData.ph) * 0.07, p.rotation.x = Math.cos(t * 1.1 + p.userData.ph) * 0.05;
@@ -710,6 +714,8 @@ export function buildLanternForest() {
     }
     const l = lake.floor(x, z);
     if (l !== null) best = Math.max(best ?? -1e9, l);
+    const d = desert.floor(x, z);
+    if (d !== null) best = Math.max(best ?? -1e9, d);
     return best;
   };
 
@@ -721,9 +727,10 @@ export function buildLanternForest() {
     return ws;
   });
   checkpoints.push(lake.checkpoint); // Crystal Lake, just past the crystal bridge
+  checkpoints.push(...desert.checkpoints); // Sunset Desert: past the sandstone bridge, and at the plaza end of the Windy Pass
   const update2 = (t, dt) => { update(t); checkpoints.forEach((c) => c.update(t, dt)); shrine.userData.update(t); };
 
   const swingParts = [];
   for (const p of swingers) p.traverse((o) => { if (o.isMesh) swingParts.push(o); });
-  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, lake, deep: lake.deep, waterAt: lake.waterAt, spawn: new Vector3(1.2, 0, 11.5) };
+  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, lake, desert, deep: lake.deep, waterAt: lake.waterAt, spawn: new Vector3(1.2, 0, 11.5) };
 }

@@ -26,9 +26,19 @@ let shotN = 0;
 const shot = async (name) => { const f = `${out}/${String(++shotN).padStart(2, '0')}-${name}.png`; await page.screenshot({ path: f }); return f; };
 const results = [];
 // --from-lake: skip straight to the Crystal Lake checks (set up as if the lantern quest and shrine were done)
-let skipping = process.argv.includes('--from-lake') ? 'lake' : null;
+// --from-desert: skip to the Sunset Desert checks (the crystal heart already awake)
+const FROM = process.argv.includes('--from-desert') ? 'desert' : process.argv.includes('--from-lake') ? 'lake' : null;
+let skipping = FROM;
 async function objective(name, fn) {
-  if (skipping === 'lake') {
+  if (skipping === 'desert') {
+    if (!name.startsWith('the crystal heart raises a sandstone bridge')) return;
+    skipping = null;
+    await G(() => { window.__game.lightAll(); window.__game.lakeAll(); });
+    await page.waitForFunction(() => window.__game.desertQuest.rise >= 1, null, { timeout: 180000 });
+    const [x, z] = ringPt(lakeAng(DS.from[0], DS.from[2]));
+    await G(([x, z]) => { const g = window.__game; g.teleport(x, z, Math.PI); g.B.pos.set(x + 0.9, g.world.floorAt(x + 0.9, z), z); g.B.vel.set(0, 0, 0); }, [x, z]);
+    await wait(600); await G(() => window.__game.holdHands()); await wait(900);
+  } else if (skipping === 'lake') {
     if (!name.startsWith('reaching the shrine')) return;
     skipping = null;
     await G(() => window.__game.lightAll());
@@ -36,7 +46,7 @@ async function objective(name, fn) {
     await G(() => { const g = window.__game; g.teleport(4, -44.5, Math.PI); g.B.pos.set(5, 1.4, -44.5); g.B.vel.set(0, 0, 0); });
     await wait(600); await G(() => window.__game.holdHands()); await wait(900);
   } else if (skipping === 'end') return;
-  if (process.argv.includes('--from-lake') && name.startsWith('secret: walk through the waterfall')) { skipping = 'end'; return; }
+  if (FROM && name.startsWith('secret: walk through the waterfall')) { skipping = 'end'; return; }
   const t0 = Date.now();
   let r;
   try { r = await fn(); } catch (e) { r = { pass: false, note: 'crashed: ' + e.message }; }
@@ -320,6 +330,135 @@ await objective('secret: the rowboat drifts round the lake when you both sit in 
   return { pass: s1.n === sc0 + 1 && moved && !q.riding && r.ok && p.me[1] > LK.wy, note: `secret ${sc0} -> ${s1.n}, carried ${dist2(mid.me, boat).toFixed(1)} m out, ride over=${!q.riding}, walked back up the dock=${r.reason}` };
 });
 
+// ---- round 7: Sunset Desert ----
+const ds = () => G(() => { const q = window.__game.desertQuest; return { rise: q.rise, opened: q.opened, sun: q.sun.state, sunPos: q.sun.pos.toArray(), phase: q.phase, done: q.done, gate: q.gateK, tears: q.tears }; });
+const DS = await G(() => { const D = window.__game.world.desert; const a = (v) => v.toArray();
+  return { from: a(D.bridge.data.from), to: a(D.bridge.data.to), c: a(D.center), cps: D.checkpoints.map((c) => a(c.pos)), nest: a(D.nestPos), dial: a(D.dialPos), star: a(D.starPos),
+    gate: a(D.gatePos), terrace: a(D.terrace), shelters: D.shelters.map(a), oasis: a(D.oasisWorld), arch: a(D.oasisArch) }; });
+const dl = (x, z) => [DS.c[0] + x, DS.c[2] + z]; // desert local -> world
+const toast = () => page.$eval('#toast', (e) => e.textContent);
+const phaseIs = (ph) => page.waitForFunction((ph) => window.__game.desertQuest.phase === ph, ph, { timeout: 40000, polling: 'raf' });
+const afterGust = async () => { await phaseIs('gust'); await phaseIs('calm'); };
+async function legs(list, opts = {}) { for (const [x, z] of list) { const r = await goTo(x, z, { tol: 0.6, timeout: 25, ...opts }); if (!r.ok) return { ...r, leg: [+x.toFixed(1), +z.toFixed(1)] }; } return { ok: true }; }
+async function fetchHerD() {
+  const p = await pos();
+  if (!p.linked) {
+    if (dist2(p.me, p.friend) > 2.0) await goTo(p.friend[0] + 0.9, p.friend[2] + 0.4, { tol: 0.5, timeout: 25 });
+    await G(() => window.__game.holdHands()); await wait(900);
+  }
+  return (await pos()).linked;
+}
+const local = (p) => [p[0] - DS.c[0], p[2] - DS.c[2]];
+
+await objective('the crystal heart raises a sandstone bridge; cross it hand in hand to the Sunset Desert', async () => {
+  let q = await ds();
+  for (let k = 0; k < 40 && q.rise < 1; k++) { await wait(800); q = await ds(); }
+  if (!(await fetchHer())) return { pass: false, note: 'could not take her hand' };
+  let r = await shoreTo(lakeAng(DS.from[0], DS.from[2]));
+  if (r.ok) r = await legs([[DS.from[0], DS.from[2]], [DS.to[0], DS.to[2]], [DS.cps[0][0], DS.cps[0][2]]], { tol: 0.9, timeout: 40 });
+  await wait(600);
+  const p = await pos(); await shot('desert-arrive');
+  const rows = await G(() => window.__game.objectives.list().map((o) => o.id + (o.done ? '✓' : '')).join(','));
+  return { pass: q.rise >= 1 && r.ok && p.cp === 4 && p.linked && /sun/.test(rows), note: `rise=${q.rise} walk=${JSON.stringify(r)} checkpoint=${p.cp} linked=${p.linked} objectives=${rows}` };
+});
+
+await objective('the little sun only follows your shared light (alone it sleeps on; let go and it waits)', async () => {
+  await unlink();
+  const nearNest = [DS.nest[0] + 1.5, DS.nest[2] - 1.0];
+  await goTo(...nearNest, { tol: 0.5 });
+  await wait(500);
+  const alone = (await ds()).sun, hint = await toast();
+  if (!(await fetchHerD())) return { pass: false, note: 'could not take her hand' };
+  await goTo(...nearNest, { tol: 0.5 });
+  await wait(800);
+  const follow = (await ds()).sun; await shot('sun-follows');
+  await unlink(); await wait(500);
+  const waiting = (await ds()).sun;
+  await G(() => window.__game.holdHands()); await wait(900);
+  const again = (await ds()).sun;
+  return { pass: alone === 0 && /little sun/.test(hint) && follow === 1 && waiting === 2 && again === 1, note: `alone=${alone} (hint "${hint}") hand in hand=${follow} let go=${waiting} hands again=${again}` };
+});
+
+await objective('out in the open in the Windy Pass, a gust pushes you back and tears your hands apart', async () => {
+  const r0 = await legs([dl(-3, 9), dl(0, 7.4)]);
+  await afterGust();
+  const exposed = dl(1.9, 2.4);
+  const r = await goTo(...exposed, { tol: 0.5 });
+  const before = await pos();
+  await phaseIs('gust'); await wait(900);
+  const mid = await pos(), q = await ds(), msg = await toast(); await shot('gust-torn');
+  await phaseIs('calm');
+  const after = await pos();
+  const pushed = local(after.me)[1] - local(before.me)[1];
+  return { pass: r0.ok && r.ok && !mid.linked && q.sun === 2 && q.tears >= 1 && pushed > 2.5 && /gust/.test(msg), note: `linked during gust=${mid.linked} sun=${q.sun} tears=${q.tears} pushed back ${pushed.toFixed(1)} m "${msg}"` };
+});
+
+await objective('cross the Windy Pass between gusts, hand in hand behind the shelter walls, with the little sun', async () => {
+  if (!(await fetchHerD())) return { pass: false, note: 'could not take her hand' };
+  let r = await goTo(...dl(0, 7.2), { tol: 0.6 });
+  const tears0 = (await ds()).tears, log = [];
+  const S = DS.shelters;
+  const sp = (await ds()).sunPos; // it waits where the gust tore your hands apart: pick it up on the way in
+  const hops = [
+    [[sp[0], sp[2] + 0.8], [S[0][0], S[0][2]]],
+    [dl(1.9, 0.9), dl(1.9, -1.0), [S[1][0], S[1][2]]],
+    [dl(-1.9, -3.0), dl(-1.9, -5.0), [S[2][0], S[2][2]]],
+    [dl(1.9, -7.0), dl(1.9, -9.2), dl(0, -12.0), dl(-1.5, -14.2)],
+  ];
+  for (let i = 0; i < hops.length; i++) {
+    await afterGust();
+    r = await legs(hops[i]);
+    const q = await ds(), p = await pos();
+    log.push(`hop ${i}: ${r.ok ? 'ok' : JSON.stringify(r)} linked=${p.linked} sun=${q.sun}`);
+    if (i === 1) await shot('pass-shelter');
+    if (!r.ok || !p.linked) break;
+  }
+  r = await goTo(DS.cps[1][0], DS.cps[1][2], { tol: 0.9 });
+  await wait(500);
+  const q = await ds(), p = await pos();
+  return { pass: r.ok && p.linked && q.sun === 1 && q.tears === tears0 && p.cp === 5 && local(p.me)[1] < -12.6, note: `${log.join(' | ')} | tears ${tears0} -> ${q.tears}, checkpoint=${p.cp}` };
+});
+
+await objective('bring the little sun to the sundial: the dial lights, the wind settles and the sun gate opens', async () => {
+  const r = await goTo(DS.dial[0] - 2.1, DS.dial[2] + 0.8, { tol: 0.5 });
+  let q = await ds();
+  for (let k = 0; k < 20 && q.gate < 1; k++) { await wait(500); q = await ds(); }
+  await shot('sundial-lit');
+  const phases = new Set();
+  for (let k = 0; k < 16; k++) { phases.add((await ds()).phase); await wait(400); }
+  const rows = await G(() => window.__game.objectives.list().map((o) => o.id + (o.done ? '✓' : '')).join(','));
+  return { pass: r.ok && q.sun === 3 && q.done && q.gate >= 1 && phases.size === 1 && phases.has('calm') && !rows.split(',').some((id) => id === 'sun' || id === 'desert'), note: `walk=${r.reason} sun=${q.sun} done=${q.done} gate=${q.gate.toFixed(2)} gust phases since=${[...phases]} objectives=${rows}` };
+});
+
+await objective('walk through the open sun gate and take the desert star', async () => {
+  const s0 = (await pos()).stars;
+  const r = await legs([dl(8, -11), dl(12.2, DS.gate[2] - DS.c[2]), dl(15.8, DS.gate[2] - DS.c[2]), [DS.star[0] - 0.4, DS.star[2]]]);
+  await wait(800);
+  const p = await pos(); await shot('desert-star');
+  return { pass: r.ok && p.stars === s0 + 1, note: `walk=${JSON.stringify(r)} stars ${s0} -> ${p.stars}` };
+});
+
+await objective('secret: the hidden oasis behind a broken arch', async () => {
+  const s0 = await sec();
+  await unlink();
+  const back = [dl(15.8, -6), dl(12.2, -6), dl(8, -11), dl(0, -12.8), dl(1.9, -9.2), dl(1.9, -7.0), dl(-1.9, -5.0), dl(-1.9, -3.0), dl(1.9, -1.0), dl(1.9, 0.9), dl(0, 6.8), dl(6, 7.2)];
+  let r = await legs(back);
+  if (r.ok) r = await legs([[DS.arch[0], DS.arch[2]], dl(12, 11.6)], { tol: 0.4 });
+  await wait(900);
+  const s1 = await sec(); await shot('oasis');
+  return { pass: r.ok && s1.n === s0.n + 1 && s1.found[5] && s1.counter === `${s0.n + 1}/6`, note: `walk=${JSON.stringify(r)} secrets ${s0.n} -> ${s1.n} counter=${s1.counter}` };
+});
+
+await objective('the old city wall holds: no way north except through the pass', async () => {
+  await legs([[DS.arch[0], DS.arch[2]], dl(9, 7.4)]);
+  await goTo(...dl(9, -3), { tol: 0.5, timeout: 6 });
+  const z = local((await pos()).me)[1];
+  await legs([dl(-12, 7.2)]);
+  await goTo(...dl(-12, -3), { tol: 0.5, timeout: 6 });
+  const z2 = local((await pos()).me)[1];
+  return { pass: z > 4.8 && z2 > 4.6, note: `stopped at local z=${z.toFixed(2)} (east) and ${z2.toFixed(2)} (west); the wall is at ~4.2` };
+});
+
 await objective('secret: walk through the waterfall and find Roro Jr', async () => {
   await unlink();
   const out = await G(() => window.__game.secrets.gToWorld(0, 4.6));
@@ -331,7 +470,7 @@ await objective('secret: walk through the waterfall and find Roro Jr', async () 
   await wait(700);
   const s1 = await sec(); await shot('grotto-roro');
   const waving = await G(() => window.__game.secrets.waveT > 0);
-  return { pass: !s0.found[0] && s1.found[0] && s1.card && s1.counter === `${s0.n + 1}/5` && waving, note: `walk=${r.reason} found=${s1.found[0]} card=${s1.card} counter=${s1.counter} waving=${waving}` };
+  return { pass: !s0.found[0] && s1.found[0] && s1.card && s1.counter === `${s0.n + 1}/6` && waving, note: `walk=${r.reason} found=${s1.found[0]} card=${s1.card} counter=${s1.counter} waving=${waving}` };
 });
 
 await objective('Roro\'s grotto: walls hold, and you can walk back out', async () => {
@@ -447,7 +586,7 @@ await objective('objectives panel: every finished goal has been removed', async 
   const rows = await page.$$eval('.obj', (els) => els.length);
   const s = await sec();
   await shot('objectives-cleared');
-  return { pass: left.length === 0 && rows === 0 && s.counter === '5/5', note: `left=${JSON.stringify(left)} rows=${rows} secrets=${s.counter}` };
+  return { pass: left.length === 0 && rows === 0 && s.counter === '6/6', note: `left=${JSON.stringify(left)} rows=${rows} secrets=${s.counter}` };
 });
 
 writeFileSync(`${out}/results.json`, JSON.stringify({ results, errors }, null, 2));

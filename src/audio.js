@@ -134,6 +134,10 @@ export class GameAudio {
           this.burst(t, 0.22, 0.16 * v, 'lowpass', 900 * p, 0.8, dest, 400);
           this.burst(t + 0.03, 0.12, 0.06 * v, 'bandpass', 2400 * p, 2, dest, 1400);
           this.tone(320 * p, t + 0.02, 0.06, 0.02 * v, 'sine', dest);
+        } else if (s === 'sand') { // soft sand: a hushed shuffle with a little grit
+          this.burst(t, 0.16, 0.16 * v, 'bandpass', 2200 * p, 0.5, dest, 1100);
+          this.burst(t + 0.02, 0.07, 0.05 * v, 'highpass', 5200 * p, 0.6, dest);
+          this.tone(80 * p, t, 0.07, 0.05 * v, 'sine', dest);
         } else if (s === 'path') { // dirt crunch: two quick gritty bursts
           this.burst(t, 0.08, 0.2 * v, 'bandpass', 1500 * p, 0.9, dest);
           this.burst(t + 0.025, 0.06, 0.12 * v, 'highpass', 3200 * p, 0.7, dest);
@@ -179,6 +183,28 @@ export class GameAudio {
         [57, 64, 69, 73, 76, 81, 85, 88].forEach((n, i) => this.bell(NOTE(n), t + i * 0.13, 0.065, this.sfx, 4.5));
         [33, 45, 52].forEach((n) => this.tone(NOTE(n), t, 6, 0.06, 'triangle', this.sfx, 1.5));
         this.burst(t + 0.8, 2.5, 0.02, 'highpass', 6000, 0.6, this.sfx, 11000);
+        this.swell(0.6, 9);
+        break;
+      }
+      case 'gustWarn': // a gust gathering at the top of the pass: a low rising hiss
+        this.burst(t, 1.4, 0.05, 'bandpass', 260, 0.6, dest, 900);
+        break;
+      case 'gust': { // the gust: a rushing hiss that sweeps down, with a hollow whistle over it
+        this.burst(t, 1.9, 0.16, 'bandpass', 1400, 0.5, dest, 500);
+        this.burst(t + 0.05, 1.6, 0.05, 'highpass', 4200, 0.7, dest, 2600);
+        this.tone(NOTE(79), t + 0.1, 1.3, 0.012, 'sine', dest, 0.3);
+        break;
+      }
+      case 'sunwake': { // the little sun wakes: a warm yawn of bells rising, then a bright chirp
+        [67, 71, 74, 79, 83].forEach((n, i) => this.bell(NOTE(n), t + i * 0.1, 0.055, dest, 2.6));
+        this.tone(NOTE(91), t + 0.62, 0.25, 0.03, 'triangle', dest);
+        this.swell(0.3, 4);
+        break;
+      }
+      case 'sunhome': { // home on the sundial: a slow golden chord, a shimmer, and the music swells
+        [55, 62, 67, 71, 74, 79, 83, 86].forEach((n, i) => this.bell(NOTE(n), t + i * 0.12, 0.065, this.sfx, 4.5));
+        [31, 43, 50].forEach((n) => this.tone(NOTE(n), t, 6, 0.06, 'triangle', this.sfx, 1.5));
+        this.burst(t + 0.7, 2.5, 0.02, 'highpass', 6000, 0.6, this.sfx, 11000);
         this.swell(0.6, 9);
         break;
       }

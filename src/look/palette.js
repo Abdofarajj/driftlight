@@ -55,6 +55,15 @@ export const PAL = {
   lotus: [c('#fbc6d6'), c('#c48db2')],        // carved lotus petals on the lotus stones
   lily: [c('#bfd08a'), c('#7f9a7c')],         // lily pads
 
+  // Sunset Desert (round 7)
+  sand: [c('#f8d6a6'), c('#c69ba2')],         // dunes: warm peach sand, lavender-mauve in shade
+  paving: [c('#f4d2ac'), c('#b8939f')],       // worn paving on the plaza, the paths and the terrace
+  sandstone: [c('#efb98a'), c('#a98096')],    // ruins, walls, the bridge and the cliffs below
+  cactus: [c('#a9c48b'), c('#6d8c88')],
+  palm: [c('#bccd72'), c('#6f8f6c')],         // oasis palm fronds
+  dust: c('#f7dcb6'),                         // sand gusts
+  sunCore: c('#fff6d2'), sunHalo: c('#ff9c50'), // the lost sun spirit and the sundial
+
   glowCore: c('#fff3c6'),
   glowHalo: c('#ffb45e'),
   rim: c('#ffd08a'),

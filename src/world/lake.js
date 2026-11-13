@@ -36,13 +36,17 @@ const dLake = (x, z) => Math.hypot(x - LC.x, z - LC.z);
 
 const ARRIVE = around(ARRIVE_TH, edgeR(ARRIVE_TH) * 0.9, { x: 0, z: 0 });
 const SHORE_STEP = around(STEP_TH, LR + 0.6);
+// the sandstone bridge to the Sunset Desert (round 7) leaves the north-east rim; a path leads to it from the beach
+const DESERT_TH = Math.atan2(-135 - LAKE_C.z, 25 - LAKE_C.x);
+const NE_RIM = around(DESERT_TH, edgeR(DESERT_TH) * 0.9, { x: 0, z: 0 });
+const NE_SHORE = (() => { const dx = NE_RIM.x - LC.x, dz = NE_RIM.z - LC.z, d = Math.hypot(dx, dz); return { x: LC.x + dx / d * (LR + 2.2), z: LC.z + dz / d * (LR + 2.2) }; })();
 
 function distSeg(x, z, a, b) {
   const abx = b.x - a.x, abz = b.z - a.z;
   const t = Math.max(0, Math.min(1, ((x - a.x) * abx + (z - a.z) * abz) / (abx * abx + abz * abz)));
   return Math.hypot(x - (a.x + abx * t), z - (a.z + abz * t));
 }
-const pathMask = (x, z) => 1 - sm(1.0, 2.0, distSeg(x, z, ARRIVE, SHORE_STEP) + (noise3(x * 0.3, 5, z * 0.3) - 0.5));
+const pathMask = (x, z) => 1 - sm(1.0, 2.0, Math.min(distSeg(x, z, ARRIVE, SHORE_STEP), distSeg(x, z, NE_SHORE, NE_RIM)) + (noise3(x * 0.3, 5, z * 0.3) - 0.5));
 
 const bedDepth = (d) => 0.36 * sm(0, 0.9, d) + 1.9 * sm(0.9, 3.2, d);
 
@@ -60,6 +64,11 @@ export function lakeGround(x, z) {
   return h;
 }
 const onLakeIsland = (x, z) => Math.hypot(x, z) < edgeR(Math.atan2(z, x)) * 0.97;
+
+/** the north-east rim where the bridge to the Sunset Desert starts (world coords, on the ground) */
+export function lakeDesertRim() {
+  return new Vector3(NE_RIM.x + LAKE_C.x, lakeGround(NE_RIM.x, NE_RIM.z), NE_RIM.z + LAKE_C.z);
+}
 
 function buildTop() {
   const SEG = 128, RINGS = 50;
@@ -327,7 +336,7 @@ export function buildCrystalLake(ctx) {
     t.position.y = gy(x, z) - 0.25;
     g.add(t);
   }
-  for (const [x, z, s, seed, block] of [[-12, 12, 0.8, 221, true], [12, -10, 0.7, 222, false], [-4, -17, 0.9, 223, true], [18, -2, 0.6, 224, false], [-18, 1, 0.7, 225, false], [5, 16, 0.6, 226, true]]) {
+  for (const [x, z, s, seed, block] of [[-12, 12, 0.8, 221, true], [17, -9, 0.7, 222, false], [-4, -17, 0.9, 223, true], [18, -2, 0.6, 224, false], [-18, 1, 0.7, 225, false], [5, 16, 0.6, 226, true]]) {
     const rk = ctx.makeRock(x, z, s, seed, local, block);
     rk.position.y = gy(x, z) + s * (block ? 0.3 : 0.15);
     g.add(rk);
@@ -347,7 +356,7 @@ export function buildCrystalLake(ctx) {
   for (let i = 0; i < 14; i++) {
     const a = sr() * Math.PI * 2, d = 15.5 + sr() * 4;
     const p = around(a, d, { x: 0, z: 0 });
-    if (!onLakeIsland(p.x * 1.08, p.z * 1.08) || distSeg(p.x, p.z, ARRIVE, SHORE_STEP) < 2.5) continue;
+    if (!onLakeIsland(p.x * 1.08, p.z * 1.08) || distSeg(p.x, p.z, ARRIVE, SHORE_STEP) < 2.5 || distSeg(p.x, p.z, NE_SHORE, NE_RIM) < 2.5) continue;
     const sh = crystalCluster(M.shard, 0.5 + sr() * 0.5, 250 + i, 3);
     sh.position.set(p.x, gy(p.x, p.z) - 0.05, p.z);
     g.add(sh);

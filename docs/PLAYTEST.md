@@ -94,3 +94,19 @@ on both screens (ride position 0.03/0.03 a few seconds in) and brings you back.
 - `node tools/playtest.mjs <name> --from-lake` runs only the Crystal Lake checks (about 8 minutes).
 - Draws at the forest spawn (landscape) 218 → 259: the lake island shows on the horizon. Its still pieces are baked one
   per material for the whole island, and bridges are baked once they finish rising (the shrine bridge alone was ~50 draws).
+
+## 2026-11-13, round 7 Sunset Desert + world map (`playtest --from-desert` 8/8, `npm run nettest` 18/18; full playtest saved for when the whole game is done)
+New solo checks: the crystal heart raises the sandstone bridge and you cross it hand in hand to the desert checkpoint;
+the little sun sleeps alone (with a hint), follows while you hold hands, waits when you let go and follows again;
+out in the open in the Windy Pass a gust pushes you back about 4 m and tears your hands apart; crossing the pass
+between gusts, hand in hand from shelter to shelter, picking the waiting sun up on the way (no tears, checkpoint 6);
+the sun home on the sundial lights it, stops the gusts and opens the gate; the 5th star behind the gate; the oasis
+secret through the broken arch; the city wall holds everywhere but the pass.
+New online checks: the bridge rises and the sun follows your joined hands on both screens (0.01 m apart); both
+screens blow the same gusts (gust clocks within 0.06 s) and a gust pushes the guest back 4.1 m, which the host sees;
+the sun home online lights the dial, stops the wind and opens the gate on both screens.
+- First run: the partner, walking beside you, stopped just outside the calm patch behind a shelter wall and the next
+  gust tore your hands apart. Fix: each calm patch is deeper (2.75 m, room for two side by side).
+- First run: right after a gust tore your hands apart, the "hold hands" hint replaced the gust message. Now each
+  message gets its turn.
+- `node tools/playtest.mjs <name> --from-desert` runs only the desert checks (about 6 minutes).

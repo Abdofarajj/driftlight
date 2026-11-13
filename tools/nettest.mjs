@@ -232,6 +232,65 @@ await objective('rowboat online: sit in it together, it drifts on both screens a
   return { pass: ok && mid.inBoat && Math.abs(mid.u - hu) < 0.08 && back && n[0] === 3 && n[1] === 3, note: `riding on both=${ok}, guest still in the boat mid-ride=${mid.inBoat}, ride position host/guest=${hu.toFixed(2)}/${mid.u.toFixed(2)}, back at the dock=${back}, secrets host/guest=${n.join('/')}` };
 });
 
+// ---- round 7: Sunset Desert ----
+const DSN = await H(() => { const D = window.__game.world.desert, a = (v) => v.toArray(); return { c: a(D.center), nest: a(D.nestPos), dial: a(D.dialPos) }; });
+const dlw = (x, z) => [DSN.c[0] + x, DSN.c[2] + z]; // desert local -> world
+const onBoth = async (fn) => (await H(fn)) && (await guest.evaluate(fn));
+const letGo = async () => { if (await H(() => window.__game.hands.linked)) { await H(() => window.__game.holdHands()); await until(async () => !(await onBoth(() => window.__game.hands.linked)), 5000); } };
+const guestPhase = (ph) => guest.waitForFunction((ph) => window.__game.desertQuest.phase === ph, ph, { timeout: 15000, polling: 100 });
+
+await objective('Sunset Desert online: the bridge rises on both screens and the little sun follows your joined hands', async () => {
+  await letGo();
+  await H(() => window.__game.lakeAll());
+  const risen = await until(() => onBoth(() => window.__game.desertQuest.rise >= 1), 30000);
+  const n = DSN.nest;
+  await H(([x, z]) => window.__game.teleport(x, z, Math.PI), [n[0] + 1.5, n[2] - 1.0]);
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, Math.PI), [n[0] + 2.3, n[2] - 0.6]);
+  await wait(1500);
+  const alone = await guest.evaluate(() => window.__game.desertQuest.sun.state);
+  await H(() => window.__game.holdHands());
+  const linked = await until(() => onBoth(() => window.__game.hands.linked), 8000);
+  const follows = await until(() => onBoth(() => window.__game.desertQuest.sun.state === 1), 8000);
+  await H(([x, z]) => window.__game.goTo(x, z, { tol: 0.6 }), dlw(-3, 9));
+  await wait(1500);
+  const sp = [await H(() => window.__game.desertQuest.sun.pos.toArray()), await guest.evaluate(() => window.__game.desertQuest.sun.pos.toArray())];
+  const g = await guest.evaluate(() => window.__game.pos());
+  await both('11-desert-sun');
+  return { pass: risen && alone === 0 && linked && follows && dist(sp[0], sp[1]) < 1.5 && dist(g.me, sp[1]) < 3.5, note: `bridge up on both=${risen}, sun before hands=${alone}, linked=${linked}, follows on both=${follows}, sun host vs guest ${dist(sp[0], sp[1]).toFixed(2)} m, guest to sun ${dist(g.me, sp[1]).toFixed(1)} m` };
+});
+
+await objective('Windy Pass online: both screens blow the same gusts, and a gust pushes the guest back down the pass', async () => {
+  await letGo();
+  let drift = 0;
+  for (let i = 0; i < 6; i++) {
+    const a = await H(() => window.__game.desertQuest.g), b = await guest.evaluate(() => window.__game.desertQuest.g);
+    drift = Math.max(drift, Math.abs(a - b)); await wait(350);
+  }
+  await guestPhase('calm');
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, Math.PI), dlw(1.9, 2.4));
+  const z0 = (await guest.evaluate(() => window.__game.pos())).me[2];
+  await guestPhase('gust'); await wait(700);
+  const mid = await guest.evaluate(() => window.__game.pos().inWind);
+  await guestPhase('calm'); await wait(600);
+  const z1 = (await guest.evaluate(() => window.__game.pos())).me[2], seen = (await H(() => window.__game.pos())).friend[2];
+  return { pass: drift < 0.6 && mid && z1 - z0 > 2.5 && Math.abs(seen - z1) < 1.5, note: `gust clocks apart by at most ${drift.toFixed(2)} s, guest in the wind=${mid}, pushed back ${(z1 - z0).toFixed(1)} m, host sees her ${Math.abs(seen - z1).toFixed(2)} m off` };
+});
+
+await objective('sundial online: bring the little sun home together and the sun gate opens on both screens', async () => {
+  const d = DSN.dial, st = dlw(-4.5, -13.6);
+  // meet just past the pass and bring the little sun along (the host keeps it)
+  await H(([x, z]) => { const g = window.__game; g.teleport(x, z, Math.PI); g.desertQuest.sun.pos.set(x, g.A.pos.y + 1.6, z); }, st);
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, Math.PI), [st[0] + 0.8, st[1] + 0.3]);
+  await wait(1500);
+  await H(() => window.__game.holdHands());
+  const follows = await until(() => onBoth(() => window.__game.hands.linked && window.__game.desertQuest.sun.state === 1), 8000);
+  const walk = await H(([x, z]) => window.__game.goTo(x, z, { tol: 0.5 }), [d[0] - 2.1, d[2] + 0.8]);
+  const home = await until(() => onBoth(() => { const q = window.__game.desertQuest; return q.done && q.sun.state === 3 && q.gateK >= 1; }), 15000);
+  const ph = [await H(() => window.__game.desertQuest.phase), await guest.evaluate(() => window.__game.desertQuest.phase)];
+  await both('12-sundial');
+  return { pass: follows && walk.ok && home && ph.every((p) => p === 'calm'), note: `follows=${follows} walk=${walk.reason} home, dial lit and gate open on both=${home}, wind host/guest=${ph.join('/')}` };
+});
+
 await objective('guest leaves: the host is told and keeps playing', async () => {
   await guest.close({ runBeforeUnload: true }); guest = null; // like closing the tab
   const ok = await until(async () => !(await H(() => window.__game.net.online)), 20000);
