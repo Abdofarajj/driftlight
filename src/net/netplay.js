@@ -4,7 +4,7 @@
 // they put you (`fp`...), and your screen plays that back for your own traveler (applyCarry).
 // Hands state travels with a sequence number in every update, so the two screens can never disagree for
 // long about whether you're holding hands. Lanterns are scored by the host; stars are collected by
-// whoever touches them (both sides merge the collected set).
+// whoever touches them, and secrets by whoever finds them (both sides merge the found sets).
 import { Vector3 } from 'three';
 import { NetSession } from './session.js';
 import { WALK } from '../player/actor.js';
@@ -17,7 +17,7 @@ const v3 = (v) => [r2(v.x), r2(v.y), r2(v.z)];
 
 export class NetPlay {
   /**
-   * ctx: { A (you), B (partner), hands, quest, stars, playAs, peerOpts, lag,
+   * ctx: { A (you), B (partner), hands, quest, stars, secrets, playAs, peerOpts, lag,
    *        on: { connected(back), left(reason), hello(kind), hands(linked), error(e) } }
    */
   constructor(ctx) {
@@ -104,6 +104,8 @@ export class NetPlay {
     if (m.hs !== undefined) this.reconcileHands(!!m.hl, m.hd, m.hs);
     // stars: anything either of you collected
     for (let i = 0; i < this.stars.items.length; i++) if (m.st & (1 << i)) this.stars.take(i, this.first);
+    // secrets too: found by one of you counts for both
+    if (this.secrets && m.sc) for (let i = 0; i < this.secrets.items.length; i++) if (m.sc & (1 << i)) this.secrets.take(i, this.first);
     // lanterns: the host keeps the score
     if (m.q && this.role === 'guest') this.quest.applyState(m.q, this.first);
     this.first = false;
@@ -121,7 +123,7 @@ export class NetPlay {
       g: A.grounded ? 1 : 0, gl: A.glide ? 1 : 0, w: A.inWind ? 1 : 0,
       i: [r2(it.x), r2(it.z)], r: it.run ? 1 : 0, jh: it.jumpHeld ? 1 : 0, j: this.myJumps,
       hl: hands.linked ? 1 : 0, hd: hands.side, hs: this.hseq,
-      st: this.stars.mask(),
+      st: this.stars.mask(), sc: this.secrets ? this.secrets.mask() : 0,
     };
     if (hands.carrying) { // you're walking them: say where they are on your screen
       Object.assign(m, { fp: v3(B.pos), fv: v3(B.vel), fh: Math.round(B.heading * 1000) / 1000, fg: B.grounded ? 1 : 0, fgl: B.glide ? 1 : 0 });

@@ -37,6 +37,19 @@ export const PAL = {
   spot: [c('#fff4de'), c('#d9c2c4')],
   flowers: [c('#f7a4bc'), c('#bca4e8'), c('#fff4d8'), c('#f6c27a')],
 
+  // secrets (round 4)
+  water: [c('#f4f0ff'), c('#a9b4dc')],
+  crystalCore: c('#f6f0ff'), crystalHalo: c('#b49cff'),
+  foxCore: c('#fff4e2'), foxHalo: c('#ffa870'),
+  fairyCap: [c('#f6c6e0'), c('#b48ab8')], fairyCore: c('#fff0f6'), fairyHalo: c('#ff8fc0'),
+  roro: [c('#f8c5b6'), c('#c99aa6')],          // Roro Jr's peachy-pink fur (from Abdo's photo)
+  roroMuzzle: [c('#fde2df'), c('#d9aab4')],
+  bow: [c('#93303f'), c('#5e2036')],          // burgundy bow
+  bowDot: [c('#f6e8bc'), c('#c9b48e')],       // cream polka dots + trim
+  petal: [c('#ffd45e'), c('#e0953e')],        // sunflowers
+  seedHead: [c('#9a6446'), c('#5a3a40')],
+  leaf: [c('#b2c66c'), c('#6d8a62')],
+
   glowCore: c('#fff3c6'),
   glowHalo: c('#ffb45e'),
   rim: c('#ffd08a'),

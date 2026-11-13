@@ -55,3 +55,18 @@ pulled partner's camera didn't follow. Cause: each screen pulled its own travele
 other. Now whoever walks carries the pair (their updates say where they put the partner, the partner's screen plays it
 back), and the hands state has a sequence number in every update. The bot test now runs in real time over simulated
 lag with drawing paused (headless drawing is ~2 fps here), with walk-and-stop checks in both directions.
+
+## 2026-11-13, round 4 secrets (`npm run playtest` 25/25, `npm run nettest` 13/13)
+New bot checks: walk through the waterfall and find Roro Jr (card, counter, wave), the grotto walls hold and you can
+walk back out, wake the light fox and it follows you, the fairy ring stays quiet alone and dances (and floats you about
+a metre) when you bring your partner in by the hand, the sunflower garden turns to watch you, and every objective
+clears at 4/4 secrets. Online: a secret found by the guest is counted by the host with the card, and the fairy ring
+dances on both screens when you stand in it together.
+Found and fixed on the way:
+- The return wind lands on the west knoll, so the first fairy-ring spot blew dancers away as soon as they floated. The
+  ring moved to a clearing east of the path, and dancers are exempt from wind anyway.
+- Grotto rocks used their seed as a big Y rotation, which swung the long back wall forward over Roro. Small turns only now.
+- From the normal camera you couldn't see Roro once inside (you stand in front of him). Finding him now gives a short
+  camera moment in front of you, off to one side, while he waves; the waterfall thins while you're inside.
+- The gold trim on both capes sat 0.74 m too low (under the ground). It only showed when floating in the fairy ring.
+- Test servers now run with HMR off, so editing code mid-test no longer reloads the test pages.

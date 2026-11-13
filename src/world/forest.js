@@ -568,7 +568,7 @@ export function buildLanternForest() {
 
   // mushrooms in little clusters near trees
   const mr = rng(31);
-  for (const [cx, cz] of [[-9, -2], [9, -6], [-12, 11], [3, 13], [14, -16], [-15, -9], [11, 4]]) {
+  for (const [cx, cz] of [[-9, -2], [9, -6], [-12, 11], [3, 13], [14, -16], [11, 4]]) {
     for (let i = 0; i < 3; i++) root.add(makeMushroom(cx + (mr() - 0.5) * 2, cz + (mr() - 0.5) * 2, 0.7 + mr() * 0.9, mr() * 100));
   }
 
@@ -659,11 +659,7 @@ export function buildLanternForest() {
     return { x, y: groundHeight(x, z) + 0.1 + r() * 0.16, z, s: 0.7 + r() * 0.6 };
   }, 52, PAL.flowers));
 
-  // waterfall off the north-west cliff (secret cave goes here in round 4)
-  const fall = new Mesh(new CylinderGeometry(1.2, 1.6, 18, 12, 1, true), makeWatercolorMaterial({ lit: [new Color('#f4f0ff'), new Color('#a9b4dc')], rim: 0.8, wash: 0.25, side: 2 }));
-  const fx = -17, fz = -15;
-  fall.position.set(fx, groundHeight(fx, fz) - 9.5, fz);
-  root.add(fall);
+  // (the waterfall and its grotto live in secrets.js)
 
   const update = (t) => {
     for (const p of swingers) p.rotation.z = Math.sin(t * 1.3 + p.userData.ph) * 0.07, p.rotation.x = Math.cos(t * 1.1 + p.userData.ph) * 0.05;

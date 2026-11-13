@@ -7,7 +7,7 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 
 const out = `captures/${process.argv[2] || 'playtest'}`;
 mkdirSync(out, { recursive: true });
-const server = await createServer({ server: { port: 5198, host: '127.0.0.1' }, logLevel: 'error' });
+const server = await createServer({ server: { port: 5198, host: '127.0.0.1', hmr: false }, logLevel: 'error' });
 await server.listen();
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 852, height: 393 } });
@@ -52,7 +52,7 @@ await objective('objectives panel: tap a row to see its details, tap again to cl
   await page.click('.obj[data-id="lanterns"]');
   await wait(1500);
   const o2 = await openNow(), h2 = await settle((h) => h < 2);
-  return { pass: before === 'hands,lanterns,wind,stars' && o1 === 'lanterns' && h1 > 20 && o2 === null && h2 < 2, note: `rows=${before} open=${o1} (${h1.toFixed(0)}px) then ${o2} (${h2.toFixed(0)}px)` };
+  return { pass: before === 'hands,lanterns,wind,stars,secrets' && o1 === 'lanterns' && h1 > 20 && o2 === null && h2 < 2, note: `rows=${before} open=${o1} (${h1.toFixed(0)}px) then ${o2} (${h2.toFixed(0)}px)` };
 });
 
 await objective('walk the path to the arch checkpoint', async () => {
@@ -186,6 +186,83 @@ await objective('bridge of light rises and leads to the shrine star', async () =
   return { pass: p.stars >= 1 && p.me[2] < -40, note: `stars=${p.stars} pos=${p.me}` };
 });
 
+// ---- round 4: secrets ----
+const sec = () => G(() => { const S = window.__game.secrets; return { n: S.count, found: S.items.map((i) => i.found), card: document.getElementById('discover').classList.contains('on'), counter: document.getElementById('secrets').textContent }; });
+const unlink = async () => { if ((await pos()).linked) { await G(() => window.__game.holdHands()); await wait(1200); } };
+const friendTo = (x, z) => G(([x, z]) => { const g = window.__game; g.B.pos.set(x, g.world.floorAt(x, z), z); g.B.vel.set(0, 0, 0); }, [x, z]);
+
+await objective('secret: walk through the waterfall and find Roro Jr', async () => {
+  await unlink();
+  const out = await G(() => window.__game.secrets.gToWorld(0, 4.6));
+  const inside = await G(() => window.__game.secrets.gToWorld(0, -0.15));
+  await G(([x, z]) => window.__game.teleport(x, z, 0), [out.x, out.z]);
+  await wait(800); await shot('grotto-outside');
+  const s0 = await sec();
+  const r = await goTo(inside.x, inside.z, { tol: 0.5, timeout: 12 });
+  await wait(700);
+  const s1 = await sec(); await shot('grotto-roro');
+  const waving = await G(() => window.__game.secrets.waveT > 0);
+  return { pass: !s0.found[0] && s1.found[0] && s1.card && s1.counter === `${s0.n + 1}/4` && waving, note: `walk=${r.reason} found=${s1.found[0]} card=${s1.card} counter=${s1.counter} waving=${waving}` };
+});
+
+await objective('Roro\'s grotto: walls hold, and you can walk back out', async () => {
+  const back = await G(() => window.__game.secrets.gToWorld(0, -3.2)); // straight through the back wall: must stop
+  await goTo(back.x, back.z, { tol: 0.5, timeout: 5 });
+  const l = await G(() => { const S = window.__game.secrets, p = window.__game.A.pos; return S.gLocal(p); });
+  const out = await G(() => window.__game.secrets.gToWorld(0.2, 5));
+  const r = await goTo(out.x, out.z, { tol: 0.7, timeout: 12 });
+  return { pass: l.z > -1.5 && r.ok, note: `deepest local z=${l.z.toFixed(2)} (back wall ~-1.2), walked out=${r.reason}` };
+});
+
+await objective('secret: the sleeping light fox wakes, yips and follows you', async () => {
+  const n = await G(() => window.__game.secrets.fox.nest.toArray());
+  await G(([x, z]) => window.__game.teleport(x + 5, z + 4, Math.PI), [n[0], n[2]]);
+  await wait(800);
+  const st0 = await G(() => window.__game.secrets.fox.state);
+  await goTo(n[0] + 1.8, n[2] + 1.6, { tol: 0.6 });
+  let st = st0;
+  for (let k = 0; k < 12 && st !== 'follow'; k++) { await wait(400); st = await G(() => window.__game.secrets.fox.state); }
+  await shot('fox-awake');
+  const s1 = await sec();
+  // walk off; it should trot along behind
+  await goTo(n[0] - 4, n[2] + 7, { tol: 0.8 });
+  await wait(1500);
+  const d = await G(() => { const g = window.__game; return Math.hypot(g.A.pos.x - g.secrets.fox.pos.x, g.A.pos.z - g.secrets.fox.pos.z); });
+  await shot('fox-following');
+  return { pass: st0 === 'sleep' && st === 'follow' && s1.found[1] && d < 3.5, note: `state ${st0} -> ${st}, found=${s1.found[1]}, fox ${d.toFixed(1)}m behind after a walk` };
+});
+
+await objective('secret: the fairy ring only dances for two (hold hands and stand in it)', async () => {
+  await unlink();
+  const c = await G(() => window.__game.secrets.ringCenter.toArray());
+  await friendTo(c[0] + 7, c[2] + 6);
+  await G(([x, z]) => window.__game.teleport(x, z, 0), [c[0] + 0.2, c[2] + 0.2]);
+  await wait(2500);
+  const alone = await G(() => window.__game.secrets.ring.state);
+  const hint = await page.$eval('#toast', (e) => e.textContent);
+  // fetch your partner and bring them into the ring by the hand
+  await G(([x, z]) => window.__game.teleport(x, z, 0), [c[0] + 6.2, c[2] + 6]);
+  await wait(600);
+  await G(() => window.__game.holdHands()); await wait(900);
+  const linked = (await pos()).linked;
+  // watch every frame: did the ring dance, and how high did it float you?
+  await G(() => {
+    const g = window.__game, S = g.secrets; window.__ring = { danced: false, maxLift: 0, ended: false };
+    const tick = () => { const R = S.ring, w = window.__ring; if (R.state === 'dance') w.danced = true; else if (w.danced) w.ended = true;
+      if (R.state === 'dance') w.maxLift = Math.max(w.maxLift, g.A.pos.y - (g.world.floorAt(g.A.pos.x, g.A.pos.z) ?? 0)); if (!w.ended) requestAnimationFrame(tick); };
+    tick();
+  });
+  await goTo(c[0], c[2], { tol: 0.4, timeout: 12 });
+  await page.waitForFunction(() => window.__game.secrets.ring.state === 'dance' && window.__game.secrets.ring.t > 3.6, null, { timeout: 30000, polling: 'raf' }).catch(() => {});
+  await shot('fairy-ring');
+  await page.waitForFunction(() => window.__ring.ended, null, { timeout: 40000 }).catch(() => {});
+  await wait(800);
+  const { danced, maxLift } = await G(() => window.__ring);
+  const st = danced ? 'dance' : 'idle', found = await G(() => window.__game.secrets.items[2].found);
+  const p = await pos();
+  return { pass: alone === 'idle' && /two/.test(hint) && linked && st === 'dance' && found && maxLift > 0.6 && p.grounded, note: `alone=${alone} hint="${hint}" linked=${linked} danced=${st === 'dance'} found=${found} lifted ${maxLift.toFixed(2)}m, landed=${p.grounded}` };
+});
+
 await objective('let go, ride the warm wind west to the meadow island', async () => {
   if ((await pos()).linked) { await G(() => window.__game.holdHands()); await wait(1200); }
   await G(() => window.__game.teleport(-15.5, -3.2, -Math.PI / 2));
@@ -204,6 +281,18 @@ await objective('collect the meadow star', async () => {
   await wait(1200);
   const p = await pos();
   return { pass: p.stars === s0 + 1, note: `stars ${s0} -> ${p.stars}` };
+});
+
+await objective('secret: the hidden sunflower garden turns to watch you', async () => {
+  const g = await G(() => window.__game.secrets.gardenCenter.toArray());
+  const yaw0 = await G(() => window.__game.secrets.flowers.map((f) => f.head.rotation.y));
+  await goTo(g[0] + 1.5, g[2] + 1.4, { tol: 0.6, timeout: 10 });
+  await wait(1500);
+  const s1 = await sec(); await shot('sunflower-garden');
+  // after finding it, every flower should face you
+  const facing = await G(() => { const g = window.__game, p = g.A.pos; return g.secrets.flowers.filter((f) => { const want = Math.atan2(p.x - f.world.x, p.z - f.world.z); const d = Math.atan2(Math.sin(want - f.head.rotation.y), Math.cos(want - f.head.rotation.y)); return Math.abs(d) < 0.35; }).length; });
+  const moved = await G((y0) => window.__game.secrets.flowers.some((f, i) => Math.abs(f.head.rotation.y - y0[i]) > 0.3), yaw0);
+  return { pass: s1.found[3] && facing >= 11 && moved, note: `found=${s1.found[3]} ${facing}/13 flowers facing you, counter=${s1.counter}` };
 });
 
 await objective('ride the wind back to the main island', async () => {
@@ -227,8 +316,9 @@ await objective('objectives panel: every finished goal has been removed', async 
   await wait(2600);
   const left = await G(() => window.__game.objectives.list());
   const rows = await page.$$eval('.obj', (els) => els.length);
+  const s = await sec();
   await shot('objectives-cleared');
-  return { pass: left.length === 0 && rows === 0, note: `left=${JSON.stringify(left)} rows=${rows}` };
+  return { pass: left.length === 0 && rows === 0 && s.counter === '4/4', note: `left=${JSON.stringify(left)} rows=${rows} secrets=${s.counter}` };
 });
 
 writeFileSync(`${out}/results.json`, JSON.stringify({ results, errors }, null, 2));

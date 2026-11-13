@@ -17,6 +17,8 @@ import { Objectives } from './ui/objectives.js';
 import { NetPlay } from './net/netplay.js';
 import { cleanCode } from './net/session.js';
 import { Invite } from './ui/invite.js';
+import { Secrets } from './world/secrets.js';
+import { SECRET_HINTS } from './world/jokes.js';
 
 ColorManagement.enabled = false; // palette colours are used as-is
 
@@ -36,6 +38,7 @@ renderer.setPixelRatio(dpr);
 const scene = new Scene();
 const camera = new PerspectiveCamera(50, 1, 0.1, 2000);
 const post = new Post(renderer);
+let baseFov = 46;
 
 scene.add(makeSky());
 const world = buildLanternForest();
@@ -65,7 +68,8 @@ const winds = buildWinds(world);
 winds.forEach((w) => scene.add(w.group));
 audio.winds = winds;
 const stars = new Stars(scene, [[-49, 3.9, -4], [53, 1.4, 10.5], [4, 2.3, -44.5]]);
-const hud = { stars: document.getElementById('stars') };
+const secrets = new Secrets(world, scene, events);
+const hud = { stars: document.getElementById('stars'), secrets: document.getElementById('secrets'), secIcon: document.querySelector('.pill .sec') };
 
 // ---- objectives (tap a row to see more; finished ones fade away) ----
 const touchUI = matchMedia('(hover: none), (pointer: coarse)').matches;
@@ -78,9 +82,10 @@ const OBJ = {
   lanterns: { title: 'Light the lanterns', progress: '0/5', detail: 'Five stone lanterns sleep in the forest. Hold hands and stand together beside one until its golden ring fills. Light all five to wake the shrine.' },
   wind: { title: 'Ride the warm wind', detail: `On the west edge of the forest a ring of drifting petals marks a warm current. Step in${touchUI ? '' : ' (hold Space to glide)'} and it carries you to the meadow island.` },
   stars: { title: 'Find the stars', progress: '0/3', detail: 'Three stars are hidden: one past the east rope bridge, one on the meadow island, and one waiting by the shrine.' },
+  secrets: { title: 'Find the secrets', progress: '0/4', detail: SECRET_HINTS },
   shrine: { title: 'Visit the shrine', detail: 'A bridge of light now leads north from the forest. Cross it together to reach the shrine.' },
 };
-for (const id of ['hands', 'lanterns', 'wind', 'stars']) objectives.add(id, OBJ[id]);
+for (const id of ['hands', 'lanterns', 'wind', 'stars', 'secrets']) objectives.add(id, OBJ[id]);
 if (params.get('open')) objectives.setOpen(params.get('open')); // captures: show a row expanded
 
 // ---- online: invite by link, or join with ?room=CODE ----
@@ -90,7 +95,7 @@ if (params.get('peerhost')) Object.assign(peerOpts, { host: params.get('peerhost
 if (params.get('ice') === 'none') peerOpts.config = { iceServers: [] }; // local tests
 const online = () => !!net && net.online;
 const net = shot ? null : new NetPlay({
-  A, B, hands, quest, stars, playAs, peerOpts,
+  A, B, hands, quest, stars, secrets, playAs, peerOpts,
   lag: params.get('lag') ? { ms: Number(params.get('lag')), jitter: Number(params.get('jitter')) || 0 } : null, // tests: fake internet delay
   on: {
     connected(back) {
@@ -139,7 +144,7 @@ function resize() {
   camera.aspect = w / h;
   // portrait phones: wider vertical FOV and a bit further back so the world still reads
   const portrait = h > w;
-  camera.fov = portrait ? 62 : 46;
+  camera.fov = baseFov = portrait ? 62 : 46;
   cam.dist = portrait ? 8.5 : 9.5;
   camera.updateProjectionMatrix();
 }
@@ -234,8 +239,29 @@ function onEvent(name, d) {
       break;
     case 'quest-complete': if (!d.quiet) { toast('All lanterns lit! The way north opens…'); audio.play('complete'); } objectives.complete('lanterns'); break;
     case 'bridge-open': toast('A bridge of light leads to the shrine ✦'); objectives.add('shrine', OBJ.shrine); break;
+    case 'secret':
+      hud.secrets.textContent = `${d.n}/${d.of}`;
+      objectives.update('secrets', { progress: `${d.n}/${d.of}` });
+      if (d.n >= d.of) objectives.complete('secrets');
+      if (!d.quiet) {
+        audio.play('secret', { pos: d.pos });
+        discover(`Secret ${d.n} of ${d.of}`, d.title, d.line);
+        hud.secIcon.classList.remove('found'); void hud.secIcon.getBoundingClientRect(); hud.secIcon.classList.add('found');
+      }
+      break;
+    case 'sfx': audio.play(d.name, d); break;
     default: break;
   }
+}
+// the soft discovery moment: a glowing card for a few seconds (sparkles and a chime come from the world)
+const discEl = document.getElementById('discover');
+let discTimer = 0;
+function discover(kicker, title, line) {
+  document.getElementById('disc-k').textContent = kicker;
+  document.getElementById('disc-t').textContent = title;
+  document.getElementById('disc-l').textContent = line;
+  discEl.classList.add('on'); document.body.classList.add('discovering'); // the HUD steps back while the card shows
+  clearTimeout(discTimer); discTimer = setTimeout(() => { discEl.classList.remove('on'); document.body.classList.remove('discovering'); }, 5200);
 }
 function onStar(st, n, quiet) {
   hud.stars.textContent = n;
@@ -293,6 +319,8 @@ function step(dt) {
     else if (online()) net.sendHands();
   }
   if (net && A.intent.jump && A.grounded) net.myJumps++;
+  secrets.lift(A, dt); // the fairy ring floats whoever dances in it
+  if (!online()) secrets.lift(B, dt);
   if (online()) {
     net.updateRemote(dt); // your partner's traveler, from the network
     if (hands.stepOnline(dt, world, carry) === 'broke') net.sendHands();
@@ -307,6 +335,7 @@ function step(dt) {
   windState = { inWind: -1, windDist: [] };
   for (const act of online() ? [A] : [A, B]) {
     if (act.carried) continue; // your partner's screen is moving you (and their wind) right now
+    if (secrets.dancing(act)) { act.inWind = false; continue; } // the return wind passes over the fairy ring: don't blow dancers away
     const was = act.inWind;
     act.inWind = false;
     winds.forEach((w, i) => {
@@ -323,6 +352,7 @@ function step(dt) {
   if (ch > 0.05 && Math.floor(ch * 6) !== Math.floor(lastCharge * 6)) audio.play('charge', { k: ch, pos: A.pos });
   lastCharge = ch;
   stars.update(dt, t, online() ? [A] : [A, B], camera, onStar);
+  secrets.update(dt, t, [A, B], camera); // either of you can find a secret; the fairy ring needs you both
   // place-based objectives: land on the meadow island / reach the shrine
   if (A.grounded) {
     const on = (i) => i && Math.hypot(A.pos.x - i.x, A.pos.z - i.z) < i.r - 0.5 && Math.abs(A.pos.y - i.y) < 0.5;
@@ -364,7 +394,8 @@ function frame(now) {
   last = now;
   if (shot) {
     t = shot.time ?? 2.0;
-    shot.apply({ me: meT, friend: friendT, camera, world });
+    shot.apply({ me: meT, friend: friendT, camera, world, secrets });
+    secrets.update(0, t, [], camera); // still poses (shots can set e.g. secrets.roroK)
   } else {
     // ?fast=N runs N fixed physics steps per rendered frame (used by the playtest bot on slow headless GPUs)
     const n = FAST || 1, sdt = FAST ? 1 / 30 : dt;
@@ -392,6 +423,13 @@ function frame(now) {
     ray.set(target, toCam.normalize()); ray.far = full;
     const hit = ray.intersectObjects(world.occluders, true).find((h) => (h.object.geometry.boundingSphere?.radius ?? 0) * h.object.scale.x > 0.6);
     if (hit) want.copy(target).addScaledVector(toCam, Math.max(1.6, hit.distance - 0.6));
+    // finding Roro: for a few seconds the camera steps in front of you to watch him wave
+    const gc = secrets.grottoCam();
+    camIn += ((gc ? 1 : 0) - camIn) * Math.min(1, (FAST ? FAST / 30 : dt) * 2.2);
+    if (gc) lastGc = gc;
+    if (camIn > 0.001 && lastGc) { want.lerp(lastGc.pos, camIn); target.lerp(tmp.copy(lastGc.look).setY(lastGc.look.y - 0.6), camIn); }
+    const fov = baseFov + (camera.aspect < 1 ? 9 : 0) * camIn; // portrait: a little wider to fit him in
+    if (Math.abs(camera.fov - fov) > 0.01) { camera.fov = fov; camera.updateProjectionMatrix(); }
     if (camPos.lengthSq() === 0) { camPos.copy(want); camLook.copy(target); }
     const cdt = FAST ? FAST / 30 : dt;
     camPos.lerp(want, 1 - Math.exp(-cdt * 6));
@@ -411,7 +449,7 @@ function frame(now) {
     audio.update(dt, {
       camPos: camera.position, camRight: new Vector3().setFromMatrixColumn(camera.matrixWorld, 0),
       playerPos: A.pos, distFromCenter: Math.hypot(A.pos.x, A.pos.z), airborne: !A.grounded,
-      onMain: Math.hypot(A.pos.x, A.pos.z) < 26, ...windState,
+      onMain: Math.hypot(A.pos.x, A.pos.z) < 26, ...windState, waterDist: A.pos.distanceTo(secrets.waterPos),
     });
   }
   updateLights(shot ? camera.position : A.pos);
@@ -420,7 +458,7 @@ function frame(now) {
   if (shot && frames === 3) { window.__ready = true; return; } // freeze: captures need a still frame
   requestAnimationFrame(frame);
 }
-let frames = 0;
+let frames = 0, camIn = 0, lastGc = null;
 let renderOn = true; // tests can pause drawing so physics + network run in real time on a slow headless GPU
 requestAnimationFrame(frame);
 
@@ -431,13 +469,15 @@ window.__game = {
   goTo(x, z, opts = {}) { return new Promise((resolve) => { auto = { x, z, t: 0, lastT: 0, lastD: 1e9, resolve, ...opts }; }); },
   jump(hold = 0) { botJump = true; botJumpHeld = hold > 0; if (hold > 0) setTimeout(() => (botJumpHeld = false), hold); },
   holdHands() { input.handsPressed = true; },
-  quest, stars, winds, audio, objectives, net, invite, playAs,
+  quest, stars, secrets, winds, audio, objectives, net, invite, playAs,
   camPos() { return camera.position.toArray().map((v) => +v.toFixed(2)); },
   frames() { return frames; },
   setRender(on) { renderOn = on; },
+  redraw() { updateLights(shot ? camera.position : A.pos); post.render(scene, camera, t); }, // tests: draw one frame now
+  scene, camera,
   lightAll() { quest.completeNow(); },
   teleport(x, z, heading = Math.PI) { A.pos.set(x, world.floorAt(x, z) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
-  pos() { return { lanterns: quest.count, stars: stars.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
+  pos() { return { lanterns: quest.count, stars: stars.count, secrets: secrets.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
 };
 
 // tiny FPS readout with ?fps

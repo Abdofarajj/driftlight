@@ -18,7 +18,7 @@ mkdirSync(outDir, { recursive: true });
 
 const VIEWPORTS = { portrait: { width: 393, height: 852 }, landscape: { width: 852, height: 393 } };
 
-const server = await createServer({ server: { port: 5199, host: '127.0.0.1' }, logLevel: 'error' });
+const server = await createServer({ server: { port: 5199, host: '127.0.0.1', hmr: false }, logLevel: 'error' });
 await server.listen();
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const done = [];
@@ -39,4 +39,5 @@ for (const [name, s] of Object.entries(SHOTS)) {
 await browser.close();
 await server.close();
 
-execFileSync('python3', ['tools/contact_sheet.py', outDir, ...done.flatMap(([n, f, r]) => [n, f, `docs/refs/${r}`])], { stdio: 'inherit' });
+const withRef = done.filter(([, , r]) => r); // planning shots (e.g. the top-down map) have no reference
+if (withRef.length) execFileSync('python3', ['tools/contact_sheet.py', outDir, ...withRef.flatMap(([n, f, r]) => [n, f, `docs/refs/${r}`])], { stdio: 'inherit' });

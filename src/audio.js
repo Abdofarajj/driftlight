@@ -1,7 +1,9 @@
 // Sound as a system, all synthesized with Web Audio (no audio files):
 // - music: original dreamy solo piano pieces with quiet pauses between them (src/music.js)
 // - ambience: wind bed, birdsong over the forest, airy hum near the cloud edge, wind-current whoosh
-// - one-shots: footsteps by surface, jump, land, hands, lantern, checkpoint, star, quest complete
+// - ambience: also the waterfall by the grotto, louder as you get close
+// - one-shots: footsteps by surface, jump, land, hands, lantern, checkpoint, star, quest complete,
+//   and for the secrets: discovery harp, fox yip, fairy-ring notes and a fairy shimmer
 // iOS only allows audio after a tap, so start() is called from the first touch / key.
 import { Vector3 } from 'three';
 import { PianoMusic } from './music.js';
@@ -53,6 +55,8 @@ export class GameAudio {
     this.windBed = this.loopNoise(380, 0.6, 0.035, this.amb);
     this.air = this.loopNoise(2400, 0.8, 0.0, this.amb);
     this.windWhoosh = this.winds.map(() => this.loopNoise(650, 0.9, 0.0, this.amb));
+    this.water = this.loopNoise(1100, 0.45, 0.0, this.amb);   // waterfall hiss
+    this.waterLow = this.loopNoise(260, 0.6, 0.0, this.amb);  // and its soft rumble
   }
 
   setMusic(on) {
@@ -151,6 +155,39 @@ export class GameAudio {
         [38, 50, 57].forEach((n) => this.tone(NOTE(n), t, 5, 0.06, 'triangle', this.sfx, 1.2));
         this.swell(0.5, 8);
         break;
+      case 'secret': { // a harp run up, a bell on top, and the music swells
+        [62, 66, 69, 73, 76, 81, 85, 88].forEach((n, i) => {
+          this.tone(NOTE(n), t + i * 0.075, 1.9, 0.055, 'triangle', this.sfx, 0.004);
+          this.tone(NOTE(n + 12), t + i * 0.075, 0.8, 0.018, 'sine', this.sfx, 0.004);
+        });
+        this.bell(NOTE(93), t + 0.7, 0.06, this.sfx, 3.5);
+        this.burst(t + 0.55, 1.4, 0.02, 'highpass', 5000, 0.7, this.sfx, 9000);
+        this.swell(0.45, 6);
+        break;
+      }
+      case 'yip': { // the fox: two quick rising chirps
+        const p = 0.92 + Math.random() * 0.16;
+        for (const [dt0, f0, f1, g0] of [[0, 820, 1500, 0.05], [0.11, 980, 1750, 0.04]]) {
+          const o = this.ctx.createOscillator(), g = this.ctx.createGain(), s = t + dt0;
+          o.type = 'triangle';
+          o.frequency.setValueAtTime(f0 * p, s); o.frequency.exponentialRampToValueAtTime(f1 * p, s + 0.07); o.frequency.exponentialRampToValueAtTime(f0 * 1.1 * p, s + 0.12);
+          g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(g0 * v, s + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.13);
+          o.connect(g).connect(dest); o.start(s); o.stop(s + 0.15);
+        }
+        break;
+      }
+      case 'ring': { // one note per mushroom as the fairy ring lights up, climbing a pentatonic scale
+        const n = [69, 71, 74, 76, 78, 81, 83, 86, 88][Math.min(8, opts.k ?? 0)];
+        this.bell(NOTE(n), t, 0.06, dest, 2.4);
+        this.tone(NOTE(n - 12), t, 1.2, 0.03, 'triangle', dest);
+        break;
+      }
+      case 'fairy': { // a shimmer of tiny high bells
+        for (let i = 0; i < 14; i++) this.bell(NOTE(88 + [0, 2, 4, 7, 9, 12, 14][Math.floor(Math.random() * 7)]), t + i * 0.06 + Math.random() * 0.03, 0.03, dest, 1.4);
+        this.burst(t, 1.6, 0.025, 'highpass', 6000, 0.6, dest, 11000);
+        this.swell(0.3, 5);
+        break;
+      }
       case 'bird': {
         const base = 2600 + Math.random() * 1400, n = 2 + Math.floor(Math.random() * 3);
         for (let i = 0; i < n; i++) {
@@ -192,6 +229,9 @@ export class GameAudio {
       w.g.gain.value += (target - w.g.gain.value) * k;
       w.f.frequency.value = 500 + Math.sin(now * 0.7 + i) * 150 + (s.inWind === i ? 300 : 0);
     });
+    const wd = s.waterDist ?? 99; // the grotto waterfall
+    this.water.g.gain.value += (0.11 / (1 + Math.max(0, wd - 2) * 0.35) ** 2 - this.water.g.gain.value) * k;
+    this.waterLow.g.gain.value += (0.08 / (1 + Math.max(0, wd - 2) * 0.3) ** 2 - this.waterLow.g.gain.value) * k;
     if (s.onMain && now - this.lastBird > 4 + Math.random() * 6) {
       this.lastBird = now;
       const a = Math.random() * Math.PI * 2;

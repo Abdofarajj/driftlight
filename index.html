@@ -17,20 +17,33 @@
     #objectives { top: calc(env(safe-area-inset-top) + 66px); left: calc(env(safe-area-inset-left) + 14px); display: flex; flex-direction: column; gap: 6px; width: min(250px, 62vw); }
     .obj { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 16px 1fr auto 10px; align-items: center; column-gap: 8px; padding: 7px 12px 7px 10px; border-radius: 16px;
       background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: #fff7ea; font-size: 14px; font-weight: 700; line-height: 1.25;
-      text-shadow: 0 1px 6px rgba(120, 70, 90, 0.5); cursor: pointer; overflow: hidden; max-height: 170px; -webkit-tap-highlight-color: transparent;
+      text-shadow: 0 1px 6px rgba(120, 70, 90, 0.5); cursor: pointer; overflow: hidden; max-height: 230px; -webkit-tap-highlight-color: transparent;
       transition: opacity .55s, transform .55s, max-height .55s, padding .55s, margin .55s, border-width .55s, background .4s, box-shadow .4s; }
     .obj .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--gold); box-sizing: border-box; box-shadow: 0 0 6px #ffcf6e; display: grid; place-items: center; font-size: 9px; color: #9a6440; text-shadow: none; }
     .obj .p { font-size: 13px; opacity: .95; }
     .obj .chev { font-size: 17px; line-height: 1; opacity: .8; transition: transform .3s; justify-self: center; }
     .obj.open .chev { transform: rotate(90deg); }
     .obj .d { grid-column: 2 / -1; font-size: 13px; font-weight: 600; line-height: 1.35; max-height: 0; opacity: 0; overflow: hidden; transition: max-height .35s, opacity .35s, margin .35s; }
-    .obj.open .d { max-height: 110px; opacity: .95; margin-top: 5px; }
+    .obj.open .d { max-height: 170px; opacity: .95; margin-top: 5px; }
     .obj.new { opacity: 0; transform: translateX(-14px); }
     .obj.done { background: rgba(255, 222, 150, 0.5); box-shadow: 0 0 20px rgba(255, 205, 120, 0.85); }
     .obj.done .dot { background: var(--gold); }
     .obj.done .dot::after { content: '\2713'; font-weight: 900; }
     .obj.gone { opacity: 0; transform: translateX(-18px); max-height: 0; padding-top: 0; padding-bottom: 0; border-width: 0; margin-top: -6px; }
     .star { width: 30px; height: 30px; filter: drop-shadow(0 0 6px #ffcf6e); }
+    .pill .sec { width: 26px; height: 26px; margin-left: 10px; filter: drop-shadow(0 0 6px #f2b8ec); }
+    .pill .sec.found { animation: secpop .9s ease-out; }
+    @keyframes secpop { 0% { transform: scale(1); } 30% { transform: scale(1.45); filter: drop-shadow(0 0 14px #fff0b0); } 100% { transform: scale(1); } }
+    #discover { left: 50%; top: calc(env(safe-area-inset-top) + 12px); transform: translate(-50%, 10px) scale(0.96); width: min(320px, calc(100vw - 48px)); box-sizing: border-box; padding: 14px 20px 16px; border-radius: 24px; text-align: center;
+      background: rgba(255, 244, 232, 0.5); border: 1.5px solid rgba(255, 250, 240, 0.9); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      box-shadow: 0 0 34px rgba(255, 214, 150, 0.75), 0 8px 30px rgba(150, 90, 110, 0.25); opacity: 0; pointer-events: none; transition: opacity .7s, transform .7s; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.5); }
+    #discover.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    @media (orientation: landscape) and (max-height: 520px) { #discover { padding: 10px 18px 12px; } #discover .t { font-size: 21px; } }
+    body.discovering #objectives, body.discovering .pill, body.discovering #bset, body.discovering #btogether { opacity: 0.12; }
+    #objectives, .pill, #bset, #btogether { transition: opacity .6s; }
+    #discover .k { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .9; }
+    #discover .t { margin-top: 4px; font-size: 23px; font-weight: 800; color: #fff3c8; text-shadow: 0 0 12px rgba(255, 190, 110, 0.9), 0 1px 6px rgba(120, 70, 90, 0.5); }
+    #discover .l { margin-top: 6px; font-size: 15px; font-weight: 650; line-height: 1.4; }
     .round { width: 52px; height: 52px; border-radius: 50%; background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: grid; place-items: center; }
     .round svg { width: 26px; height: 26px; }
     #bset .slash { display: none; } #bset.muted .slash { display: inline; } #bset.muted svg { opacity: .6; }
@@ -70,7 +83,7 @@
     #bhands.on { box-shadow: 0 0 34px rgba(255, 210, 120, 0.95); background: radial-gradient(circle, rgba(255, 228, 160, 0.85), rgba(255, 196, 110, 0.55)); }
     @media (hover: hover) and (pointer: fine) { .touch { display: none !important; } }
     @media (hover: none), (pointer: coarse) { #hint { display: none; } }
-    body.shot .ui, body.shot #joy { display: none; }
+    body.shot .ui, body.shot #joy, body.shot #objectives { display: none; }
     body.shot.showui .ui, body.shot.showui #joy { display: grid; }
     body.shot.showui .pill, body.shot.showui #objectives { display: flex; }
     body.shot.showui #hint { display: none; }
@@ -78,7 +91,7 @@
 </head>
 <body>
   <canvas id="c"></canvas>
-  <div class="ui pill"><svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg><span id="stars">0</span></div>
+  <div class="ui pill"><svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg><span id="stars">0</span><svg class="sec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fbe3f6" stroke="#e7a6e2" stroke-width="1.6"/><circle cx="12" cy="10" r="3" fill="#a77aa8"/><path d="M10.6 11.5h2.8l.9 6h-4.6z" fill="#a77aa8"/></svg><span id="secrets">0/4</span></div>
   <div class="ui" id="objectives" aria-label="Objectives"></div>
   <div class="ui round" id="bset" title="Music (M)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2" stroke-linecap="round"><path d="M9 17V5l10-2v12"/><circle cx="6.5" cy="17" r="2.5" fill="#8a6670" fill-opacity=".3"/><circle cx="16.5" cy="15" r="2.5" fill="#8a6670" fill-opacity=".3"/><path class="slash" d="M3 3l18 18"/></svg></div>
   <div class="ui round" id="btogether" title="Play together"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="1.8" stroke-linecap="round"><circle cx="7.5" cy="7" r="2.6"/><circle cx="16.5" cy="7" r="2.6"/><path d="M3.5 20v-3.5a4 4 0 0 1 8 0V20M12.5 20v-3.5a4 4 0 0 1 8 0V20"/><path d="M12 12.6c-.9-1-2.3-.2-1.6.9L12 15l1.6-1.5c.7-1.1-.7-1.9-1.6-.9z" fill="#e98a8a" stroke="none"/></svg></div>
@@ -87,6 +100,7 @@
   <div class="ui round touch" id="bhands"><svg viewBox="0 0 48 48" fill="#fff7ea"><circle cx="15" cy="10" r="5"/><circle cx="33" cy="10" r="5"/><path d="M9 18h12l3 8 3-8h12v4l-6 2v20h-5V31h-2v13h-2V31h-2v13h-5V24l-6-2z"/></svg></div>
   <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · M music · drag to look</div>
   <div class="ui" id="toast"></div>
+  <div class="ui" id="discover" aria-live="polite"><div class="k" id="disc-k"></div><div class="t" id="disc-t"></div><div class="l" id="disc-l"></div></div>
   <div id="fade"></div>
   <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
     <div class="card">

@@ -11,7 +11,7 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const out = `captures/${process.argv[2] || 'nettest'}`;
 mkdirSync(out, { recursive: true });
 const signal = PeerServer({ port: 9000, host: '127.0.0.1', path: '/' });
-const server = await createServer({ server: { port: 5197, host: '127.0.0.1' }, logLevel: 'error' });
+const server = await createServer({ server: { port: 5197, host: '127.0.0.1', hmr: false }, logLevel: 'error' });
 await server.listen();
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const errors = [];
@@ -182,6 +182,29 @@ await objective('guest finds a star: the host counts it too', async () => {
   const ok = await until(async () => (await H(() => window.__game.stars.count)) === 1, 10000);
   const gs = await guest.evaluate(() => window.__game.stars.count);
   return { pass: ok && gs === 1, note: `host stars=${await H(() => window.__game.stars.count)} guest stars=${gs}` };
+});
+
+await objective('guest finds Roro Jr behind the waterfall: the host counts the secret and sees the card', async () => {
+  const out = await guest.evaluate(() => window.__game.secrets.gToWorld(0, 4.2));
+  const inside = await guest.evaluate(() => window.__game.secrets.gToWorld(0, -0.15));
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, 0), [out.x, out.z]);
+  await guest.waitForTimeout(500);
+  await guest.evaluate(([x, z]) => window.__game.goTo(x, z, { tol: 0.5, timeout: 12 }), [inside.x, inside.z]);
+  const ok = await until(async () => (await H(() => window.__game.secrets.count)) === 1, 15000);
+  const card = await host.$eval('#disc-t', (e) => e.textContent);
+  const gs = await guest.evaluate(() => window.__game.secrets.count);
+  return { pass: ok && gs === 1 && card === 'Roro Jr', note: `host secrets=${await H(() => window.__game.secrets.count)} guest secrets=${gs} host card="${card}"` };
+});
+
+await objective('fairy ring online: stand in it together and it dances on both screens', async () => {
+  const c = await H(() => window.__game.secrets.ringCenter.toArray());
+  await H(([x, z]) => window.__game.teleport(x - 0.5, z, 0), [c[0], c[2]]);
+  await guest.evaluate(([x, z]) => window.__game.teleport(x + 0.5, z, 0), [c[0], c[2]]);
+  const ok = await until(async () => (await H(() => window.__game.secrets.ring.state)) === 'dance' && (await guest.evaluate(() => window.__game.secrets.ring.state)) === 'dance', 15000);
+  const n = [await H(() => window.__game.secrets.count), await guest.evaluate(() => window.__game.secrets.count)];
+  await until(async () => (await H(() => window.__game.secrets.ring.t)) > 3.6, 8000);
+  await both('08-fairy-ring');
+  return { pass: ok && n[0] === 2 && n[1] === 2, note: `danced on both=${ok}, secrets host/guest=${n.join('/')}` };
 });
 
 await objective('guest leaves: the host is told and keeps playing', async () => {

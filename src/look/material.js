@@ -203,12 +203,54 @@ export function makeOutlineMaterial(color, width = 0.02) {
 export function makeSoftMaterial(color, opacity = 1, additive = false) {
   return new ShaderMaterial({
     uniforms: { uCol: { value: color.clone() }, uOp: { value: opacity } },
-    vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv = uv; vec4 p = vec4(position,1.0);
+      #ifdef USE_INSTANCING
+        p = instanceMatrix * p;
+      #endif
+      gl_Position = projectionMatrix * modelViewMatrix * p; }`,
     fragmentShader: /* glsl */ `uniform vec3 uCol; uniform float uOp; varying vec2 vUv;
       void main(){ float d = length(vUv-0.5)*2.0; float a = smoothstep(1.0, 0.0, d); a*=a; gl_FragColor = vec4(uCol, a*uOp); }`,
     transparent: true,
     depthWrite: false,
     blending: additive ? AdditiveBlending : 1,
+  });
+}
+
+/**
+ * Water: soft lavender-white with drifting streaks, transparent. mode 0 = a falling sheet (uv.y up,
+ * foam at the bottom, bright lip at the top), mode 1 = a still round pool (planar uv, soft round edge).
+ */
+export function makeWaterMaterial({ mode = 0, flow = 1.2, opacity = 0.62 } = {}) {
+  return new ShaderMaterial({
+    uniforms: { uTime: shared.uTime, uLit: { value: PAL.water[0].clone() }, uShade: { value: PAL.water[1].clone() }, uFlow: { value: flow }, uOp: { value: opacity }, uMode: { value: mode } },
+    vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
+    fragmentShader: /* glsl */ `uniform float uTime; uniform vec3 uLit; uniform vec3 uShade; uniform float uFlow; uniform float uOp; uniform float uMode; varying vec2 vUv;
+      float h(float n){ return fract(sin(n) * 43758.5453); }
+      float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
+        float a = h(i.x + i.y * 57.0), b = h(i.x + 1.0 + i.y * 57.0), c = h(i.x + (i.y + 1.0) * 57.0), d = h(i.x + 1.0 + (i.y + 1.0) * 57.0);
+        return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
+      void main(){
+        float s, edge, foam = 0.0;
+        if (uMode < 0.5) {
+          vec2 p = vec2(vUv.x * 16.0, vUv.y * 2.5 + uTime * uFlow);
+          s = vn(p) * 0.65 + vn(p * vec2(2.3, 1.7) + 7.0) * 0.35;
+          edge = smoothstep(0.0, 0.14, vUv.x) * smoothstep(1.0, 0.86, vUv.x);
+          foam = max(smoothstep(0.14, 0.0, vUv.y), smoothstep(0.9, 1.0, vUv.y) * 0.7);
+        } else {
+          vec2 q = vUv - 0.5;
+          float r = length(q) * 2.0;
+          s = vn(vec2(r * 9.0 - uTime * uFlow, atan(q.y, q.x) * 3.0)) * 0.5 + vn(vUv * 11.0 + uTime * 0.2) * 0.5;
+          edge = smoothstep(1.0, 0.8, r);
+          foam = smoothstep(0.7, 0.95, r) * edge * 0.6;
+        }
+        vec3 c = mix(uShade, uLit, 0.4 + s * 0.6);
+        c = mix(c, vec3(1.0, 0.98, 0.95), foam * 0.75);
+        float a = max(uOp * (0.55 + s * 0.45), foam * 0.85) * edge;
+        gl_FragColor = vec4(c, a);
+      }`,
+    transparent: true,
+    depthWrite: false,
+    side: DoubleSide,
   });
 }
 

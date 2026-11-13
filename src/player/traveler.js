@@ -74,7 +74,7 @@ export class Traveler {
     const hemR = v.capeTop + v.capeFlare;
     const hem = new Mesh(new TorusGeometry(hemR, 0.016, 5, 40, Math.PI * 2 - 0.6), m.trim);
     hem.rotation.set(Math.PI / 2, 0, Math.PI / 2 + 0.3);
-    hem.position.y = 0.76 - v.capeLen - 0.74;
+    hem.position.y = 0.76 - v.capeLen; // the cape mesh is already shifted down by 0.74 (it used to sit 0.74 too low, under the ground)
     cape.add(hem);
     const diamond = new Mesh(new ConeGeometry(0.05, 0.12, 4), m.trim);
     diamond.scale.z = 0.25; diamond.position.set(0, 0.47 - 0.74, -0.25); diamond.rotation.x = -0.45;
