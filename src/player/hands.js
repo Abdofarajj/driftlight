@@ -8,7 +8,7 @@ import { RUN } from './actor.js';
 
 const SPACING = 0.95;   // distance between the two travelers when holding hands
 const LINK_RANGE = 2.6; // how close you must be to take hands
-const BREAK = 3.6;
+const BREAK = 6; // only a real separation (a fall) breaks the hold
 
 const localX = (h, out) => out.set(Math.cos(h), 0, -Math.sin(h)); // traveler's local +x in world space
 
@@ -83,7 +83,9 @@ export class Hands {
     f.vel.z = sp > max ? vz / sp * max : vz;
     if (jumpNow && f.grounded) { f.vel.y = leader.vel.y; f.grounded = false; }
     f.faceTowards(leader.heading, dt, 10);
-    f.integrate(dt, world, leader.glide || leader.intent.jumpHeld);
+    // if they snag on a rock or post, let them slip past it rather than tearing the hands apart
+    const snagged = Math.hypot(tx - f.pos.x, tz - f.pos.z) > 1.4;
+    f.integrate(dt, world, leader.glide || leader.intent.jumpHeld, !snagged);
     if (!leader.grounded && !f.grounded) f.vel.y = Math.max(f.vel.y, leader.vel.y - 1); // fly together
   }
 

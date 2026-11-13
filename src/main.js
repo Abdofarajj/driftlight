@@ -1,4 +1,4 @@
-import { WebGLRenderer, Scene, PerspectiveCamera, Vector3, ColorManagement, LinearSRGBColorSpace, NoToneMapping } from 'three';
+import { WebGLRenderer, Scene, PerspectiveCamera, Vector3, Raycaster, ColorManagement, LinearSRGBColorSpace, NoToneMapping } from 'three';
 import { Post } from './look/post.js';
 import { shared, MAX_LIGHTS } from './look/material.js';
 import { makeSky, makeSparkles } from './look/sky.js';
@@ -8,6 +8,11 @@ import { Input } from './input.js';
 import { SHOTS } from './shots.js';
 import { Actor } from './player/actor.js';
 import { Hands } from './player/hands.js';
+import { LanternQuest } from './world/quest.js';
+import { buildWinds } from './world/wind.js';
+import { Stars } from './world/stars.js';
+import { GameAudio } from './audio.js';
+import { pathMask, onIsland, groundHeight } from './world/forest.js';
 
 ColorManagement.enabled = false; // palette colours are used as-is
 
@@ -47,6 +52,14 @@ const B = new Actor(friendT, new Vector3(spawn.x - 1.2, 0, spawn.z - 1.6));
 B.pos.y = world.floorAt(B.pos.x, B.pos.z);
 const hands = new Hands(A, B, scene);
 const cam = { yaw: 0, pitch: 0.36, dist: 9, manualT: 10 };
+const audio = new GameAudio();
+const events = { emit(name, data) { onEvent(name, data); } };
+const quest = new LanternQuest(world, scene, events);
+const winds = buildWinds(world);
+winds.forEach((w) => scene.add(w.group));
+audio.winds = winds;
+const stars = new Stars(scene, [[-49, 3.9, -4], [53, 1.4, 10.5], [4, 2.3, -44.5]]);
+const hud = { stars: document.getElementById('stars'), lanterns: document.getElementById('lanterns') };
 let checkpoint = world.checkpoints[0];
 checkpoint.active = true;
 
@@ -65,6 +78,17 @@ addEventListener('resize', resize);
 resize();
 
 const input = shot ? null : new Input(canvas);
+if (!shot) {
+  const startAudio = () => audio.start();
+  for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, startAudio, { capture: true });
+  const sb = document.getElementById('bset');
+  const paint = () => sb.classList.toggle('muted', audio.muted);
+  paint();
+  const toggle = (e) => { e.stopPropagation(); e.preventDefault(); audio.start(); audio.setMuted(!audio.muted); paint(); toast(audio.muted ? 'Sound off' : 'Sound on'); };
+  sb.addEventListener('click', toggle);
+  sb.addEventListener('touchend', toggle);
+  addEventListener('keydown', (e) => { if (e.code === 'KeyM') toggle(e); });
+}
 const toastEl = document.getElementById('toast');
 let toastTimer = 0;
 function toast(msg) {
@@ -132,6 +156,41 @@ function respawn() {
 let respawning = false;
 const stats = { respawns: 0, checkpoints: 1 };
 
+function onEvent(name, d) {
+  switch (name) {
+    case 'hint': toast(d); break;
+    case 'lantern':
+      toast(`Lantern ${d.n} / ${d.of} lit ✦`); audio.play('lantern', { pos: d.pos });
+      hud.lanterns.textContent = `${d.n}/${d.of}`;
+      break;
+    case 'quest-complete': toast('All lanterns lit! The way north opens…'); audio.play('complete'); break;
+    case 'bridge-open': toast('A bridge of light leads to the shrine ✦'); break;
+    default: break;
+  }
+}
+function surfaceAt(p) {
+  if (onIsland(p.x, p.z) && Math.abs(groundHeight(p.x, p.z) - p.y) < 0.2) return pathMask(p.x, p.z) > 0.5 ? 'path' : 'grass';
+  if (world.isles.some((i) => Math.hypot(p.x - i.x, p.z - i.z) < i.r && Math.abs(i.y - p.y) < 0.2)) return 'grass';
+  return 'wood';
+}
+const stepPh = new Map();
+function footsteps(act, vol) {
+  const k = Math.floor(act.t.phase / Math.PI);
+  if (stepPh.get(act) !== k) {
+    stepPh.set(act, k);
+    if (act.grounded && act.speed01 > 0.2) audio.play('step', { surface: surfaceAt(act.pos), pos: act.pos, vol });
+  }
+}
+const prevGround = new Map();
+function landSounds(act) {
+  const was = prevGround.get(act);
+  if (was === false && act.grounded) audio.play('land', { pos: act.pos, vol: 0.8 });
+  if (was === true && !act.grounded && act.vel.y > 3) audio.play('jump', { pos: act.pos });
+  prevGround.set(act, act.grounded);
+}
+let wasLinked = false, wasGlide = false, lastCharge = 0;
+let windState = { inWind: -1, windDist: [] };
+
 function step(dt) {
   input.update();
   const [dx, dy] = input.consumeCam();
@@ -158,6 +217,27 @@ function step(dt) {
     document.getElementById('bhands').classList.toggle('on', hands.linked);
   }
   hands.step(dt, world);
+  if (hands.linked !== wasLinked) { audio.play(hands.linked ? 'hands' : 'release', { pos: A.pos }); wasLinked = hands.linked; }
+
+  // wind currents carry anyone inside them
+  windState = { inWind: -1, windDist: [] };
+  for (const act of [A, B]) {
+    const was = act.inWind;
+    act.inWind = false;
+    winds.forEach((w, i) => {
+      if (w.apply(act, dt)) { act.inWind = true; if (act === A) windState.inWind = i; }
+    });
+    if (act === A && act.inWind && !was) audio.play('updraft', { pos: act.pos });
+  }
+  winds.forEach((w, i) => { windState.windDist[i] = w.nearest(A.pos).d; });
+  if (A.glide && !wasGlide) audio.play('glide', { pos: A.pos });
+  wasGlide = A.glide;
+
+  quest.update(dt, t, A, B, hands.linked);
+  const ch = quest.items.reduce((m, it) => Math.max(m, it.lit ? 0 : it.charge), 0);
+  if (ch > 0.05 && Math.floor(ch * 6) !== Math.floor(lastCharge * 6)) audio.play('charge', { k: ch, pos: A.pos });
+  lastCharge = ch;
+  stars.update(dt, t, [A, B], camera, (st, n) => { hud.stars.textContent = n; audio.play('star', { pos: st.pos }); toast(`Star found! ${n} / ${stars.items.length}`); });
 
   // camera: drifts behind the direction you walk, unless you moved it by hand recently
   if (cam.manualT > 0.7 && A.speed01 > 0.15) {
@@ -171,7 +251,7 @@ function step(dt) {
   // checkpoints
   for (const c of world.checkpoints) {
     if (A.pos.distanceTo(c.pos) < 1.7 && c !== checkpoint) {
-      if (c.activate()) { toast('Checkpoint ✦'); stats.checkpoints++; }
+      if (c.activate()) { toast('Checkpoint ✦'); stats.checkpoints++; audio.play('checkpoint', { pos: c.pos }); }
       checkpoint = c;
     }
   }
@@ -185,6 +265,7 @@ let last = performance.now();
 let t = 0;
 const camPos = new Vector3(), camLook = new Vector3();
 const FAST = Number(params.get('fast')) || 0;
+const ray = new Raycaster();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
@@ -212,6 +293,12 @@ function frame(now) {
     // never let the camera dip into the ground
     const gy = world.floorAt(want.x, want.z);
     if (gy !== null) want.y = Math.max(want.y, gy + 1.2);
+    // trees between you and the camera: pull the camera in front of them
+    const toCam = new Vector3().subVectors(want, target);
+    const full = toCam.length();
+    ray.set(target, toCam.normalize()); ray.far = full;
+    const hit = ray.intersectObjects(world.occluders, true).find((h) => (h.object.geometry.boundingSphere?.radius ?? 0) * h.object.scale.x > 0.6);
+    if (hit) want.copy(target).addScaledVector(toCam, Math.max(1.6, hit.distance - 0.6));
     if (camPos.lengthSq() === 0) { camPos.copy(want); camLook.copy(target); }
     const cdt = FAST ? FAST / 30 : dt;
     camPos.lerp(want, 1 - Math.exp(-cdt * 6));
@@ -223,7 +310,17 @@ function frame(now) {
   placeShadow(friendT, friendT.root.position);
   shared.uTime.value = t;
   world.update(t, dt);
+  winds.forEach((w) => w.update(t));
   sparkles.userData.update(t);
+  if (!shot) {
+    footsteps(A, 1); footsteps(B, 0.7); landSounds(A); landSounds(B);
+    camera.updateMatrixWorld();
+    audio.update(dt, {
+      camPos: camera.position, camRight: new Vector3().setFromMatrixColumn(camera.matrixWorld, 0),
+      playerPos: A.pos, distFromCenter: Math.hypot(A.pos.x, A.pos.z), airborne: !A.grounded,
+      onMain: Math.hypot(A.pos.x, A.pos.z) < 26, ...windState,
+    });
+  }
   updateLights(shot ? camera.position : A.pos);
   post.render(scene, camera, t);
   frames++;
@@ -240,8 +337,10 @@ window.__game = {
   goTo(x, z, opts = {}) { return new Promise((resolve) => { auto = { x, z, t: 0, lastT: 0, lastD: 1e9, resolve, ...opts }; }); },
   jump(hold = 0) { botJump = true; botJumpHeld = hold > 0; if (hold > 0) setTimeout(() => (botJumpHeld = false), hold); },
   holdHands() { input.handsPressed = true; },
+  quest, stars, winds, audio,
+  lightAll() { quest.completeNow(); },
   teleport(x, z, heading = Math.PI) { A.pos.set(x, world.floorAt(x, z) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
-  pos() { return { me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
+  pos() { return { lanterns: quest.count, stars: stars.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
 };
 
 // tiny FPS readout with ?fps

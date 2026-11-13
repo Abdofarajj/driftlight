@@ -137,6 +137,74 @@ await objective('trees: look at a tree up close (visual check)', async () => {
   return { pass: true, note: 'see screenshot' };
 });
 
+await objective('lantern quest: light all 5 lanterns together, holding hands', async () => {
+  await G(() => window.__game.teleport(1.2, 10.4, Math.PI));
+  const fr = (await pos()).friend;
+  await G(([x, z]) => window.__game.teleport(x + 1.0, z, Math.PI), [fr[0], fr[2]]);
+  await wait(800);
+  await G(() => window.__game.holdHands()); await wait(1500);
+  if (!(await pos()).linked) return { pass: false, note: 'could not hold hands' };
+  const L = [[-4.5, 7.5], [4.5, 1.5], [-4, -8], [5.5, -14], [-6.5, -13]];
+  const log = [];
+  for (const [x, z] of L) {
+    const r = await goTo(x + 1.3, z + 0.9, { tol: 0.5 });
+    let n0 = (await pos()).lanterns, n = n0;
+    for (let k = 0; k < 12 && n === n0; k++) { await wait(700); n = (await pos()).lanterns; }
+    const dbg = await G(() => { const g = window.__game; return `A=${g.A.pos.x.toFixed(1)},${g.A.pos.z.toFixed(1)} B=${g.B.pos.x.toFixed(1)},${g.B.pos.z.toFixed(1)} L=${g.hands.linked} ch=${g.quest.items.map((i) => i.charge.toFixed(1)).join('/')}`; });
+    log.push(`${x},${z}:${r.reason}->${n} [${dbg}]`);
+    if (n === 1) await shot('first-lantern-lit');
+  }
+  const p = await pos(); await shot('all-lanterns');
+  return { pass: p.lanterns === 5, note: `lit=${p.lanterns} ${log.join(' ')}` };
+});
+
+await objective('bridge of light rises and leads to the shrine star', async () => {
+  for (let k = 0; k < 40; k++) { const open = await G(() => window.__game.world.northBridge && window.__game.quest.rise >= 1); if (open) break; await wait(800); }
+  await shot('bridge-risen');
+  const legs = [[2, -21.5], [2.4, -26], [3.5, -41], [4, -44.5]];
+  for (const [x, z] of legs) { const r = await goTo(x, z, { tol: 1.0, timeout: 40 }); if (!r.ok) { await shot('shrine-stuck'); return { pass: false, note: `stuck at ${x},${z}: ${JSON.stringify(r)} ${JSON.stringify(await pos())}` }; } }
+  await wait(800);
+  const p = await pos(); await shot('shrine');
+  return { pass: p.stars >= 1 && p.me[2] < -40, note: `stars=${p.stars} pos=${p.me}` };
+});
+
+await objective('let go, ride the warm wind west to the meadow island', async () => {
+  if ((await pos()).linked) { await G(() => window.__game.holdHands()); await wait(1200); }
+  await G(() => window.__game.teleport(-15.5, -3.2, -Math.PI / 2));
+  await wait(600);
+  await goTo(-18.5, -3.5, { tol: 0.6, timeout: 6 });
+  let rode = false;
+  for (let k = 0; k < 30; k++) { await wait(600); const p = await pos(); if (p.inWind) rode = true; if (k === 4) await shot('riding-wind'); if (rode && p.grounded) break; }
+  const p = await pos(); await shot('west-isle');
+  const onWest = Math.hypot(p.me[0] + 50, p.me[2] + 7) < 9 && p.me[1] > 2;
+  return { pass: rode && onWest, note: `rode=${rode} landed=${p.me}` };
+});
+
+await objective('collect the meadow star', async () => {
+  const s0 = (await pos()).stars;
+  await goTo(-49, -4, { tol: 0.6 });
+  await wait(1200);
+  const p = await pos();
+  return { pass: p.stars === s0 + 1, note: `stars ${s0} -> ${p.stars}` };
+});
+
+await objective('ride the wind back to the main island', async () => {
+  await goTo(-45, -11.5, { tol: 0.6, timeout: 10 });
+  let rode = false;
+  for (let k = 0; k < 30; k++) { await wait(600); const p = await pos(); if (p.inWind) rode = true; if (rode && p.grounded) break; }
+  const p = await pos(); await shot('back-on-main');
+  return { pass: rode && Math.hypot(p.me[0], p.me[2]) < 24 && p.me[1] > -3, note: `rode=${rode} landed=${p.me}` };
+});
+
+await objective('collect the star on the east island', async () => {
+  const s0 = (await pos()).stars;
+  await G(() => window.__game.teleport(47, 9, Math.PI / 2)); await wait(500);
+  await goTo(53, 10.5, { tol: 0.6 });
+  await wait(1200);
+  const p = await pos();
+  return { pass: p.stars === s0 + 1, note: `stars ${s0} -> ${p.stars}` };
+});
+
 writeFileSync(`${out}/results.json`, JSON.stringify({ results, errors }, null, 2));
 console.log('page errors:', errors.length ? errors : 'none');
 await browser.close();

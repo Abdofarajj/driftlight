@@ -14,9 +14,11 @@
     .pill { top: calc(env(safe-area-inset-top) + 14px); left: calc(env(safe-area-inset-left) + 14px); display: flex; align-items: center; gap: 8px;
       padding: 6px 16px 6px 8px; border-radius: 999px; background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
       font-size: 22px; font-weight: 700; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.45); }
+    .pill2 { top: calc(env(safe-area-inset-top) + 66px); font-size: 18px; }
     .star { width: 30px; height: 30px; filter: drop-shadow(0 0 6px #ffcf6e); }
     .round { width: 52px; height: 52px; border-radius: 50%; background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: grid; place-items: center; }
     .round svg { width: 26px; height: 26px; }
+    #bset .slash { display: none; } #bset.muted .slash { display: inline; } #bset.muted .wave { display: none; }
     #bset { top: calc(env(safe-area-inset-top) + 14px); right: calc(env(safe-area-inset-right) + 14px); }
     #bbag { top: calc(env(safe-area-inset-top) + 76px); right: calc(env(safe-area-inset-right) + 14px); }
     #joy { position: fixed; z-index: 2; left: calc(env(safe-area-inset-left) + 92px); bottom: calc(env(safe-area-inset-bottom) + 92px); top: auto; width: 128px; height: 128px; margin: -64px 0 0 -64px;
@@ -47,12 +49,13 @@
 <body>
   <canvas id="c"></canvas>
   <div class="ui pill"><svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg><span id="stars">0</span></div>
-  <div class="ui round" id="bset"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></div>
+  <div class="ui pill pill2"><svg class="star" viewBox="0 0 24 24"><path d="M8 3h8l-1 3H9z" fill="#c9a07a"/><rect x="7" y="6" width="10" height="11" rx="2" fill="#ffe7a6" stroke="#ffbf5e"/><path d="M9 17h6l1 3H8z" fill="#c9a07a"/></svg><span id="lanterns">0/5</span></div>
+  <div class="ui round" id="bset" title="Sound (M)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2" stroke-linecap="round"><path d="M4 10v4h4l5 4V6L8 10z" fill="#8a6670" fill-opacity=".25"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="slash" d="M16 9l5 6M21 9l-5 6"/></svg></div>
   <div class="ui round" id="bbag"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2"><path d="M6 8h12l-1 12H7z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></div>
   <div id="joy" class="touch"><div id="knob"></div></div>
   <div class="ui round touch" id="bjump"><svg viewBox="0 0 24 24"><path d="M12 2 C13 9 15 11 22 12 C15 13 13 15 12 22 C11 15 9 13 2 12 C9 11 11 9 12 2Z" fill="#fff4d6"/></svg></div>
   <div class="ui round touch" id="bhands"><svg viewBox="0 0 48 48" fill="#fff7ea"><circle cx="15" cy="10" r="5"/><circle cx="33" cy="10" r="5"/><path d="M9 18h12l3 8 3-8h12v4l-6 2v20h-5V31h-2v13h-2V31h-2v13h-5V24l-6-2z"/></svg></div>
-  <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · drag to look</div>
+  <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · M sound · drag to look</div>
   <div class="ui" id="toast"></div>
   <div id="fade"></div>
   <script type="module" src="./src/main.js"></script>

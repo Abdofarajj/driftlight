@@ -14,7 +14,8 @@ export class Actor {
     this.grounded = true;
     this.glide = false;
     this.airTime = 0;
-    this.speed01 = 0; // 0..1 walk, up to RUN/WALK when running
+    this.speed01 = 0;
+    this.inWind = false; // 0..1 walk, up to RUN/WALK when running
     this.intent = { x: 0, z: 0, run: false, jump: false, jumpHeld: false };
   }
 
@@ -22,10 +23,15 @@ export class Actor {
   step(dt, world) {
     const it = this.intent;
     const max = it.run ? RUN : WALK;
-    const accel = this.grounded ? 14 : 5;
-    this.vel.x += (it.x * max - this.vel.x) * Math.min(1, accel * dt);
-    this.vel.z += (it.z * max - this.vel.z) * Math.min(1, accel * dt);
-    if (Math.hypot(it.x, it.z) > 0.05) this.faceTowards(Math.atan2(it.x, it.z), dt);
+    if (this.inWind) { // the wind carries you; your input only nudges
+      this.vel.x += it.x * max * 0.8 * dt; this.vel.z += it.z * max * 0.8 * dt;
+    } else {
+      const accel = this.grounded ? 14 : 5;
+      this.vel.x += (it.x * max - this.vel.x) * Math.min(1, accel * dt);
+      this.vel.z += (it.z * max - this.vel.z) * Math.min(1, accel * dt);
+    }
+    if (this.inWind && Math.hypot(this.vel.x, this.vel.z) > 1) this.faceTowards(Math.atan2(this.vel.x, this.vel.z), dt, 5);
+    else if (Math.hypot(it.x, it.z) > 0.05) this.faceTowards(Math.atan2(it.x, it.z), dt);
     if (it.jump && this.grounded) { this.vel.y = JUMP; this.grounded = false; }
     it.jump = false;
     this.integrate(dt, world, it.jumpHeld);
@@ -36,13 +42,13 @@ export class Actor {
     this.heading += d * Math.min(1, dt * rate);
   }
 
-  integrate(dt, world, glideHeld) {
+  integrate(dt, world, glideHeld, collide = true) {
     this.vel.y -= GRAV * dt;
     this.glide = !this.grounded && this.vel.y < 0 && glideHeld;
     if (this.glide) this.vel.y = Math.max(this.vel.y, -GLIDE_FALL);
     const p = this.pos;
     p.addScaledVector(this.vel, dt);
-    this.collide(world);
+    if (collide) this.collide(world);
     const f = world.floorAt(p.x, p.z);
     if (f !== null && p.y <= f + 0.02 && this.vel.y <= 0 && p.y > f - 1.2) {
       if (!this.grounded) this.t.land(Math.min(1, -this.vel.y / 14));
@@ -60,6 +66,7 @@ export class Actor {
     const p = this.pos;
     for (const c of world.colliders) {
       let cx, cz;
+      if (c.off) continue;
       if (c.ax !== undefined) { // segment (fences, bridge rails)
         const abx = c.bx - c.ax, abz = c.bz - c.az;
         const t = Math.max(0, Math.min(1, ((p.x - c.ax) * abx + (p.z - c.az) * abz) / (abx * abx + abz * abz)));
@@ -79,6 +86,6 @@ export class Actor {
   apply(dt, t) {
     this.t.root.position.copy(this.pos);
     this.t.root.rotation.y = this.heading;
-    this.t.animate(dt, t, this.grounded ? this.speed01 : 0.4, !this.grounded, this.glide);
+    this.t.animate(dt, t, this.grounded ? this.speed01 : 0.4, !this.grounded, this.glide || this.inWind);
   }
 }

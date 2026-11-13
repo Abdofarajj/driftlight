@@ -190,6 +190,7 @@ function taperTube(points, r0, r1, radial = 10, tubular = 16, seed = 0, amp = 0.
 function makeTree(x, z, s, seed, lights, swingers, colliders, alt = false) {
   const r = rng(seed);
   const g = new Group();
+  g.userData.occluder = true;
   const y0 = groundHeight(x, z);
   g.position.set(x, y0 - 0.25, z);
   g.rotation.y = r() * Math.PI * 2;
@@ -343,7 +344,7 @@ function makeArch(x, z, rotY, s, colliders) {
   return g;
 }
 
-function makeBridge(from, to, lights, colliders) {
+function makeBridge(from, to, lights, colliders, sagAmt = 1.0) {
   const g = new Group();
   const dir = new Vector3().subVectors(to, from);
   const len = dir.length();
@@ -351,7 +352,8 @@ function makeBridge(from, to, lights, colliders) {
   const side = new Vector3(-dir.z, 0, dir.x);
   const n = Math.floor(len / 0.55);
   const plankGeo = displace(new BoxGeometry(0.48, 0.12, 2.6, 2, 1, 3), 0.015, 3, 9);
-  const sag = (t) => -Math.sin(t * Math.PI) * 1.0;
+  const sag = (t) => -Math.sin(t * Math.PI) * sagAmt;
+  const planks = [], extras = [], rails = [];
   for (let i = 0; i <= n; i++) {
     const t = i / n;
     const p = new Vector3().lerpVectors(from, to, t);
@@ -360,19 +362,21 @@ function makeBridge(from, to, lights, colliders) {
     b.position.copy(p);
     b.rotation.y = Math.atan2(-dir.z, dir.x);
     b.rotation.x = (i % 3 - 1) * 0.02;
+    b.userData = { t, y: p.y };
     g.add(b);
+    planks.push(b);
   }
   // posts + glowing rope rails
   for (const sgn of [-1, 1]) {
     const pts = [];
-    const postN = 5;
+    const postN = Math.max(3, Math.round(len / 4));
     for (let i = 0; i <= postN; i++) {
       const t = i / postN;
       const p = new Vector3().lerpVectors(from, to, t).addScaledVector(side, 1.35 * sgn);
       p.y += sag(t);
       const post = new Mesh(displace(new CylinderGeometry(0.1, 0.13, 1.3, 7, 2), 0.02, 3, i), M.wood);
       post.position.copy(p).setY(p.y + 0.55);
-      g.add(post);
+      g.add(post); extras.push(post);
       pts.push(p.clone().setY(p.y + 1.05));
       if (i < postN) {
         const q = new Vector3().lerpVectors(from, to, t + 0.5 / postN).addScaledVector(side, 1.35 * sgn);
@@ -382,11 +386,96 @@ function makeBridge(from, to, lights, colliders) {
       if (i % 2 === 0) lights.push({ obj: post, str: 0.35, offset: 1.1 });
     }
     const rope = new Mesh(new TubeGeometry(new CatmullRomCurve3(pts), 60, 0.05, 5), M.rope);
-    g.add(rope);
+    g.add(rope); extras.push(rope);
     const a = new Vector3().copy(from).addScaledVector(side, 1.35 * sgn), b = new Vector3().copy(to).addScaledVector(side, 1.35 * sgn);
-    colliders.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, r: 0.15 });
+    const c = { ax: a.x, az: a.z, bx: b.x, bz: b.z, r: 0.15 };
+    colliders.push(c); rails.push(c);
   }
+  const data = { from, to, dir, len, sag: sagAmt, enabled: true };
+  /** 0..1: planks rise out of the clouds one after another, then posts and ropes appear */
+  const setRise = (k) => {
+    for (const pl of planks) {
+      const e = Math.max(0, Math.min(1, k * 1.4 - pl.userData.t * 0.9));
+      pl.visible = e > 0.01;
+      const ease = 1 - Math.pow(1 - e, 3);
+      pl.position.y = pl.userData.y - (1 - ease) * 6;
+      pl.scale.setScalar(0.3 + 0.7 * ease);
+    }
+    for (const x of extras) x.visible = k >= 1;
+    data.enabled = k >= 1;
+    for (const c of rails) c.off = k < 1;
+  };
+  return { group: g, data, setRise };
+}
+
+/** The lantern shrine (ref: lantern-shrine.png). Dim until the quest is done. */
+function makeShrine(lights, colliders, wx = 4, wz = -51) {
+  const g = new Group();
+  const glowMat = makeGlowMaterial(PAL.glowCore, PAL.glowHalo, 0.35);
+  // round steps
+  [[3.4, 0.22], [2.7, 0.22], [2.0, 0.22]].forEach(([r, h], i) => {
+    const d = new Mesh(displace(new CylinderGeometry(r, r + 0.1, h, 32, 1), 0.04, 2, i), M.stone);
+    d.position.y = h / 2 + i * h;
+    g.add(d);
+  });
+  const base = 0.66;
+  // tower: tiers + a glowing star window
+  const tiers = [[0.9, 0.7], [0.75, 0.9], [0.6, 0.5]];
+  let y = base;
+  tiers.forEach(([r, h], i) => {
+    const t = new Mesh(displace(new CylinderGeometry(r * 0.9, r, h, 8, 2), 0.03, 3, i + 5), M.stone);
+    t.position.y = y + h / 2; y += h;
+    g.add(t);
+    if (i === 1) {
+      for (const ry of [0, Math.PI / 2]) {
+        const w = new Mesh(new BoxGeometry(0.5, 0.6, r * 1.95), glowMat);
+        w.position.y = t.position.y; w.rotation.y = ry;
+        g.add(w);
+      }
+    }
+  });
+  const roof = new Mesh(displace(new ConeGeometry(0.85, 0.7, 8, 2), 0.03, 3, 9), M.stone);
+  roof.position.y = y + 0.35; g.add(roof);
+  const knob = new Mesh(new SphereGeometry(0.22, 10, 8), M.stone); knob.position.y = y + 0.8; g.add(knob);
+  const star = new Mesh(new ConeGeometry(0.28, 0.5, 4).translate(0, 0.25, 0), glowMat);
+  const star2 = star.clone(); star2.rotation.z = Math.PI;
+  const starG = new Group(); starG.add(star, star2); starG.position.y = y + 1.6; g.add(starG);
+  lights.push({ obj: starG, str: 0.6 });
+  // four pillars with diamond glows
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const px = Math.cos(a) * 4.6, pz = Math.sin(a) * 4.6;
+    const pil = new Mesh(displace(new BoxGeometry(0.8, 1.8, 0.8, 2, 3, 2), 0.04, 2.5, i), M.stone);
+    pil.position.set(px, 0.9, pz); pil.rotation.y = -a;
+    const gem = new Mesh(new ConeGeometry(0.18, 0.3, 4).translate(0, 0.15, 0), glowMat);
+    const gem2 = gem.clone(); gem2.rotation.z = Math.PI;
+    const gg = new Group(); gg.add(gem, gem2); gg.position.set(px, 1.2, pz); gg.lookAt(0, 1.2, 0);
+    gg.translateZ(0.42);
+    const ivy = new Mesh(displace(new IcosahedronGeometry(0.35, 1), 0.07, 3, i), M.moss); ivy.position.set(px, 1.85, pz); ivy.scale.y = 0.5;
+    g.add(pil, gg, ivy);
+    colliders.push({ x: wx + px, z: wz + pz, r: 0.6 });
+  }
+  colliders.push({ x: wx, z: wz, r: 1.1 });
+  const ring = new Mesh(new TorusGeometry(2.4, 0.05, 6, 64), glowMat);
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.67; g.add(ring);
+  g.userData = {
+    glow: 0, starG,
+    setGlow(k) { this.glow = k; glowMat.uniforms.uStr.value = 0.35 + k * 1.2; },
+    update(t) { starG.rotation.y = t * (0.3 + this.glow * 1.2); starG.position.y = y + 1.6 + Math.sin(t * 1.5) * 0.1 * this.glow; },
+  };
   return g;
+}
+
+/** A small floating island with a grassy top and a cliff underside. */
+function makeIsle(cx, cz, rad, topY, seed, depth = 12) {
+  const g = new Group();
+  const er = (th) => rad * (0.9 + 0.15 * noise3(Math.cos(th) * 2 + seed, Math.sin(th) * 2, 9));
+  const top = new Mesh(displace(new CylinderGeometry(rad, rad, 0.6, 40, 1), 0.2, 0.5, seed), M.ground);
+  top.position.y = -0.3;
+  g.add(top);
+  g.add(new Mesh(buildCliff(er, () => -0.1, depth, seed, 48, 14), M.cliff));
+  g.position.set(cx, topY, cz);
+  return { group: g, floor: { x: cx, z: cz, r: rad * 0.88, y: topY } };
 }
 
 function scatterInstanced(geo, mat, count, place, seed, tints) {
@@ -471,7 +560,7 @@ export function buildLanternForest() {
   for (const [x, z, s, seed, block] of rocks) root.add(makeRock(x, z, s, seed, colliders, block));
 
   // stone lanterns (quest targets in round 3)
-  for (const [x, z] of [[-4.5, 7.5], [4.5, 1.5], [-4, -8], [5.5, -14], [-1.5, -21]]) {
+  for (const [x, z] of [[-4.5, 7.5], [4.5, 1.5], [-4, -8], [5.5, -14], [-6.5, -13]]) {
     const sl = makeStoneLantern(x, z, lights, colliders);
     stoneLanterns.push(sl);
     root.add(sl);
@@ -513,19 +602,36 @@ export function buildLanternForest() {
     }
   });
 
-  // bridge east to a small island
+  // ---- islands and bridges ----
+  const isles = [];   // flat walkable tops {x, z, r, y}
+  const bridges = []; // {from, to, dir, len, sag, enabled}
+  const addIsle = (...args) => { const i = makeIsle(...args); root.add(i.group); isles.push(i.floor); return i.group; };
+
+  // east: small island over the rope bridge
   const bFrom = new Vector3(22.5, groundHeight(22, 6.8) + 0.05, 6.8);
   const bTo = new Vector3(42, 0.2, 8);
-  root.add(makeBridge(bFrom, bTo, lights, colliders));
-  const small = new Group();
-  const sr = (th) => 8 * (0.9 + 0.15 * noise3(Math.cos(th) * 2, Math.sin(th) * 2, 9));
-  const top = new Mesh(displace(new CylinderGeometry(8, 8, 0.6, 40, 1), 0.2, 0.5, 3), M.ground);
-  small.add(top);
-  small.add(new Mesh(buildCliff(sr, () => 0.2, 12, 4, 48, 14), M.cliff));
-  small.position.set(50, 0, 8);
-  small.add(makeTree(1.5, -1, 0.9, 41, lights, swingers, [], true).translateY(0.3 - groundHeight(1.5, -1)));
+  const east = makeBridge(bFrom, bTo, lights, colliders);
+  root.add(east.group); bridges.push(east.data);
+  const small = addIsle(50, 8, 8, 0.5, 4);
+  small.add(makeTree(1.5, -1, 0.9, 41, lights, swingers, [], true).translateY(-0.2 - groundHeight(1.5, -1)));
   colliders.push({ x: 51.5, z: 7, r: 0.9 });
-  root.add(small);
+
+  // north: the shrine island. Its bridge rises when all five stone lanterns are lit.
+  const nFrom = new Vector3(2, groundHeight(2, -22.4) + 0.05, -22.4);
+  const nTo = new Vector3(3.5, 1.4, -41);
+  const north = makeBridge(nFrom, nTo, lights, colliders, 0.7);
+  root.add(north.group); bridges.push(north.data);
+  north.setRise(0);
+  const shrineIsle = addIsle(4, -49, 9.5, 1.4, 7, 14);
+  const shrine = makeShrine(lights, colliders, 4, -51);
+  shrine.position.set(4, 1.4, -51);
+  root.add(shrine);
+
+  // west: meadow island reached only on the warm wind
+  const west = addIsle(-50, -7, 9, 3.0, 11, 13);
+  west.add(makeTree(-2.5, -2, 0.85, 51, lights, swingers, [], false).translateY(-0.2 - groundHeight(-2.5, -2)));
+  colliders.push({ x: -52.5, z: -9, r: 0.85 });
+  for (let i = 0; i < 4; i++) west.add(makeMushroom(2 + i * 0.6, 3 - (i % 2) * 0.7, 0.8 + (i % 3) * 0.3, 70 + i).translateY(-groundHeight(2 + i * 0.6, 3 - (i % 2) * 0.7)));
 
   // grass tufts at the edges (calm in the middle), flowers in drifts
   const tuftGeo = mergeGeometries([-0.35, 0.05, 0.4].map((lean, i) => {
@@ -563,17 +669,19 @@ export function buildLanternForest() {
     for (const p of swingers) p.rotation.z = Math.sin(t * 1.3 + p.userData.ph) * 0.07, p.rotation.x = Math.cos(t * 1.1 + p.userData.ph) * 0.05;
   };
 
-  // walkable floor: main island, bridge, small island. Returns null over the void.
-  const bdir = new Vector3().subVectors(bTo, bFrom); const blen = bdir.length(); bdir.normalize();
+  // walkable floor: main island, isles, enabled bridges. Returns null over the void.
   const floorAt = (x, z) => {
     let best = null;
     if (onIsland(x, z)) best = groundHeight(x, z);
-    if (Math.hypot(x - 50, z - 8) < 7.3) best = Math.max(best ?? -1e9, 0.5);
-    const t = ((x - bFrom.x) * bdir.x + (z - bFrom.z) * bdir.z) / blen;
-    const lat = Math.abs((x - bFrom.x) * -bdir.z + (z - bFrom.z) * bdir.x);
-    if (t >= -0.05 && t <= 1.05 && lat < 1.25) {
-      const tt = Math.max(0, Math.min(1, t));
-      best = Math.max(best ?? -1e9, bFrom.y + (bTo.y - bFrom.y) * tt - Math.sin(tt * Math.PI) * 1.0 + 0.06);
+    for (const i of isles) if (Math.hypot(x - i.x, z - i.z) < i.r) best = Math.max(best ?? -1e9, i.y);
+    for (const br of bridges) {
+      if (!br.enabled) continue;
+      const t = ((x - br.from.x) * br.dir.x + (z - br.from.z) * br.dir.z) / br.len;
+      const lat = Math.abs((x - br.from.x) * -br.dir.z + (z - br.from.z) * br.dir.x);
+      if (t >= -0.05 && t <= 1.05 && lat < 1.25) {
+        const tt = Math.max(0, Math.min(1, t));
+        best = Math.max(best ?? -1e9, br.from.y + (br.to.y - br.from.y) * tt - Math.sin(tt * Math.PI) * br.sag + 0.06);
+      }
     }
     return best;
   };
@@ -585,7 +693,7 @@ export function buildLanternForest() {
     colliders.push({ x: x + 1.25, z, r: 0.2 });
     return ws;
   });
-  const update2 = (t, dt) => { update(t); checkpoints.forEach((c) => c.update(t, dt)); };
+  const update2 = (t, dt) => { update(t); checkpoints.forEach((c) => c.update(t, dt)); shrine.userData.update(t); };
 
-  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, spawn: new Vector3(1.2, 0, 11.5) };
+  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, spawn: new Vector3(1.2, 0, 11.5) };
 }

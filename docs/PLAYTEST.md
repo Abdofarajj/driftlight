@@ -18,3 +18,14 @@ Still open (seen in screenshots):
 - Tree trunks can block the camera between you and the player (needs camera collision / fade).
 - Small island is a flat disc; distant islands are plain.
 - Hand-holding spark is subtle.
+
+## 2026-11-13, round 2 (18/18 pass after fixes)
+New objectives: light all 5 lanterns holding hands; bridge rises and leads to the shrine star; ride the west wind
+to the meadow island; collect its star; ride the wind back; collect the east star.
+
+Found and fixed:
+- 5th lantern sat behind the arch pillar at the island edge; moved to an open spot, and the lighting range widened.
+- Partner snagging on rocks broke the hand hold; she now slips past snags, only a real fall breaks it.
+- Return wind dropped you into the clouds short of the island; stream now holds you on its centre line and lands further in.
+- Wind ribbons flared white when they passed the camera; they fade near the camera now and are thinner.
+- Camera could end up inside a tree canopy; it now moves in front of trees between you and it.
