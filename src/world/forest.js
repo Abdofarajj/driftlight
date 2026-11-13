@@ -10,6 +10,7 @@ import { displace, setMix } from './shapes.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { buildCrystalLake } from './lake.js';
 import { buildDesert } from './desert.js';
+import { buildHollow } from './hollow.js';
 import { mergeSiblings } from '../look/merge.js';
 
 const R = 24; // main island radius
@@ -693,6 +694,8 @@ export function buildLanternForest() {
   const lake = buildCrystalLake(zoneCtx);
   // ---- Sunset Desert: across a sandstone bridge from the lake's north-east shore (desert.js) ----
   const desert = buildDesert(zoneCtx);
+  // ---- Whispering Hollow: over an old rope bridge from the desert's sun terrace (hollow.js) ----
+  const hollow = buildHollow(zoneCtx, desert);
 
   const update = (t) => {
     for (const p of swingers) p.rotation.z = Math.sin(t * 1.3 + p.userData.ph) * 0.07, p.rotation.x = Math.cos(t * 1.1 + p.userData.ph) * 0.05;
@@ -716,6 +719,8 @@ export function buildLanternForest() {
     if (l !== null) best = Math.max(best ?? -1e9, l);
     const d = desert.floor(x, z);
     if (d !== null) best = Math.max(best ?? -1e9, d);
+    const h = hollow.floor(x, z);
+    if (h !== null) best = Math.max(best ?? -1e9, h);
     return best;
   };
 
@@ -728,9 +733,19 @@ export function buildLanternForest() {
   });
   checkpoints.push(lake.checkpoint); // Crystal Lake, just past the crystal bridge
   checkpoints.push(...desert.checkpoints); // Sunset Desert: past the sandstone bridge, and at the plaza end of the Windy Pass
+  checkpoints.push(hollow.way); // Whispering Hollow: just past the rope bridge
+  // ...and each lamp you relight there (a checkpoint only once it burns: "you wake by the last lamp you lit")
+  for (const L of hollow.lamps) {
+    const toHeart = new Vector3().subVectors(hollow.heart, L.pos).setY(0).normalize();
+    const p = L.pos.clone().addScaledVector(toHeart, 1.7);
+    p.y = hollow.floor(p.x, p.z) ?? L.pos.y;
+    L.checkpoint = { obj: null, pos: p, active: false, pulse: 0, lamp: L, get ready() { return !!L.lit; },
+      activate() { if (this.active) return false; this.active = true; return true; }, update() {} };
+    checkpoints.push(L.checkpoint);
+  }
   const update2 = (t, dt) => { update(t); checkpoints.forEach((c) => c.update(t, dt)); shrine.userData.update(t); };
 
   const swingParts = [];
   for (const p of swingers) p.traverse((o) => { if (o.isMesh) swingParts.push(o); });
-  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, lake, desert, deep: lake.deep, waterAt: lake.waterAt, spawn: new Vector3(1.2, 0, 11.5) };
+  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, lake, desert, hollow, deep: lake.deep, waterAt: lake.waterAt, spawn: new Vector3(1.2, 0, 11.5) };
 }

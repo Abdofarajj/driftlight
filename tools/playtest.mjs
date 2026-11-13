@@ -27,10 +27,16 @@ const shot = async (name) => { const f = `${out}/${String(++shotN).padStart(2, '
 const results = [];
 // --from-lake: skip straight to the Crystal Lake checks (set up as if the lantern quest and shrine were done)
 // --from-desert: skip to the Sunset Desert checks (the crystal heart already awake)
-const FROM = process.argv.includes('--from-desert') ? 'desert' : process.argv.includes('--from-lake') ? 'lake' : null;
+// --from-hollow: skip to the Whispering Hollow checks (the little sun already home)
+const FROM = ['hollow', 'desert', 'lake'].find((z) => process.argv.includes(`--from-${z}`)) ?? null;
 let skipping = FROM;
 async function objective(name, fn) {
-  if (skipping === 'desert') {
+  if (skipping === 'hollow') {
+    if (!name.startsWith('the little sun home raises an old rope bridge')) return;
+    skipping = null;
+    await G(() => { window.__game.lightAll(); window.__game.lakeAll(); window.__game.desertAll(); });
+    await page.waitForFunction(() => window.__game.hollowQuest.rise >= 1, null, { timeout: 180000 });
+  } else if (skipping === 'desert') {
     if (!name.startsWith('the crystal heart raises a sandstone bridge')) return;
     skipping = null;
     await G(() => { window.__game.lightAll(); window.__game.lakeAll(); });
@@ -446,7 +452,7 @@ await objective('secret: the hidden oasis behind a broken arch', async () => {
   if (r.ok) r = await legs([[DS.arch[0], DS.arch[2]], dl(12, 11.6)], { tol: 0.4 });
   await wait(900);
   const s1 = await sec(); await shot('oasis');
-  return { pass: r.ok && s1.n === s0.n + 1 && s1.found[5] && s1.counter === `${s0.n + 1}/6`, note: `walk=${JSON.stringify(r)} secrets ${s0.n} -> ${s1.n} counter=${s1.counter}` };
+  return { pass: r.ok && s1.n === s0.n + 1 && s1.found[5] && s1.counter === `${s0.n + 1}/7`, note: `walk=${JSON.stringify(r)} secrets ${s0.n} -> ${s1.n} counter=${s1.counter}` };
 });
 
 await objective('the old city wall holds: no way north except through the pass', async () => {
@@ -457,6 +463,240 @@ await objective('the old city wall holds: no way north except through the pass',
   await goTo(...dl(-12, -3), { tol: 0.5, timeout: 6 });
   const z2 = local((await pos()).me)[1];
   return { pass: z > 4.8 && z2 > 4.6, note: `stopped at local z=${z.toFixed(2)} (east) and ${z2.toFixed(2)} (west); the wall is at ~4.2` };
+});
+
+// ---- round 8: Whispering Hollow ----
+const hq = () => G(() => { const q = window.__game.hollowQuest; return { rise: q.rise, opened: q.opened, lit: q.lamps.map((l) => l.lit), count: q.count, rung: q.rung, plates: q.plates.slice(), lonely: q.lonely.state, lk: q.lonely.k, done: q.done, lift: q.lift, lv: q.lv.slice(), dark: q.hinted.dark, box: q.boxPlaying, lastLamp: q.lastLamp }; });
+const HW = await G(() => { const g = window.__game, H = g.world.hollow, D = g.world.desert, a = (v) => v.toArray();
+  return { c: a(H.center), r: H.radius, end: a(D.hollowEnd), from: a(H.bridge.data.from), to: a(H.bridge.data.to), way: a(H.way.pos), lamps: H.lamps.map((L) => a(L.pos)), lampCps: H.lamps.map((L) => a(L.checkpoint.pos)),
+    plates: H.bells.map((B) => a(B.plate)), heart: a(H.heart), exit: a(H.exit), door: a(H.houseDoor), inside: a(H.houseInside), ledge: a(H.ledge), ledgeTop: H.ledgeTop, step: a(H.ledgeStep), star: a(H.starPos),
+    cpWay: g.world.checkpoints.indexOf(H.way), cpLamps: H.lamps.map((L) => g.world.checkpoints.indexOf(L.checkpoint)) }; });
+const objIds = () => G(() => window.__game.objectives.list().filter((o) => !o.done).map((o) => o.id)); // finished rows fade out after a moment
+
+// The Hollow's woods are twisty (trees, rocks, posts, the house), so the bot finds its way on a grid:
+// A* over 0.35 m cells, keeping clear of every collider, then pulling the path straight where it can.
+const NAV = await G(([cx, cz, R]) => {
+  const w = window.__game.world, S = 0.35, half = R + 3, N = Math.ceil(half * 2 / S), x0 = cx - half, z0 = cz - half;
+  const floor = new Array(N * N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) floor[j * N + i] = w.floorAt(x0 + i * S, z0 + j * S) !== null;
+  const cols = w.colliders.filter((c) => !c.off && (c.ax !== undefined ? Math.hypot(c.ax - cx, c.az - cz) < half + 2 : Math.hypot(c.x - cx, c.z - cz) < half + 2))
+    .map((c) => (c.ax !== undefined ? { ax: c.ax, az: c.az, bx: c.bx, bz: c.bz, r: c.r } : { x: c.x, z: c.z, r: c.r }));
+  return { S, N, x0, z0, floor, cols };
+}, [HW.c[0], HW.c[2], HW.r]);
+const navCell = (() => {
+  const { S, N, x0, z0, floor, cols } = NAV, hard = new Uint8Array(N * N), soft = new Float32Array(N * N);
+  const segD = (x, z, c) => { const abx = c.bx - c.ax, abz = c.bz - c.az, t = Math.max(0, Math.min(1, ((x - c.ax) * abx + (z - c.az) * abz) / (abx * abx + abz * abz))); return Math.hypot(x - c.ax - abx * t, z - c.az - abz * t); };
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const k = j * N + i, x = x0 + i * S, z = z0 + j * S;
+    let edge = !floor[k];
+    for (const [di, dj] of [[2, 0], [-2, 0], [0, 2], [0, -2]]) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N || !floor[jj * N + ii]) edge = true; }
+    if (edge) { hard[k] = 1; continue; }
+    for (const c of cols) {
+      const d = (c.ax !== undefined ? segD(x, z, c) : Math.hypot(x - c.x, z - c.z)) - c.r;
+      if (d < 0.4) { hard[k] = 1; break; }
+      if (d < 1.0) soft[k] = Math.max(soft[k], (1.0 - d) * 4);
+    }
+  }
+  return { hard, soft };
+})();
+function hollowPath(from, to) {
+  const { S, N, x0, z0 } = NAV, { hard, soft } = navCell;
+  const cell = (x, z) => [Math.round((x - x0) / S), Math.round((z - z0) / S)];
+  const free = ([i, j]) => { // the nearest open cell
+    let best = null, bd = 1e9;
+    for (let dj = -8; dj <= 8; dj++) for (let di = -8; di <= 8; di++) { const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N || hard[jj * N + ii]) continue; const d = di * di + dj * dj; if (d < bd) { bd = d; best = [ii, jj]; } }
+    return best;
+  };
+  const a = free(cell(from[0], from[2])), b = free(cell(to[0], to[2]));
+  if (!a || !b) return [[to[0], to[2]]];
+  const start = a[1] * N + a[0], goal = b[1] * N + b[0];
+  const g = new Float32Array(N * N).fill(1e9), prev = new Int32Array(N * N).fill(-1), done = new Uint8Array(N * N);
+  const open = [[0, start]]; g[start] = 0;
+  const h = (k) => Math.hypot((k % N) - b[0], Math.floor(k / N) - b[1]);
+  while (open.length) {
+    let bi = 0; for (let q = 1; q < open.length; q++) if (open[q][0] < open[bi][0]) bi = q;
+    const [, k] = open[bi]; open[bi] = open[open.length - 1]; open.pop();
+    if (done[k]) continue; done[k] = 1;
+    if (k === goal) break;
+    const i = k % N, j = Math.floor(k / N);
+    for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) {
+      if (!di && !dj) continue;
+      const ii = i + di, jj = j + dj; if (ii < 0 || jj < 0 || ii >= N || jj >= N) continue;
+      const n = jj * N + ii; if (hard[n] || done[n]) continue;
+      const c = g[k] + Math.hypot(di, dj) * (1 + soft[n]);
+      if (c < g[n]) { g[n] = c; prev[n] = k; open.push([c + h(n), n]); }
+    }
+  }
+  if (prev[goal] === -1 && goal !== start) return [[to[0], to[2]]];
+  const cells = []; for (let k = goal; k !== -1; k = prev[k]) cells.unshift(k);
+  const P = (k) => [x0 + (k % N) * S, z0 + Math.floor(k / N) * S];
+  const clear = (p, q) => { const d = Math.hypot(q[0] - p[0], q[1] - p[1]), n = Math.ceil(d / 0.12); for (let s = 0; s <= n; s++) { const x = p[0] + (q[0] - p[0]) * s / n, z = p[1] + (q[1] - p[1]) * s / n, [i, j] = cell(x, z); if (hard[j * N + i]) return false; } return true; };
+  const pts = []; let cur = [from[0], from[2]], idx = 0;
+  while (idx < cells.length - 1) { // pull the string: go as far along as you can see
+    let far = idx + 1;
+    for (let k = cells.length - 1; k > idx + 1; k--) if (clear(cur, P(cells[k]))) { far = k; break; }
+    cur = P(cells[far]); pts.push(cur); idx = far;
+  }
+  pts.push([to[0], to[2]]);
+  return pts;
+}
+async function hgo(to, opts = {}) {
+  const p = await pos();
+  const pts = hollowPath(p.me, to), last = pts.pop();
+  const r = await legs(pts, { tol: 0.6, timeout: 25, ...opts, tol: 0.7 });
+  if (!r.ok) return r;
+  return legs([last], { tol: 0.6, timeout: 25, ...opts });
+}
+async function fetchHerH() {
+  // she may have moved while you walked (if her lantern goes out alone in the dark she wakes by the last lamp)
+  for (let k = 0; k < 3; k++) {
+    const p = await pos();
+    if (p.linked) return true;
+    if (dist2(p.me, p.friend) > 2.0) await hgo([p.friend[0] + 0.9, 0, p.friend[2] + 0.3], { tol: 0.5 });
+    await G(() => window.__game.holdHands()); await wait(900);
+  }
+  return (await pos()).linked;
+}
+
+await objective('the little sun home raises an old rope bridge; cross it hand in hand into the dark Hollow', async () => {
+  let q = await hq();
+  for (let k = 0; k < 40 && q.rise < 1; k++) { await wait(800); q = await hq(); }
+  await unlink();
+  // start on the sun terrace, a little back from the bridge's foot (the walk there is covered above)
+  const e = HW.from, dx = HW.to[0] - e[0], dz = HW.to[2] - e[2], d = Math.hypot(dx, dz), ux = dx / d, uz = dz / d;
+  await G(([x, z, h, fx, fz]) => { const g = window.__game; g.teleport(x, z, h); g.B.pos.set(fx, g.world.floorAt(fx, fz), fz); g.B.vel.set(0, 0, 0); },
+    [e[0] - ux * 2.2, e[2] - uz * 2.2, Math.atan2(ux, uz), e[0] - ux * 2.2 - uz * 0.95, e[2] - uz * 2.2 + ux * 0.95]);
+  await wait(600); await G(() => window.__game.holdHands()); await wait(900);
+  const rows0 = await objIds();
+  let r = await legs([[e[0], e[2]], [HW.to[0], HW.to[2]]], { tol: 0.9, timeout: 40 });
+  if (r.ok) r = await hgo(HW.way, { tol: 0.9 });
+  await wait(800);
+  q = await hq(); const p = await pos(), rows = await objIds(); await shot('hollow-arrive');
+  return { pass: q.rise >= 1 && rows0.includes('hollow') && r.ok && p.cp === HW.cpWay && p.linked && q.dark && rows.includes('lamps') && !rows.includes('hollow'), note: `rise=${q.rise} before=${rows0} walk=${JSON.stringify(r)} checkpoint=${p.cp} linked=${p.linked} dark hint=${q.dark} objectives=${rows}` };
+});
+
+await objective('hand in hand by an old lamp post, it glows again and becomes where you wake', async () => {
+  const r = await hgo(HW.lampCps[0], { tol: 0.5 });
+  let q = await hq();
+  for (let k = 0; k < 15 && !q.lit[0]; k++) { await wait(400); q = await hq(); }
+  await wait(400);
+  const p = await pos(), msg = await toast(); await shot('lamp-lit');
+  return { pass: r.ok && q.lit[0] && q.count === 1 && p.cp === HW.cpLamps[0] && /lamp glows/.test(msg), note: `walk=${JSON.stringify(r)} lit=${q.lit} checkpoint=${p.cp} "${msg}"` };
+});
+
+await objective('let go in the dark: the shy shadows creep in and dim your lantern until it goes out, and you wake by the lamp you lit', async () => {
+  await unlink();
+  await G(() => { const q = window.__game.hollowQuest; window.__lo = { minLv: 1, cling: 0, out: false, prev: 1, near: 99 };
+    const tick = () => { const w = window.__lo, lv = q.lv[0], A = window.__game.A.pos;
+      if (lv > w.prev + 0.5) w.out = true; w.prev = lv; w.minLv = Math.min(w.minLv, lv); w.cling = Math.max(w.cling, q.clinging[0]);
+      for (const s of q.shadows) w.near = Math.min(w.near, Math.hypot(s.pos.x - A.x, s.pos.z - A.z));
+      if (!w.out) requestAnimationFrame(tick); };
+    tick(); });
+  const r = await hgo(HW.heart, { tol: 0.8 }); // the middle of the Hollow, far from the lit lamp
+  await page.waitForFunction(() => window.__lo.minLv < 0.6, null, { timeout: 120000 }).catch(() => {});
+  await shot('lantern-dimming');
+  const dimMsg = await toast();
+  await page.waitForFunction(() => window.__lo.out, null, { timeout: 150000 }).catch(() => {});
+  const outMsg = await toast();
+  await wait(1500);
+  const w = await G(() => window.__lo), p = await pos(), q = await hq();
+  const fromLamp = dist2(p.me, HW.lampCps[0]);
+  await shot('woke-by-lamp');
+  return { pass: w.cling >= 1 && w.minLv < 0.1 && w.out && /dimming your lantern/.test(dimMsg) && /went out/.test(outMsg) && fromLamp < 1.5 && q.lv[0] > 0.9 && p.cp === HW.cpLamps[0],
+    note: `walk=${JSON.stringify(r)} shadows came within ${w.near.toFixed(1)} m (${w.cling} clinging), lantern down to ${w.minLv.toFixed(2)}, out=${w.out} "${dimMsg}" / "${outMsg}", woke ${fromLamp.toFixed(1)} m from the lit lamp` };
+});
+
+await objective('hand in hand, relight the other two lamps (the shadows shy away from joined hands)', async () => {
+  if (!(await fetchHerH())) return { pass: false, note: 'could not take her hand' };
+  await G(() => { const q = window.__game.hollowQuest; window.__hh = { cling: 0, minLv: 1, stop: false };
+    const tick = () => { const w = window.__hh; if (window.__game.hands.linked) { w.cling = Math.max(w.cling, q.clinging[0], q.clinging[1]); w.minLv = Math.min(w.minLv, q.lv[0], q.lv[1]); } if (!w.stop) requestAnimationFrame(tick); };
+    tick(); });
+  const log = [];
+  for (const i of [1, 2]) {
+    const r = await hgo(HW.lampCps[i], { tol: 0.5 });
+    let q = await hq();
+    for (let k = 0; k < 15 && !q.lit[i]; k++) { await wait(400); q = await hq(); }
+    log.push(`lamp ${i}: ${r.ok ? 'ok' : JSON.stringify(r)} lit=${q.lit[i]}`);
+    if (i === 1) await shot('second-lamp');
+  }
+  await wait(600);
+  const w = await G(() => { window.__hh.stop = true; return window.__hh; });
+  const q = await hq(), p = await pos(), rows = await objIds();
+  return { pass: q.count === 3 && p.linked && w.cling === 0 && w.minLv > 0.95 && rows.includes('bells') && !rows.includes('lamps') && p.cp === HW.cpLamps[2],
+    note: `${log.join(' | ')} | clinging while hand in hand=${w.cling}, lanterns never below ${w.minLv.toFixed(2)}, objectives=${rows}, checkpoint=${p.cp}` };
+});
+
+await objective('ring both bells at once: leave your partner on one bell stone and run to the other through the dark', async () => {
+  const pl = HW.plates;
+  let r = await hgo(pl[1], { tol: 0.4 });
+  await wait(700);
+  const hint = await toast();
+  const alone = (await hq()).rung;
+  await unlink();
+  await friendTo(pl[1][0], pl[1][2]); // park her right on the stone (a player does it by walking her there and letting go)
+  await wait(400);
+  const r2 = await hgo(pl[0], { tol: 0.4, run: true });
+  let q = await hq();
+  for (let k = 0; k < 10 && !q.rung; k++) { await wait(400); q = await hq(); }
+  const msg = await toast(); await shot('bells-rung');
+  await wait(1200);
+  const rows = await objIds();
+  return { pass: r.ok && /won't ring alone/.test(hint) && !alone && r2.ok && q.rung && /Both bells/.test(msg) && rows.includes('lonely') && !rows.includes('bells'),
+    note: `to the first bell=${JSON.stringify(r)} hint="${hint}" rang alone=${alone} | dash to the other=${JSON.stringify(r2)} rung=${q.rung} plates=${q.plates} "${msg}" objectives=${rows}` };
+});
+
+await objective('at the stone ring, hold your light up together while the Lonely Shadow circles in: it turns into fireflies and the dark lifts', async () => {
+  const her = (await pos()).friend;
+  if (!(await fetchHerH())) return { pass: false, note: `could not take her hand: ${JSON.stringify(await pos())} (she was at ${her})` };
+  const r = await hgo(HW.heart, { tol: 0.6 });
+  await page.waitForFunction(() => window.__game.hollowQuest.lonely.k > 0.5, null, { timeout: 60000 }).catch(() => {});
+  await shot('lonely-circling');
+  await page.waitForFunction(() => window.__game.hollowQuest.done, null, { timeout: 90000 }).catch(() => {});
+  const msg = await toast();
+  await page.waitForFunction(() => window.__game.hollowQuest.lift >= 1, null, { timeout: 60000 }).catch(() => {});
+  await wait(6000);
+  const q = await hq(), rows = await objIds();
+  const gone = await G(() => window.__game.hollowQuest.shadows.every((s) => s.k < 0.05));
+  const flies = await G(() => window.__game.world.hollow.flies.visible);
+  await shot('hollow-dusk');
+  return { pass: r.ok && q.done && q.lonely === 2 && q.lift >= 1 && /only wanted company/.test(msg) && gone && flies && rows.includes('wayOn') && !rows.includes('lonely'),
+    note: `walk=${r.reason} done=${q.done} lonely=${q.lonely} lift=${q.lift.toFixed(2)} "${msg}" shadows gone=${gone} fireflies=${flies} objectives=${rows}` };
+});
+
+await objective('the star on the mossy boulder: hop up from the step stone', async () => {
+  const s0 = (await pos()).stars;
+  await unlink();
+  let r = await hgo(HW.step, { tol: 0.5 });
+  // walk at the boulder and jump just before it (the bot's own little hop)
+  await G(([lx, lz, R]) => { const g = window.__game; window.__hop = { jumped: false, maxY: 0 };
+    const tick = () => { const w = window.__hop, A = g.A.pos; w.maxY = Math.max(w.maxY, A.y);
+      if (!w.jumped && Math.hypot(A.x - lx, A.z - lz) < R + 1.0 && g.pos().grounded) { w.jumped = true; g.jump(0); }
+      if (performance.now() - w.t0 < 20000) requestAnimationFrame(tick); };
+    window.__hop.t0 = performance.now(); tick(); }, [HW.ledge[0], HW.ledge[2], 1.25]);
+  if (r.ok) r = await goTo(HW.ledge[0], HW.ledge[2], { tol: 0.4, timeout: 8 });
+  await wait(1500);
+  const p = await pos(), hop = await G(() => window.__hop); await shot('ledge-star');
+  return { pass: r.ok && hop.jumped && p.stars === s0 + 1 && Math.abs(p.me[1] - HW.ledgeTop) < 0.15 && p.grounded,
+    note: `walk=${JSON.stringify(r)} jumped=${hop.jumped} standing at y=${p.me[1]} (top ${HW.ledgeTop.toFixed(2)}) stars ${s0} -> ${p.stars}` };
+});
+
+await objective('secret: the crooked house\'s music box only plays when you\'re both inside', async () => {
+  const s0 = await sec();
+  let r = await legs([[HW.ledge[0] - 2.6, HW.ledge[2]]], { tol: 0.6 }); // hop down off the boulder
+  if (!(await fetchHerH())) return { pass: false, note: 'could not take her hand' };
+  r = await hgo(HW.door, { tol: 0.5 });
+  await unlink();
+  const r1 = await goTo(HW.inside[0], HW.inside[2], { tol: 0.35, timeout: 10 });
+  await wait(2500);
+  const alone = (await hq()).box;
+  await goTo(HW.door[0], HW.door[2], { tol: 0.5, timeout: 10 });
+  if (!(await fetchHerH())) return { pass: false, note: 'could not take her hand again' };
+  const r2 = await goTo(HW.inside[0], HW.inside[2], { tol: 0.3, timeout: 10 });
+  await wait(1500);
+  const q = await hq(), s1 = await sec(), inside = await G(() => { const g = window.__game, H = g.world.hollow; return [H.inHouse(g.A.pos), H.inHouse(g.B.pos)]; });
+  await shot('music-box');
+  return { pass: r.ok && r1.ok && !alone && r2.ok && q.box && s1.found[6] && s1.n === s0.n + 1 && s1.counter === `${s0.n + 1}/7`,
+    note: `to the door=${r.reason} in alone=${r1.reason} played alone=${alone} | in together=${r2.reason} inside=${inside} playing=${q.box} secrets ${s0.n} -> ${s1.n} counter=${s1.counter}` };
 });
 
 await objective('secret: walk through the waterfall and find Roro Jr', async () => {
@@ -470,7 +710,7 @@ await objective('secret: walk through the waterfall and find Roro Jr', async () 
   await wait(700);
   const s1 = await sec(); await shot('grotto-roro');
   const waving = await G(() => window.__game.secrets.waveT > 0);
-  return { pass: !s0.found[0] && s1.found[0] && s1.card && s1.counter === `${s0.n + 1}/6` && waving, note: `walk=${r.reason} found=${s1.found[0]} card=${s1.card} counter=${s1.counter} waving=${waving}` };
+  return { pass: !s0.found[0] && s1.found[0] && s1.card && s1.counter === `${s0.n + 1}/7` && waving, note: `walk=${r.reason} found=${s1.found[0]} card=${s1.card} counter=${s1.counter} waving=${waving}` };
 });
 
 await objective('Roro\'s grotto: walls hold, and you can walk back out', async () => {
@@ -582,11 +822,12 @@ await objective('collect the star on the east island', async () => {
 
 await objective('objectives panel: every finished goal has been removed', async () => {
   await wait(2600);
-  const left = await G(() => window.__game.objectives.list());
+  // "follow the fireflies" stays until the snowy peak is built (round 9)
+  const left = (await G(() => window.__game.objectives.list())).filter((o) => o.id !== 'wayOn');
   const rows = await page.$$eval('.obj', (els) => els.length);
   const s = await sec();
   await shot('objectives-cleared');
-  return { pass: left.length === 0 && rows === 0 && s.counter === '6/6', note: `left=${JSON.stringify(left)} rows=${rows} secrets=${s.counter}` };
+  return { pass: left.length === 0 && rows <= 1 && s.counter === '7/7', note: `left=${JSON.stringify(left)} rows=${rows} secrets=${s.counter}` };
 });
 
 writeFileSync(`${out}/results.json`, JSON.stringify({ results, errors }, null, 2));

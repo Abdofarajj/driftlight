@@ -110,3 +110,29 @@ the sun home online lights the dial, stops the wind and opens the gate on both s
 - First run: right after a gust tore your hands apart, the "hold hands" hint replaced the gust message. Now each
   message gets its turn.
 - `node tools/playtest.mjs <name> --from-desert` runs only the desert checks (about 6 minutes).
+
+## 2026-11-13, round 8 Whispering Hollow (`playtest --from-hollow` 8/8, `npm run nettest` 21/21; full playtest saved for when the whole game is done)
+New solo checks: the rope bridge rises once the little sun is home and you cross it hand in hand into the dark (the
+"it's dark in here" hint, waystone checkpoint); hand in hand by a lamp post it relights and becomes your checkpoint;
+let go in the middle of the dark and the shy shadows creep in (3 clinging), dim your lantern to nothing and you wake
+right by the lamp you lit; the other two lamps relit hand in hand with no shadow clinging and both lanterns full;
+the bells ring with the partner parked on one bell's stone and you running to the other; the Lonely Shadow at the
+stone ring turns into fireflies, the dark lifts and the shadows fade; the 6th star on the mossy boulder with a hop;
+the music box (secret 7) stays silent with one of you inside and plays with both.
+New online checks: the bridge rises and a lamp relit together shows on both screens (and becomes the guest's
+checkpoint too); one of you on each bell's stone rings both bells on both screens, the shy shadows are within 0.3 m
+of each other on the two screens, and her lantern level shows the same on his screen; the Lonely Shadow comes, its
+progress agrees and the dark lifts on both screens.
+- The bot finds its way through the Hollow's woods on a grid (A* around every collider, then straightened), since
+  straight lines between path points hit trees. See `hollowPath()` in `tools/playtest.mjs`.
+- First runs: dim glows (unlit lamp rings, bell rings at 0.1-0.25) drew as black rings; the storm cloud and the shy
+  shadows came out nearly black; the lamp's closed cage hid its flame. Fixed (see LOOK.md, 2026-11-13 Hollow).
+- First run: "Something lonely stirs…" replaced "Both bells ring out" the same moment. It now waits 3.5 s.
+- First run: while she waited alone on a bell stone, the walk back to fetch her could arrive after her lantern went
+  out (she wakes by the last lamp). The bot now looks for her again. Lanterns also dim slower (0.06 a second per
+  clinging shadow, at most two count), so waiting on a bell for the other one is tense but fair.
+- The house roof lifts off while you're inside so the camera can see the music box.
+- Draws: the Hollow seen from the forest spawn (landscape) costs 11 draws (was 67 before baking the storm cloud's
+  puffs together and hiding its small moving pieces from more than 110 m away). Inside the Hollow: 65-77 draws.
+- `node tools/playtest.mjs <name> --from-hollow` runs only the Hollow checks (about 8 minutes).
+

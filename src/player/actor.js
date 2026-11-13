@@ -71,6 +71,7 @@ export class Actor {
     for (const c of world.colliders) {
       let cx, cz;
       if (c.off) continue;
+      if (c.top !== undefined && p.y > c.top - 0.2) continue; // standing on (or jumping onto) a low rock
       if (c.ax !== undefined) { // segment (fences, bridge rails)
         const abx = c.bx - c.ax, abz = c.bz - c.az;
         const t = Math.max(0, Math.min(1, ((p.x - c.ax) * abx + (p.z - c.az) * abz) / (abx * abx + abz * abz)));

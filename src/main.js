@@ -11,6 +11,7 @@ import { Hands } from './player/hands.js';
 import { LanternQuest } from './world/quest.js';
 import { CrystalQuest } from './world/lakequest.js';
 import { DesertQuest, SUN } from './world/desertquest.js';
+import { HollowQuest } from './world/hollowquest.js';
 import { buildWinds } from './world/wind.js';
 import { Stars } from './world/stars.js';
 import { GameAudio } from './audio.js';
@@ -72,10 +73,11 @@ const quest = new LanternQuest(world, scene, events);
 const winds = buildWinds(world);
 winds.forEach((w) => scene.add(w.group));
 audio.winds = winds;
-const stars = new Stars(scene, [[-49, 3.9, -4], [53, 1.4, 10.5], [4, 2.3, -44.5], world.lake.starPos.toArray(), world.desert.starPos.toArray()]);
+const stars = new Stars(scene, [[-49, 3.9, -4], [53, 1.4, 10.5], [4, 2.3, -44.5], world.lake.starPos.toArray(), world.desert.starPos.toArray(), world.hollow.starPos.toArray()]);
 const secrets = new Secrets(world, scene, events);
 const lakeQuest = new CrystalQuest(world, events, secrets);
 const desertQuest = new DesertQuest(world, events, secrets, lakeQuest);
+const hollowQuest = new HollowQuest(world, events, secrets, desertQuest);
 // fewer, bigger draws (phones pay for every separate one): bake the still pieces into one mesh per
 // material and area, and draw the swinging lanterns instanced. ?nomerge turns it off to compare.
 const baked = new Group(); scene.add(baked);
@@ -83,9 +85,10 @@ const instancer = new Instancer(baked);
 if (!params.has('nomerge')) {
   mergeStatic([world.lake.root], baked, { cell: 64 }); // far from the forest and small: one piece per material is plenty
   mergeStatic([world.desert.root], baked, { cell: 64 });
+  mergeStatic([world.hollow.root], baked, { cell: 64 });
   mergeStatic([world.root, secrets.grottoGroup, secrets.ringGroup, secrets.gardenGroup], baked);
   instancer.add(world.swingParts);
-  for (const model of [meT.root, friendT.root, secrets.roro, secrets.gardenGroup, world.lake.boat, world.desert.spirit.rays]) mergeSiblings(model); // hair curls, eyes, stems + leaves
+  for (const model of [meT.root, friendT.root, secrets.roro, secrets.gardenGroup, world.lake.boat, world.desert.spirit.rays, ...world.hollow.shadows.map((c) => c.group), world.hollow.lonely.group, world.hollow.cloud]) mergeSiblings(model); // hair curls, eyes, stems + leaves
 }
 const hud = { stars: document.getElementById('stars'), secrets: document.getElementById('secrets'), secIcon: document.querySelector('.pill .sec') };
 
@@ -99,8 +102,8 @@ const OBJ = {
   hands: { title: `Take ${partnerHer} hand`, detail: `Walk up beside ${partner} and ${touchUI ? 'tap the big hands button' : 'press E'}. Holding hands you move together, share your light, and can pull ${partner} along.` },
   lanterns: { title: 'Light the lanterns', progress: '0/5', detail: 'Five stone lanterns sleep in the forest. Hold hands and stand together beside one until its golden ring fills. Light all five to wake the shrine.' },
   wind: { title: 'Ride the warm wind', detail: `On the west edge of the forest a ring of drifting petals marks a warm current. Step in${touchUI ? '' : ' (hold Space to glide)'} and it carries you to the meadow island.` },
-  stars: { title: 'Find the stars', progress: '0/5', detail: 'Five stars are hidden: one past the east rope bridge, one on the meadow island, one waiting by the shrine, one in the middle of Crystal Lake, and one behind the sun gate in the desert.' },
-  secrets: { title: 'Find the secrets', progress: '0/6', detail: SECRET_HINTS },
+  stars: { title: 'Find the stars', progress: '0/6', detail: 'Six stars are hidden: one past the east rope bridge, one on the meadow island, one waiting by the shrine, one in the middle of Crystal Lake, one behind the sun gate in the desert, and one on a mossy boulder in Whispering Hollow.' },
+  secrets: { title: 'Find the secrets', progress: '0/7', detail: SECRET_HINTS },
   shrine: { title: 'Visit the shrine', detail: 'A bridge of light now leads north from the forest. Cross it together to reach the shrine.' },
   lake: { title: 'Cross to Crystal Lake', detail: 'The shrine woke a crystal bridge. It leads west from the shrine island to Crystal Lake.' },
   heart: () => ({ title: 'Wake the crystal heart', progress: `${lakeQuest.count}/3`, detail: 'Three crystals sleep round the lake, each with two lotus stones in front of it. '
@@ -110,6 +113,13 @@ const OBJ = {
   sun: () => ({ title: 'Guide the lost sun spirit', detail: 'A little sun sleeps in a stone bowl near the bridge. It only follows your shared light, so hold hands and it comes along. '
     + 'Bring it through the Windy Pass to the sundial on the far side. Sand gusts blow down the pass: wait behind a shelter wall together, and go on between gusts.'
     + (online() ? '' : ` Playing on your own? Walk ${partner} by the hand the whole way.`) }),
+  hollow: { title: 'Cross to Whispering Hollow', detail: 'An old rope bridge now sways out from the sun terrace behind the gate. It leads into the dark.' },
+  lamps: () => ({ title: 'Relight the lamps', progress: `${hollowQuest.count}/3`, detail: 'Three old lamp posts stand somewhere in the dark. Stand by each one together, holding hands, until it glows again. '
+    + 'A lit lamp keeps the shy shadows away, and if a lantern goes out you wake by the last lamp you lit.' }),
+  bells: () => ({ title: 'Ring both bells together', detail: 'Two old bells hang on opposite sides of the Hollow, and one won\'t ring alone. Stand on their stones at the same moment, one of you at each.'
+    + (online() ? '' : ` Playing on your own? Walk ${partner} to one bell, let go, and hurry to the other before the shadows dim ${partnerHer} lantern.`) }),
+  lonely: { title: 'Comfort the Lonely Shadow', detail: 'Something lonely has come to the stone ring in the middle of the Hollow. Stand there together, holding hands, and hold your light up while it comes closer.' },
+  wayOn: { title: 'Follow the fireflies', detail: 'The fireflies drift off towards the far side of the Hollow, where the way on will open.' },
 };
 for (const id of ['hands', 'lanterns', 'wind', 'stars', 'secrets']) objectives.add(id, OBJ[id]);
 if (params.get('open')) objectives.setOpen(params.get('open')); // captures: show a row expanded
@@ -122,16 +132,16 @@ if (params.get('peerhost')) Object.assign(peerOpts, { host: params.get('peerhost
 if (params.get('ice') === 'none') peerOpts.config = { iceServers: [] }; // local tests
 const online = () => !!net && net.online;
 const net = shot ? null : new NetPlay({
-  A, B, hands, quest, lake: lakeQuest, desert: desertQuest, stars, secrets, playAs, peerOpts,
+  A, B, hands, quest, lake: lakeQuest, desert: desertQuest, hollow: hollowQuest, stars, secrets, playAs, peerOpts,
   lag: params.get('lag') ? { ms: Number(params.get('lag')), jitter: Number(params.get('jitter')) || 0 } : null, // tests: fake internet delay
   on: {
     connected(back) {
-      quest.remote = lakeQuest.remote = desertQuest.remote = net.role === 'guest';
+      quest.remote = lakeQuest.remote = desertQuest.remote = hollowQuest.remote = net.role === 'guest';
       toast(back ? `${She}'s back ✦` : net.role === 'host' ? `${She} joined your world ✦` : `You're together ✦`);
       audio.play('checkpoint', { pos: A.pos });
       invite.refresh();
     },
-    left(reason) { quest.remote = lakeQuest.remote = desertQuest.remote = false; toast(reason === 'quiet' ? `${She} lost connection…` : `${She} left the game`); invite.refresh(); },
+    left(reason) { quest.remote = lakeQuest.remote = desertQuest.remote = hollowQuest.remote = false; hollowQuest.lv[1] = 1; toast(reason === 'quiet' ? `${She} lost connection…` : `${She} left the game`); invite.refresh(); },
     hello(kind) {
       // the invite link says who you are; if both of you picked the same traveler, take the other one
       if (net.role === 'guest' && kind === playAs) { const u = new URL(location.href); u.searchParams.set('as', kind === 'him' ? 'her' : 'him'); location.replace(u); }
@@ -155,7 +165,7 @@ const linkFor = (code) => {
 const invite = new Invite({ net, partner, partnerHer, linkFor, toast: (m) => toast(m) });
 
 // ---- the world map (map button / Tab): the islands you've found, both of you, and the next goal ----
-const D0 = world.desert, L0 = world.lake;
+const D0 = world.desert, L0 = world.lake, H0 = world.hollow;
 const xz = (v) => [v.x, v.z];
 const MAP_LOOKS = {
   forest: { edge: PAL.cliff[0], top: [PAL.grass[0], PAL.moss[1]], dots: [[-11, -5, 2.6, '#f4a9bf'], [11, -9, 2.4, '#f4a9bf'], [-14, 9, 2.2, '#e9b6d2'], [13, -19, 2.0, '#f4a9bf'], [7, 16, 1.9, '#e9b6d2'], [16, 0.5, 1.8, '#f4a9bf']] },
@@ -163,6 +173,7 @@ const MAP_LOOKS = {
   shrine: { edge: PAL.cliff[0], top: [PAL.stone[0], PAL.grass[1]], dots: [[4, -51, 1.6, '#ffd98a']] },
   lake: { edge: PAL.cliff[0], top: [PAL.grass[0], PAL.moss[1]], water: [L0.lakeCenter.x, L0.lakeCenter.z, 10.5] },
   desert: { edge: PAL.cliff[0], top: [PAL.sand[0], PAL.sandstone[0]], dots: [[D0.dialPos.x, D0.dialPos.z, 2.6, '#ff9c50'], [D0.oasisWorld.x, D0.oasisWorld.z, 1.7, '#9fbf6a']] },
+  hollow: { edge: PAL.bark[1], top: [PAL.moor[0], PAL.shy[0]], dots: H0.lamps.map((L) => [L.pos.x, L.pos.z, 1.3, '#ffd98a']) },
 };
 function nextGoal() {
   if (quest.count < quest.items.length) {
@@ -182,8 +193,16 @@ function nextGoal() {
     if (S.state === SUN.FOLLOW) return { x: D0.dialPos.x, z: D0.dialPos.z, text: 'Bring the little sun to the sundial' };
     return { x: S.pos.x, z: S.pos.z, text: S.state === SUN.SLEEP ? 'Find the lost sun spirit' : 'The little sun is waiting for you' };
   }
-  if (!stars.items[4].got) return { x: D0.starPos.x, z: D0.starPos.z, text: 'Something shines past the sun gate' };
-  return { x: D0.hollowEnd.x, z: D0.hollowEnd.z, text: 'The way on opens soon…' };
+  if (!stars.items[4].got && !hollowQuest.opened) return { x: D0.starPos.x, z: D0.starPos.z, text: 'Something shines past the sun gate' };
+  if (!world.hollow.onIsland(A.pos) && hollowQuest.count === 0) return { x: H0.arrive.x, z: H0.arrive.z, text: 'Cross the old rope bridge into the dark' };
+  if (hollowQuest.count < 3) {
+    let best = null, bd = Infinity;
+    H0.lamps.forEach((L, i) => { if (hollowQuest.lamps[i].lit) return; const d = L.pos.distanceTo(A.pos); if (d < bd) { bd = d; best = L; } });
+    return { x: best.pos.x, z: best.pos.z, text: `Relight the lamps together (${hollowQuest.count}/3)` };
+  }
+  if (!hollowQuest.rung) return { x: H0.heart.x, z: H0.heart.z, text: 'Ring both bells at the same moment' };
+  if (!hollowQuest.done) return { x: H0.heart.x, z: H0.heart.z, text: 'Comfort the Lonely Shadow' };
+  return { x: H0.exit.x, z: H0.exit.z, text: 'The way on opens soon…' };
 }
 const worldMap = new WorldMap({
   partnerName: partner,
@@ -195,7 +214,8 @@ const worldMap = new WorldMap({
       { id: 'shrine', name: 'Shrine', x: shrineIsle.x, z: shrineIsle.z, r: 9.5, known: quest.done, next: !quest.done, look: MAP_LOOKS.shrine },
       { id: 'lake', name: 'Crystal Lake', x: L0.center.x, z: L0.center.z, r: 23, known: lakeQuest.opened || lakeQuest.awake, next: quest.done && !lakeQuest.opened && !lakeQuest.awake, look: MAP_LOOKS.lake },
       { id: 'desert', name: 'Sunset Desert', x: D0.center.x, z: D0.center.z, r: 26, known: desertQuest.opened, next: lakeQuest.awake && !desertQuest.opened, look: MAP_LOOKS.desert },
-      { id: 'hollow', name: '', x: 85, z: -150, r: 22, known: false, next: desertQuest.done, look: null },
+      { id: 'hollow', name: 'Whispering Hollow', x: H0.center.x, z: H0.center.z, r: 22, known: hollowQuest.opened, next: desertQuest.done && !hollowQuest.opened, look: MAP_LOOKS.hollow },
+      { id: 'peak', name: '', x: 100, z: -85, r: 22, known: false, next: hollowQuest.done, look: null },
     ],
     links: [
       { a: [22.5, 6.8], b: [42, 8] },
@@ -203,6 +223,7 @@ const worldMap = new WorldMap({
       ...(quest.done ? [{ a: [2, -22.4], b: [3.5, -41] }] : []),
       ...(lakeQuest.opened || lakeQuest.awake ? [{ a: xz(L0.bridge.data.from), b: xz(L0.bridge.data.to) }] : []),
       ...(desertQuest.opened ? [{ a: xz(D0.bridge.data.from), b: xz(D0.bridge.data.to) }] : []),
+      ...(hollowQuest.opened ? [{ a: xz(H0.bridge.data.from), b: xz(H0.bridge.data.to) }] : []),
     ],
     me: { x: A.pos.x, z: A.pos.z, kind: playAs },
     friend: { x: B.pos.x, z: B.pos.z, kind: partner, here: !online() || net.online },
@@ -259,6 +280,22 @@ function toast(msg) {
 // (no allocations per frame: phones stutter on garbage collection)
 const tmp = new Vector3(), lightFocus = new Vector3(), camFwd = new Vector3();
 const lightList = [];
+// ---- Whispering Hollow's darkness: only lights show colour inside it (material.js uDark); while the
+// camera is in there the haze closes in to a deep lavender fog and the sky turns to night ----
+const HAZE0 = { haze: shared.uHaze.value.clone(), low: shared.uHazeLow.value.clone(), near: shared.uHazeNear.value, far: shared.uHazeFar.value };
+let hollowK = 0;
+function darkness() {
+  const H = world.hollow, k = hollowQuest.darkness;
+  shared.uDark.value.set(H.center.x, H.center.z, H.darkR, k);
+  const c = H.darkAt(camera.position) * k;
+  hollowK = H.darkAt(A.pos) * k;
+  shared.uHaze.value.copy(HAZE0.haze).lerp(PAL.nightHaze, c * 0.95);
+  shared.uHazeLow.value.copy(HAZE0.low).lerp(PAL.nightHaze, c * 0.95);
+  shared.uHazeNear.value = HAZE0.near + (7 - HAZE0.near) * c;
+  shared.uHazeFar.value = HAZE0.far + (46 - HAZE0.far) * c;
+  shared.uNight.value = c * 0.95;
+}
+
 function updateLights(focus) {
   // bias the choice towards the view: a point a little ahead of the focus, along the camera
   camera.getWorldDirection(camFwd); camFwd.y = 0;
@@ -276,7 +313,10 @@ function updateLights(focus) {
   const pos = shared.uLightPos.value, str = shared.uLightStr.value;
   let i = 0;
   const shareBoost = hands.linked ? 1.6 : 1; // holding hands = shared, brighter light
-  for (const t of [meT, friendT]) { t.bulb.getWorldPosition(pos[i]); str[i] = 0.6 * shareBoost; t.glowMat.uniforms.uStr.value = 1.3 * (hands.linked ? 1.3 : 1); i++; }
+  for (const t of [meT, friendT]) { // in the Hollow a shadow clinging to you dims your lantern (hollowquest.js)
+    const lv = 0.15 + 0.85 * hollowQuest.lv[i];
+    t.bulb.getWorldPosition(pos[i]); str[i] = 0.6 * shareBoost * lv; t.glowMat.uniforms.uStr.value = 1.3 * (hands.linked ? 1.3 : 1) * (0.35 + 0.65 * lv); i++;
+  }
   // the last few slots fade by distance, so a lantern swapping in or out as you walk never pops
   const slots = MAX_LIGHTS - 2, cut = lightList.length > slots ? Math.sqrt(lightList[slots].d) : Infinity;
   for (let k = 0; k < slots && k < lightList.length; k++) {
@@ -332,6 +372,7 @@ function respawn() {
 let respawning = false;
 const stats = { respawns: 0, checkpoints: 1 };
 
+const hollowHint = { bell: 0 };
 function onEvent(name, d) {
   switch (name) {
     case 'hint': toast(d); break;
@@ -401,6 +442,71 @@ function onEvent(name, d) {
       if (d.kind === 'pass') toast('Sand gusts! Wait behind a wall together, then go between gusts');
       else if (d.kind === 'hands') toast(online() ? `Hold hands with ${partner}: the little sun only follows your shared light` : `Bring ${partner} by the hand: the little sun only follows your shared light`);
       break;
+    // ---- Whispering Hollow ----
+    case 'hollow-bridge': if (!d.quiet) { toast('Far off, an old rope bridge sways out of the fog…'); audio.play('creak', { pos: world.hollow.bridge.data.to }); } break;
+    case 'hollow-open':
+      if (!world.hollow.onIsland(A.pos) && hollowQuest.count === 0) objectives.add('hollow', OBJ.hollow);
+      break;
+    case 'hollow-dark':
+      objectives.complete('hollow');
+      if (!objectives.has('lamps') && hollowQuest.count < 3) objectives.add('lamps', OBJ.lamps());
+      toast(`It's dark in here. Your lanterns are the only light, and holding hands makes it bigger`);
+      break;
+    case 'lamp-lit': {
+      const L = world.hollow.lamps[d.i];
+      if (!objectives.has('lamps') && d.n < 3) { objectives.complete('hollow'); objectives.add('lamps', OBJ.lamps()); }
+      objectives.update('lamps', { progress: `${d.n}/3` });
+      // the last lamp you lit is where you wake if your lantern goes out
+      if (L.checkpoint && checkpoint !== L.checkpoint) { L.checkpoint.activate(); checkpoint = L.checkpoint; }
+      if (!d.quiet) { toast(`A lamp glows again (${d.n}/3) ✦`); audio.play('lamp', { pos: d.pos }); secrets.motes.emit(d.pos, 24, { speed: 2, up: 1.5, life: 1.6, size: 0.18, spread: 0.4, grav: -0.2 }); }
+      if (d.n >= 3) { objectives.complete('lamps'); if (!hollowQuest.rung) objectives.add('bells', OBJ.bells()); }
+      break;
+    }
+    case 'bell-step':
+      if (!d.quiet) audio.play('bellHum', { pos: d.pos });
+      if (performance.now() - (hollowHint.bell || -1e9) > 9000) { hollowHint.bell = performance.now(); toast(`This bell won't ring alone. Someone has to stand at the other one at the same moment`); }
+      if (!objectives.has('bells') && !hollowQuest.rung) objectives.add('bells', OBJ.bells());
+      break;
+    case 'bells-rung':
+      objectives.complete('bells');
+      if (!d.quiet) { toast('Both bells ring out across the Hollow ✦'); for (const p of d.bells) audio.play('bell', { pos: p }); }
+      break;
+    case 'lonely-come':
+      // after the bells have had their moment
+      if (!d.quiet) setTimeout(() => { if (!hollowQuest.done) { toast('Something lonely stirs by the stone ring in the middle…'); audio.play('lonely', { pos: d.pos }); } }, 3500);
+      if (!hollowQuest.done) objectives.add('lonely', OBJ.lonely);
+      break;
+    case 'hollow-done':
+      objectives.complete('lonely'); objectives.complete('bells'); objectives.complete('lamps');
+      if (!d.quiet) {
+        toast(`It wasn't scary at all. It only wanted company ✦`);
+        audio.play('fireflies', { pos: d.pos });
+        secrets.motes.emit(d.pos.clone().setY(d.pos.y + 1.6), 80, { speed: 3.5, up: 2.5, life: 2.6, size: 0.2, spread: 1.2, grav: -0.25 });
+        setTimeout(() => { toast('The fireflies light the way on'); objectives.add('wayOn', OBJ.wayOn); }, 5200);
+      } else objectives.add('wayOn', OBJ.wayOn);
+      break;
+    case 'lantern-dim':
+      if (d.who === 'me') toast(`A shy shadow is dimming your lantern! Take ${partnerHer} hand or find a lit lamp`);
+      else toast(`A shadow is dimming ${partnerHer} lantern! Go back and take ${partnerHer} hand`);
+      audio.play('dim', { pos: d.who === 'me' ? A.pos : B.pos });
+      break;
+    case 'lantern-out': {
+      audio.play('out', { pos: d.pos });
+      // you wake by the last lamp you lit (or the waystone by the bridge), wherever you walked since
+      const wake = hollowQuest.lastLamp >= 0 ? world.hollow.lamps[hollowQuest.lastLamp].checkpoint : world.hollow.way;
+      if (wake && checkpoint !== wake) { wake.activate(); checkpoint = wake; }
+      if (d.who === 'me') {
+        toast(hollowQuest.count ? 'Your lantern went out… you wake by the last lamp you lit' : 'Your lantern went out… you wake back at the bridge');
+        respawn();
+      } else { // playing alone: your partner's lantern went out, and they wake by the last lamp
+        if (hands.linked) hands.unlink();
+        const p = checkpoint.pos;
+        B.pos.set(p.x - 1.0, p.y + 0.1, p.z); B.vel.set(0, 0, 0);
+        toast(`${She === 'She' ? 'Her' : 'His'} lantern went out… ${partner === 'her' ? 'she' : 'he'} waits by the last lamp you lit`);
+      }
+      break;
+    }
+    case 'music-box': audio.play('musicbox', { pos: d.pos }); break;
     default: break;
   }
 }
@@ -512,6 +618,7 @@ function step(dt) {
     }
   }
   desertQuest.update(dt, t, A, B, hands.linked, online() ? [A] : [A, B], breakHands, camera);
+  hollowQuest.update(dt, t, A, B, hands.linked, online() ? [A] : [A, B], camera);
   for (const act of online() ? [A] : [A, B]) water(act);
   const ch = Math.max(quest.items.reduce((m, it) => Math.max(m, it.lit ? 0 : it.charge), 0), lakeQuest.pairs.reduce((m, p) => Math.max(m, p.lit ? 0 : p.charge), 0));
   if (ch > 0.05 && Math.floor(ch * 6) !== Math.floor(lastCharge * 6)) audio.play('charge', { k: ch, pos: A.pos });
@@ -538,6 +645,7 @@ function step(dt) {
 
   // checkpoints
   for (const c of world.checkpoints) {
+    if (c.ready === false) continue; // a Hollow lamp only counts once it burns again
     if (A.pos.distanceTo(c.pos) < 1.7 && c !== checkpoint) {
       if (c.activate()) { toast('Checkpoint ✦'); stats.checkpoints++; audio.play('checkpoint', { pos: c.pos }); }
       checkpoint = c;
@@ -601,10 +709,11 @@ function frame(now) {
   last = now;
   if (shot) {
     t = shot.time ?? 2.0;
-    shot.apply({ me: meT, friend: friendT, camera, world, secrets, lake: lakeQuest, desert: desertQuest });
+    shot.apply({ me: meT, friend: friendT, camera, world, secrets, lake: lakeQuest, desert: desertQuest, hollow: hollowQuest });
     secrets.update(0, t, [], camera); // still poses (shots can set e.g. secrets.roroK)
     lakeQuest.update(0, t, A, B, () => false);
     desertQuest.update(0, t, A, B, false, [], () => {}, camera);
+    hollowQuest.update(0, t, A, B, hands.linked, [], camera);
   } else {
     // ?fast=N runs N fixed physics steps per rendered frame (used by the playtest bot on slow headless GPUs)
     const n = FAST || 1, sdt = FAST ? 1 / 30 : dt;
@@ -630,7 +739,7 @@ function frame(now) {
     const toCam = new Vector3().subVectors(want, target);
     const full = toCam.length();
     ray.set(target, toCam.normalize()); ray.far = full;
-    const hit = ray.intersectObjects(world.occluders, true).find((h) => (h.object.geometry.boundingSphere?.radius ?? 0) * h.object.scale.x > 0.6);
+    const hit = ray.intersectObjects(world.occluders, true).find((h) => !h.object.userData.lifted && (h.object.geometry.boundingSphere?.radius ?? 0) * h.object.scale.x > 0.6);
     if (hit) want.copy(target).addScaledVector(toCam, Math.max(1.6, hit.distance - 0.6));
     // finding Roro: for a few seconds the camera steps in front of you to watch him wave
     const gc = secrets.grottoCam();
@@ -649,6 +758,7 @@ function frame(now) {
   placeShadow(meT, meT.root.position);
   placeShadow(friendT, friendT.root.position);
   shared.uTime.value = t;
+  darkness();
   world.update(t, dt);
   winds.forEach((w) => w.update(t));
   sparkles.userData.update(t);
@@ -659,6 +769,7 @@ function frame(now) {
       camPos: camera.position, camRight: new Vector3().setFromMatrixColumn(camera.matrixWorld, 0),
       playerPos: A.pos, distFromCenter: Math.hypot(A.pos.x, A.pos.z), airborne: !A.grounded,
       onMain: Math.hypot(A.pos.x, A.pos.z) < 26, ...windState, waterDist: A.pos.distanceTo(secrets.waterPos),
+      hollow: hollowK, hollowCenter: world.hollow.center, inHouse: world.hollow.inHouse(A.pos),
     });
   }
   updateLights(shot ? camera.position : A.pos);
@@ -680,7 +791,7 @@ window.__game = {
   goTo(x, z, opts = {}) { return new Promise((resolve) => { auto = { x, z, t: 0, lastT: 0, lastD: 1e9, resolve, ...opts }; }); },
   jump(hold = 0) { botJump = true; botJumpHeld = hold > 0; if (hold > 0) setTimeout(() => (botJumpHeld = false), hold); },
   holdHands() { input.handsPressed = true; },
-  worldMap, quest, lakeQuest, desertQuest, stars, secrets, winds, audio, objectives, net, invite, playAs,
+  worldMap, quest, lakeQuest, desertQuest, hollowQuest, stars, secrets, winds, audio, objectives, net, invite, playAs,
   camPos() { return camera.position.toArray().map((v) => +v.toFixed(2)); },
   frames() { return frames; },
   setRender(on) { renderOn = on; },
@@ -690,6 +801,7 @@ window.__game = {
   lightAll() { quest.completeNow(); },
   lakeAll() { lakeQuest.completeNow(); },
   desertAll() { desertQuest.completeNow(); },
+  hollowAll() { hollowQuest.completeNow(); },
   teleport(x, z, heading = Math.PI) { A.pos.set(x, world.floorAt(x, z) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
   pos() { return { lanterns: quest.count, stars: stars.count, secrets: secrets.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
 };

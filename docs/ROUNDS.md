@@ -80,3 +80,27 @@ Code: `src/world/desert.js` (the island), `src/world/desertquest.js` (the quest,
   pushed by the gusts on your own screen, on the host's gust clock.
 **Done when:** the bot brings the sun to the sundial with its idle partner (`npm run playtest`) and the sun follows,
 the gusts agree and the gate opens on both screens online (`npm run nettest`).
+
+## Round 8: Whispering Hollow (built 2026-11-13)
+Code: `src/world/hollow.js` (the island), `src/world/hollowquest.js` (the quest, the shy shadows, online sync).
+- With the little sun home, an **old rope bridge** sways out from the desert's sun terrace (behind the sun gate) to a
+  dark island under its own storm cloud: twisted bare trees, cold blue wisps, glowing toadstools, low fog, creaks and
+  whispers, and the music drops quieter in there. A waystone checkpoint stands just past the bridge.
+- **In the dark your two lanterns are the only light.** Holding hands makes one bigger circle. **Shy shadows** drift
+  towards whoever is alone in the dark (slower than walking, nothing jumps out), cling to them and dim their lantern.
+  Joined hands make them back away, and they keep out of a lit lamp's circle. If a lantern goes out you wake by the
+  last lamp you lit (or the waystone).
+- **Relight the 3 lamp posts:** stand by each together, holding hands. Each lit lamp becomes a checkpoint.
+- **Ring the 2 bells together:** they hang on opposite sides of the Hollow and one won't ring alone, so one of you
+  waits on one bell's stone in the dark while the other runs to the other.
+- **The Lonely Shadow:** with the lamps lit and the bells rung it comes to the stone ring in the middle. Stand there
+  together holding hands while it circles in; it turns into fireflies, the dark lifts to a soft dusk and the
+  fireflies drift off to the way on (the snowy peak, round 9).
+- **Star 6** sits on a mossy boulder in the south-east: hop up from the step stone.
+- **Secret 7, the crooked house** (south-west): its music box plays a little tune only when you're both inside. The roof lifts
+  off while you're in so the camera can see you.
+- Online: the host keeps the score (bridge, lamps, bells, the Lonely Shadow) and moves the shy shadows; each of you
+  dims and relights your own lantern and sends its level, so the other screen shows it.
+**Done when:** both bots get out of the dark solo (`playtest -- name --from-hollow`) and online (`npm run nettest`),
+and a lantern going out sends you back to the last lit lamp.
+

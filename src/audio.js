@@ -41,7 +41,8 @@ export class GameAudio {
     this.reverb.connect(wet).connect(this.master);
     this.music = ctx.createGain(); this.music.gain.value = this.musicOn ? MUSIC_VOL : 0;
     const musicWet = ctx.createGain(); musicWet.gain.value = 1.4; // piano sits in a big soft room
-    this.music.connect(this.master); this.music.connect(musicWet).connect(this.reverb);
+    this.duck = ctx.createGain(); this.duck.gain.value = 1; // the music hushes in the dark Hollow
+    this.music.connect(this.duck); this.duck.connect(this.master); this.duck.connect(musicWet).connect(this.reverb);
     this.piano = new PianoMusic(ctx, this.music);
     this.sfx = ctx.createGain(); this.sfx.gain.value = 0.9;
     this.sfx.connect(this.master); this.sfx.connect(this.reverb);
@@ -57,6 +58,9 @@ export class GameAudio {
     this.windWhoosh = this.winds.map(() => this.loopNoise(650, 0.9, 0.0, this.amb));
     this.water = this.loopNoise(1100, 0.45, 0.0, this.amb);   // waterfall hiss
     this.waterLow = this.loopNoise(260, 0.6, 0.0, this.amb);  // and its soft rumble
+    this.hollowLow = this.loopNoise(140, 0.8, 0.0, this.amb);  // Whispering Hollow: a low hollow wind
+    this.hollowAir = this.loopNoise(900, 2.5, 0.0, this.amb);  // and a thin moan over it
+    this.lastCreak = 0; this.lastWhisper = 0;
   }
 
   setMusic(on) {
@@ -237,6 +241,70 @@ export class GameAudio {
         this.swell(0.3, 5);
         break;
       }
+      // ---- Whispering Hollow ----
+      case 'creak': { // an old branch or plank creaking: a slow wobbling rasp
+        const o = this.ctx.createOscillator(), f = this.ctx.createBiquadFilter(), g = this.ctx.createGain();
+        const base = 70 + Math.random() * 60, dur = 0.5 + Math.random() * 0.6;
+        o.type = 'sawtooth'; o.frequency.setValueAtTime(base, t);
+        o.frequency.linearRampToValueAtTime(base * (1.25 + Math.random() * 0.3), t + dur * 0.6);
+        o.frequency.linearRampToValueAtTime(base * 1.05, t + dur);
+        f.type = 'bandpass'; f.frequency.value = 700 + Math.random() * 500; f.Q.value = 5;
+        g.gain.setValueAtTime(0.0001, t);
+        for (let i = 0; i < 7; i++) g.gain.linearRampToValueAtTime((i % 2 ? 0.006 : 0.03) * v, t + (i + 1) * dur / 8); // the stick-slip judder
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+        o.connect(f).connect(g).connect(dest); o.start(t); o.stop(t + dur + 0.05);
+        break;
+      }
+      case 'whisper': { // breathy, wordless, just out of sight: a few soft hissed syllables
+        const n = 3 + Math.floor(Math.random() * 4);
+        let s0 = t;
+        for (let i = 0; i < n; i++) {
+          const d = 0.12 + Math.random() * 0.22;
+          this.burst(s0, d, 0.022 * v, 'bandpass', 2400 + Math.random() * 2600, 3 + Math.random() * 3, dest, 1800 + Math.random() * 3000);
+          s0 += d + 0.03 + Math.random() * 0.12;
+        }
+        break;
+      }
+      case 'lamp': // a lamp catches: a warm breath of flame and three low bells
+        this.burst(t, 0.7, 0.07, 'lowpass', 500, 0.7, dest, 1600);
+        [62, 69, 74].forEach((n, i) => this.bell(NOTE(n), t + 0.1 + i * 0.12, 0.06, dest, 3.2));
+        this.swell(0.2, 3);
+        break;
+      case 'bellHum': // standing on one bell alone: it only hums
+        this.bell(NOTE(50), t, 0.03, dest, 2.4);
+        break;
+      case 'bell': // a big old bell, rung at last
+        this.bell(NOTE(48), t, 0.13, dest, 6);
+        this.bell(NOTE(55), t + 0.02, 0.07, dest, 5);
+        this.tone(NOTE(36), t, 4, 0.05, 'sine', dest, 0.02);
+        break;
+      case 'lonely': // something lonely arrives: a slow low sigh
+        this.burst(t, 2.6, 0.06, 'bandpass', 300, 1.2, dest, 140);
+        this.tone(NOTE(45), t + 0.3, 3, 0.025, 'triangle', dest, 0.8);
+        break;
+      case 'fireflies': { // it turns into fireflies: a rising glitter, and the music comes back up
+        for (let i = 0; i < 16; i++) this.bell(NOTE(79 + [0, 2, 4, 7, 9][i % 5] + 12 * Math.floor(i / 8)), t + i * 0.07, 0.03, dest, 1.4);
+        [55, 62, 67, 71].forEach((n) => this.tone(NOTE(n), t + 0.2, 4, 0.03, 'sine', dest, 0.6));
+        this.swell(0.6, 9);
+        break;
+      }
+      case 'dim': // a shadow clings: your light shivers down
+        this.tone(NOTE(64), t, 0.9, 0.025, 'sine', dest, 0.05); this.tone(NOTE(63), t + 0.25, 0.9, 0.02, 'sine', dest, 0.05);
+        break;
+      case 'out': // a lantern goes out: a soft puff
+        this.burst(t, 0.5, 0.08, 'lowpass', 900, 0.7, dest, 200);
+        this.tone(NOTE(50), t + 0.05, 1.2, 0.03, 'sine', dest, 0.05);
+        break;
+      case 'musicbox': { // a little tune of our own, twice over, slowing at the end
+        const tune = [79, 83, 86, 84, 83, 79, 81, 83, 81, 78, 79, 0, 79, 83, 86, 88, 86, 83, 84, 83, 81, 79];
+        let s0 = t;
+        tune.forEach((n, i) => {
+          const d = 0.26 + (i > tune.length - 4 ? (i - tune.length + 4) * 0.08 : 0);
+          if (n) { this.tone(NOTE(n), s0, 1.3, 0.045, 'sine', dest, 0.003); this.tone(NOTE(n) * 4.02, s0, 0.25, 0.01, 'sine', dest, 0.002); }
+          s0 += d;
+        });
+        break;
+      }
       case 'bird': {
         const base = 2600 + Math.random() * 1400, n = 2 + Math.floor(Math.random() * 3);
         for (let i = 0; i < n; i++) {
@@ -281,6 +349,22 @@ export class GameAudio {
     const wd = s.waterDist ?? 99; // the grotto waterfall
     this.water.g.gain.value += (0.11 / (1 + Math.max(0, wd - 2) * 0.35) ** 2 - this.water.g.gain.value) * k;
     this.waterLow.g.gain.value += (0.08 / (1 + Math.max(0, wd - 2) * 0.3) ** 2 - this.waterLow.g.gain.value) * k;
+    // Whispering Hollow: the music hushes, a hollow wind, creaks and whispers just out of sight
+    const hk = s.hollow || 0;
+    this.duck.gain.value += ((1 - 0.72 * hk) - this.duck.gain.value) * k;
+    this.hollowLow.g.gain.value += (0.07 * hk - this.hollowLow.g.gain.value) * k;
+    this.hollowAir.g.gain.value += ((0.012 + Math.sin(now * 0.31) * 0.008) * hk - this.hollowAir.g.gain.value) * k;
+    this.hollowAir.f.frequency.value = 800 + Math.sin(now * 0.17) * 250;
+    if (hk > 0.5 && !s.inHouse && now - this.lastCreak > 5 + Math.random() * 7) {
+      this.lastCreak = now;
+      const a = Math.random() * Math.PI * 2, d = 6 + Math.random() * 6;
+      this.play('creak', { pos: new Vector3(s.playerPos.x + Math.cos(a) * d, s.playerPos.y + 2, s.playerPos.z + Math.sin(a) * d) });
+    }
+    if (hk > 0.6 && now - this.lastWhisper > 10 + Math.random() * 10) {
+      this.lastWhisper = now;
+      const side = Math.random() < 0.5 ? -1 : 1;
+      this.play('whisper', { pos: new Vector3().copy(s.playerPos).addScaledVector(this.listener.right, side * 5).setY(s.playerPos.y + 1.2) });
+    }
     if (s.onMain && now - this.lastBird > 4 + Math.random() * 6) {
       this.lastBird = now;
       const a = Math.random() * Math.PI * 2;

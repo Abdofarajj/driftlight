@@ -219,6 +219,108 @@ export const SHOTS = {
       cam(camera, [a.x + 1.0, a.y + 8.0, a.z - 5.5], [o.x - 0.3, o.y, o.z + 0.2], 50); // high over the arch: the pool shows
     },
   },
+  // Whispering Hollow from the desert end of the old rope bridge: a dark island under its storm cloud
+  hollow: {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: Q }) {
+      D.completeNow(); Q.open(true);
+      const H = world.hollow, b = H.bridge.data, a = b.from, c = H.center;
+      const h = Math.atan2(b.to.x - a.x, b.to.z - a.z);
+      place(me, world, a.x + Math.sin(h) * 2.5 + 0.5, a.z + Math.cos(h) * 2.5, h, { t: 2 });
+      place(friend, world, a.x + Math.sin(h) * 2.2 - 0.4, a.z + Math.cos(h) * 2.2 + 0.4, h, { t: 3.1 });
+      me.holdSide = 1; friend.holdSide = -1;
+      cam(camera, [a.x - Math.sin(h) * 6, a.y + 5.5, a.z - Math.cos(h) * 6], [c.x, c.y + 3, c.z], 50);
+    },
+  },
+  // in the dark, hand in hand: your light is all there is, and shy shadows wait at its edge
+  'hollow-dark': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: Q }) {
+      D.completeNow(); Q.open(true);
+      const H = world.hollow, L = H.lamps[0].pos, hrt = H.heart;
+      const h = Math.atan2(hrt.x - L.x, hrt.z - L.z);
+      const px = L.x + Math.sin(h) * 3.2, pz = L.z + Math.cos(h) * 3.2;
+      place(me, world, px + Math.cos(h) * 0.45, pz - Math.sin(h) * 0.45, h, { t: 2 });
+      place(friend, world, px - Math.cos(h) * 0.45, pz + Math.sin(h) * 0.45, h, { t: 3.1 });
+      me.holdSide = 1; friend.holdSide = -1;
+      [[2.4, -4.5], [-2.6, -5.5], [4.6, -2.0]].forEach(([sx, sz], i) => {
+        const s = Q.shadows[i]; s.pos.set(px + Math.sin(h) * sz + Math.cos(h) * sx, (world.floorAt(px, pz) ?? 2) + 1.0, pz + Math.cos(h) * sz - Math.sin(h) * sx); s.look.set(px, 0, pz);
+      });
+      // from the heart side, looking back past you at the cold lamp, with the shy shadows behind you
+      cam(camera, [px + Math.sin(h) * 6.5, (world.floorAt(px, pz) ?? 2) + 3.6, pz + Math.cos(h) * 6.5], [px - Math.sin(h) * 3, (world.floorAt(px, pz) ?? 2) + 1.0, pz - Math.cos(h) * 3], 50);
+    },
+  },
+  // a lamp relit: a warm circle in the dark (phone, portrait)
+  'hollow-lamp': {
+    viewport: 'portrait',
+    apply({ me, friend, camera, world, desert: D, hollow: Q }) {
+      D.completeNow(); Q.open(true); Q.lightLamp(2, true);
+      const H = world.hollow, L = H.lamps[2].pos, hrt = H.heart;
+      const h = Math.atan2(L.x - hrt.x, L.z - hrt.z);
+      const px = L.x - Math.sin(h) * 1.8, pz = L.z - Math.cos(h) * 1.8;
+      place(me, world, px + Math.cos(h) * 0.45, pz - Math.sin(h) * 0.45, h, { t: 2 });
+      place(friend, world, px - Math.cos(h) * 0.45, pz + Math.sin(h) * 0.45, h, { t: 3.1 });
+      me.holdSide = 1; friend.holdSide = -1;
+      const y = world.floorAt(px, pz) ?? 2;
+      cam(camera, [px - Math.sin(h) * 6, y + 4, pz - Math.cos(h) * 6], [L.x, y + 1.2, L.z], 62);
+    },
+  },
+  // ringing the bells: one of you on each stone, far apart in the dark
+  'hollow-bells': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: Q }) {
+      D.completeNow(); Q.open(true); [0, 1, 2].forEach((i) => Q.lightLamp(i, true));
+      const H = world.hollow, B = H.bells[1];
+      const toC = Math.atan2(H.heart.x - B.plate.x, H.heart.z - B.plate.z);
+      place(me, world, B.plate.x, B.plate.z, toC + Math.PI, { t: 2 });
+      place(friend, world, H.bells[0].plate.x, H.bells[0].plate.z, 0, { t: 3.1 });
+      Q.plates = [true, true]; Q.ringT = 0.6; Q.rung = true;
+      // high over the heart: the two of you far apart, one on each bell's stone, both bells swinging
+      const c = H.heart;
+      cam(camera, [c.x - 1.5, c.y + 17, c.z + 13], [c.x, c.y, c.z - 0.5], 56);
+    },
+  },
+  // the Lonely Shadow circling in while you hold your light up at the heart
+  'hollow-lonely': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: Q }) {
+      D.completeNow(); Q.open(true); [0, 1, 2].forEach((i) => Q.lightLamp(i, true)); Q.ring(true);
+      Q.lonely.state = 1; Q.lonely.k = 0.55; Q.lonely.ang = 2.2;
+      const H = world.hollow, c = H.heart;
+      place(me, world, c.x + 0.45, c.z + 0.6, Math.PI * 0.8, { t: 2 });
+      place(friend, world, c.x - 0.45, c.z + 0.6, Math.PI * 0.8, { t: 3.1 });
+      me.holdSide = -1; friend.holdSide = 1;
+      cam(camera, [c.x + 3.2, c.y + 6.8, c.z + 7.2], [c.x - 0.6, c.y + 0.8, c.z - 1.2], 54);
+    },
+  },
+  // after: the dark lifts to a soft dusk and the fireflies drift off to the way on
+  'hollow-done': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: Q }) {
+      D.completeNow(); Q.completeNow(); Q.flyT = 5.5;
+      const H = world.hollow, c = H.heart, e = H.exit;
+      const h = Math.atan2(e.x - c.x, e.z - c.z);
+      place(me, world, c.x + Math.cos(h) * 0.45, c.z - Math.sin(h) * 0.45, h, { t: 2 });
+      place(friend, world, c.x - Math.cos(h) * 0.45, c.z + Math.sin(h) * 0.45, h, { t: 3.1 });
+      me.holdSide = 1; friend.holdSide = -1;
+      cam(camera, [c.x - Math.sin(h) * 7, c.y + 5, c.z - Math.cos(h) * 7], [c.x + Math.sin(h) * 8, c.y + 1, c.z + Math.cos(h) * 8], 52);
+    },
+  },
+  // the crooked house: the music box plays for the two of you
+  musicbox: {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: Q }) {
+      D.completeNow(); Q.open(true);
+      const H = world.hollow, i = H.houseInside, d = H.houseDoor;
+      const h = Math.atan2(i.x - d.x, i.z - d.z);
+      place(me, world, i.x + Math.cos(h) * 0.5, i.z - Math.sin(h) * 0.5, h, { t: 2 });
+      place(friend, world, i.x - Math.cos(h) * 0.5, i.z + Math.sin(h) * 0.5, h, { t: 3.1 });
+      Q.boxK = 1;
+      // from inside, by the back corner: the two of you round the music box, the door behind you
+      const c0 = H.houseAt(-1.45, 1.35, 2.05), c1 = H.houseAt(0.15, 0.1, 0.85);
+      cam(camera, c0.toArray(), c1.toArray(), 72);
+    },
+  },
   // the hidden sunflower garden on the meadow island
   garden: {
     viewport: 'landscape',

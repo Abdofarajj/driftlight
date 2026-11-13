@@ -64,6 +64,18 @@ export const PAL = {
   dust: c('#f7dcb6'),                         // sand gusts
   sunCore: c('#fff6d2'), sunHalo: c('#ff9c50'), // the lost sun spirit and the sundial
 
+  // Whispering Hollow (round 8): a dark island under its own storm cloud. Dark means deep lavender-indigo, never black
+  moor: [c('#a99cc4'), c('#625a8a')],         // mossy ground
+  mossPath: [c('#cbbfdc'), c('#8a7fae')],     // pale old flagstones
+  bark: [c('#a08cab'), c('#5c5280')],         // twisted bare trees, the crooked house, the bridge
+  roof: [c('#b98ea8'), c('#6a5584')],         // the crooked house's roof
+  brass: [c('#ecc28a'), c('#9a7a86')],        // the bells
+  shy: [c('#6c5fa4'), c('#40376f')],          // the shy shadows' bodies: dusky indigo, never black
+  night: c('#2f2a52'),                        // the darkness: what's left of colour outside your light
+  nightSky: c('#3a3466'), nightHaze: c('#2b2650'),
+  wispCore: c('#eef6ff'), wispHalo: c('#8cbcff'), // cold blue wisps, the shadows' eyes
+  flyCore: c('#fbffd0'), flyHalo: c('#c9ee7a'),   // fireflies
+
   glowCore: c('#fff3c6'),
   glowHalo: c('#ffb45e'),
   rim: c('#ffd08a'),

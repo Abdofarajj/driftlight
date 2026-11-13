@@ -19,10 +19,11 @@ export function makeSky() {
       uniforms: {
         uTop: { value: PAL.skyTop }, uMid: { value: PAL.skyMid }, uHor: { value: PAL.skyHorizon },
         uSun: { value: PAL.sun }, uLow: { value: PAL.hazeLow }, uSunDir: shared.uSunDir,
+        uNight: shared.uNight, uNightSky: { value: PAL.nightSky }, uNightHaze: { value: PAL.nightHaze },
       },
       vertexShader: /* glsl */ `varying vec3 vD; void main(){ vD = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); gl_Position.z = gl_Position.w; }`,
       fragmentShader: /* glsl */ `
-        uniform vec3 uTop, uMid, uHor, uSun, uLow, uSunDir; varying vec3 vD;
+        uniform vec3 uTop, uMid, uHor, uSun, uLow, uSunDir; uniform float uNight; uniform vec3 uNightSky, uNightHaze; varying vec3 vD;
         float h(vec3 p){ return fract(sin(dot(p, vec3(12.9898,78.233,37.719)))*43758.5453); }
         float n3(vec3 x){ vec3 i=floor(x), f=fract(x); f=f*f*(3.0-2.0*f);
           return mix(mix(mix(h(i),h(i+vec3(1,0,0)),f.x),mix(h(i+vec3(0,1,0)),h(i+vec3(1,1,0)),f.x),f.y),
@@ -40,6 +41,12 @@ export function makeSky() {
           // sun glow
           float sd = max(dot(d, normalize(uSunDir * vec3(1.0, 0.25, 1.0))), 0.0);
           c += uSun * (pow(sd, 600.0) * 0.9 + pow(sd, 30.0) * 0.18 + pow(sd, 4.0) * 0.08);
+          if (uNight > 0.0) { // under the Hollow's storm cloud: a deep lavender night with a few faint stars
+            vec3 nc = mix(uNightHaze, uNightSky, smoothstep(-0.1, 0.5, y));
+            float st = step(0.985, h(floor(d * 260.0))) * smoothstep(0.12, 0.4, y) * (0.5 + 0.5 * h(floor(d * 90.0)));
+            nc += vec3(0.75, 0.78, 1.0) * st * 0.5;
+            c = mix(c, nc, uNight);
+          }
           gl_FragColor = vec4(c, 1.0);
         }`,
     }),
@@ -120,13 +127,13 @@ function makeCloudSea() {
 
   // soft flat floor of cloud far below, so there is never "nothing" under the islands
   const floor = new Mesh(new PlaneGeometry(2400, 2400), new ShaderMaterial({
-    uniforms: { uA: { value: PAL.cloud[0] }, uB: { value: PAL.hazeLow }, uTime: shared.uTime },
+    uniforms: { uA: { value: PAL.cloud[0] }, uB: { value: PAL.hazeLow }, uTime: shared.uTime, uNight: shared.uNight, uN: { value: PAL.nightHaze } },
     vertexShader: /* glsl */ `varying vec3 vW; void main(){ vec4 w = modelMatrix*vec4(position,1.0); vW=w.xyz; gl_Position = projectionMatrix*viewMatrix*w; }`,
-    fragmentShader: /* glsl */ `uniform vec3 uA, uB; uniform float uTime; varying vec3 vW;
+    fragmentShader: /* glsl */ `uniform vec3 uA, uB, uN; uniform float uTime, uNight; varying vec3 vW;
       float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
       float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x),mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x),f.y); }
       void main(){ vec2 p = vW.xz*0.02 + uTime*0.003; float k = n(p)*0.6 + n(p*2.7)*0.4;
-        gl_FragColor = vec4(mix(uB, uA, smoothstep(0.3, 0.8, k)*0.7), 1.0); }`,
+        gl_FragColor = vec4(mix(mix(uB, uA, smoothstep(0.3, 0.8, k)*0.7), uN * (0.9 + k * 0.25), uNight), 1.0); }`,
   }));
   floor.rotation.x = -Math.PI / 2;
   floor.position.y = -22;

@@ -1,5 +1,5 @@
 // The one shared watercolour shader. Every mesh in the game uses these two factories.
-import { ShaderMaterial, Vector3, Color, DoubleSide, AdditiveBlending } from 'three';
+import { ShaderMaterial, Vector3, Vector4, Color, DoubleSide, AdditiveBlending } from 'three';
 import { PAL } from './palette.js';
 
 // the two travelers' lanterns + the 14 lanterns nearest the view (main.js updateLights).
@@ -18,6 +18,11 @@ export const shared = {
   uLightPos: { value: Array.from({ length: MAX_LIGHTS }, () => new Vector3(0, -999, 0)) },
   uLightStr: { value: new Float32Array(MAX_LIGHTS) },
   uGlow: { value: PAL.glowHalo.clone() },
+  // Whispering Hollow: a dark patch of world (x, z, radius, strength 0..1). Inside it only lights show
+  // colour: each light keeps a pool around it whose size grows with its strength (main.js updateLights).
+  uDark: { value: new Vector4(0, 0, 0, 0) },
+  uNightCol: { value: PAL.night.clone() },
+  uNight: { value: 0 }, // the sky and the cloud sea darken while the camera is in the dark
 };
 
 const NOISE = /* glsl */ `
@@ -82,7 +87,8 @@ const FRAG = /* glsl */ `
   uniform vec3 uSunDir; uniform vec3 uRim; uniform float uRimStr;
   uniform vec3 uHaze; uniform vec3 uHazeLow; uniform float uHazeNear; uniform float uHazeFar;
   uniform vec3 uLightPos[${MAX_LIGHTS}]; uniform float uLightStr[${MAX_LIGHTS}]; uniform vec3 uGlow;
-  uniform float uWash; uniform float uLightRecv; uniform float uTintMode; uniform float uBreak;
+  uniform vec4 uDark; uniform vec3 uNightCol;
+  uniform float uWash; uniform float uLightRecv; uniform float uDarkRecv; uniform float uTintMode; uniform float uBreak;
   varying vec3 vWorld; varying vec3 vNormal; varying float vMix; varying vec3 vTint;
   ${NOISE}
   void main(){
@@ -114,15 +120,19 @@ const FRAG = /* glsl */ `
     col += uRim * fres * back * uRimStr;
 
     // lantern light pools
-    float L = 0.0;
+    float L = 0.0, pool = 0.0, dk = 0.0;
+    if (uDark.w > 0.0) dk = uDark.w * (1.0 - smoothstep(uDark.z - 5.0, uDark.z + 5.0, length(vWorld.xz - uDark.xy))) * smoothstep(15.0, 9.0, vWorld.y) * uDarkRecv;
     for (int i = 0; i < ${MAX_LIGHTS}; i++) {
       if (uLightStr[i] <= 0.0) continue; // same for every pixel: a cheap skip
       vec3 d = uLightPos[i] - vWorld;
       float dd = dot(d, d);
       float facing = clamp(dot(n, normalize(d)) * 0.6 + 0.5, 0.0, 1.0);
       L += uLightStr[i] * facing * 0.32 / (1.0 + dd * 0.35);
+      if (dk > 0.0) { float rr = 1.3 + uLightStr[i] * 5.2; pool = max(pool, smoothstep(rr, rr * 0.4, sqrt(dd) + (wash - 0.5) * 1.4)); }
     }
     col += uGlow * min(L, 0.55) * uLightRecv;
+    // in the dark, colour only lives inside the light pools; outside them it sinks to deep lavender-indigo
+    if (dk > 0.0) col = mix(col, col * vec3(0.22, 0.21, 0.36) + uNightCol * 0.34, dk * (1.0 - pool));
 
     // aerial haze: distance + below-island depth
     float dist = length(cameraPosition - vWorld);
@@ -151,6 +161,7 @@ export function makeWatercolorMaterial(o) {
       uWash: { value: o.wash ?? 0.12 },
       uBreak: { value: o.breakup ?? 0 },
       uLightRecv: { value: o.lightRecv ?? 1 },
+      uDarkRecv: { value: o.darkRecv ?? 1 }, // how much the Hollow's darkness takes (shadow creatures keep their colour)
       uTintMode: { value: o.tint ? 1 : 0 },
     },
     defines: o.mix ? { USE_MIX: '' } : {},

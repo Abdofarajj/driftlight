@@ -291,6 +291,61 @@ await objective('sundial online: bring the little sun home together and the sun 
   return { pass: follows && walk.ok && home && ph.every((p) => p === 'calm'), note: `follows=${follows} walk=${walk.reason} home, dial lit and gate open on both=${home}, wind host/guest=${ph.join('/')}` };
 });
 
+// ---- round 8: Whispering Hollow ----
+const HWN = await H(() => { const H = window.__game.world.hollow, a = (v) => v.toArray(); return { lampCps: H.lamps.map((L) => a(L.checkpoint.pos)), plates: H.bells.map((B) => a(B.plate)), heart: a(H.heart) }; });
+const shadowGap = async () => {
+  const a = await H(() => window.__game.hollowQuest.shadows.map((s) => [s.pos.x, s.pos.z]));
+  const b = await guest.evaluate(() => window.__game.hollowQuest.shadows.map((s) => [s.pos.x, s.pos.z]));
+  return Math.max(...a.map((p, i) => Math.hypot(p[0] - b[i][0], p[1] - b[i][1])));
+};
+
+await objective('Whispering Hollow online: the rope bridge rises on both screens, and a lamp you relight together glows on both', async () => {
+  await letGo();
+  const risen = await until(() => onBoth(() => window.__game.hollowQuest.rise >= 1), 30000);
+  const L = HWN.lampCps[0];
+  await H(([x, z]) => window.__game.teleport(x, z, Math.PI), [L[0], L[2]]);
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, Math.PI), [L[0] + 0.9, L[2] + 0.2]);
+  await wait(1500);
+  await H(() => window.__game.holdHands());
+  const linked = await until(() => onBoth(() => window.__game.hands.linked), 8000);
+  const lit = await until(() => onBoth(() => window.__game.hollowQuest.lamps[0].lit), 12000);
+  const n = [await H(() => window.__game.hollowQuest.count), await guest.evaluate(() => window.__game.hollowQuest.count)];
+  const cp = await guest.evaluate(() => window.__game.checkpoint === window.__game.world.checkpoints.indexOf(window.__game.world.hollow.lamps[0].checkpoint));
+  await both('13-hollow-lamp');
+  return { pass: risen && linked && lit && n[0] === 1 && n[1] === 1 && cp, note: `bridge up on both=${risen}, linked=${linked}, lit on both=${lit}, lamps host/guest=${n.join('/')}, guest wakes by it=${cp}` };
+});
+
+await objective('bells online: one of you on each bell stone rings both bells on both screens, and the shy shadows move the same on both', async () => {
+  await letGo();
+  const P = HWN.plates;
+  await H(([x, z]) => window.__game.teleport(x, z, 0), [P[0][0], P[0][2]]);
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, 0), [P[1][0], P[1][2]]);
+  const rung = await until(() => onBoth(() => window.__game.hollowQuest.rung), 12000);
+  await wait(4000); // alone in the dark, the shadows drift towards you both
+  const gap = await shadowGap();
+  // each of you dims your own lantern; the other screen shows it from what you send
+  const lv = [await guest.evaluate(() => window.__game.hollowQuest.lv[0]), await H(() => window.__game.hollowQuest.lv[1])];
+  await both('14-hollow-bells');
+  return { pass: rung && gap < 1.5 && Math.abs(lv[0] - lv[1]) < 0.15, note: `rung on both=${rung}, shadows host vs guest at most ${gap.toFixed(2)} m apart, her lantern ${lv[0].toFixed(2)} on her screen / ${lv[1].toFixed(2)} on his` };
+});
+
+await objective('Lonely Shadow online: hold your light up together at the stone ring and the dark lifts on both screens', async () => {
+  await H(() => { const q = window.__game.hollowQuest; q.lightLamp(1, true); q.lightLamp(2, true); });
+  const come = await until(() => onBoth(() => window.__game.hollowQuest.lonely.state === 1), 8000);
+  const c = HWN.heart;
+  await H(([x, z]) => window.__game.teleport(x, z, Math.PI), [c[0] - 0.45, c[2] + 0.5]);
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, Math.PI), [c[0] + 0.45, c[2] + 0.5]);
+  await wait(1500);
+  await H(() => window.__game.holdHands());
+  const linked = await until(() => onBoth(() => window.__game.hands.linked), 8000);
+  await wait(5000);
+  const k = [await H(() => window.__game.hollowQuest.lonely.k), await guest.evaluate(() => window.__game.hollowQuest.lonely.k)];
+  const done = await until(() => onBoth(() => window.__game.hollowQuest.done), 20000);
+  const lifted = await until(() => onBoth(() => window.__game.hollowQuest.lift >= 1 && window.__game.hollowQuest.shadows.every((s) => s.k < 0.05)), 12000);
+  await both('15-hollow-dusk');
+  return { pass: come && linked && Math.abs(k[0] - k[1]) < 0.2 && done && lifted, note: `Lonely Shadow came on both=${come}, linked=${linked}, its progress host/guest=${k.map((v) => v.toFixed(2)).join('/')}, done on both=${done}, dark lifted and shadows gone on both=${lifted}` };
+});
+
 await objective('guest leaves: the host is told and keeps playing', async () => {
   await guest.close({ runBeforeUnload: true }); guest = null; // like closing the tab
   const ok = await until(async () => !(await H(() => window.__game.net.online)), 20000);
