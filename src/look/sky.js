@@ -1,7 +1,7 @@
 // Sky dome, low sun, distant light beam, cloud sea, distant floating islands.
 import {
   Mesh, SphereGeometry, ShaderMaterial, BackSide, Group, IcosahedronGeometry, CylinderGeometry,
-  InstancedMesh, Object3D, Vector3, PlaneGeometry, AdditiveBlending, CanvasTexture, Sprite, SpriteMaterial,
+  InstancedMesh, Object3D, Vector3, PlaneGeometry, AdditiveBlending, CanvasTexture, InstancedBufferGeometry, InstancedBufferAttribute,
 } from 'three';
 import { PAL } from './palette.js';
 import { shared, makeWatercolorMaterial } from './material.js';
@@ -157,24 +157,46 @@ export function makeSparkles(count = 140, radius = 26) {
   grd.addColorStop(0, 'rgba(255,248,220,1)'); grd.addColorStop(0.25, 'rgba(255,214,140,0.7)'); grd.addColorStop(1, 'rgba(255,180,94,0)');
   x.fillStyle = grd; x.fillRect(0, 0, 64, 64);
   const tex = new CanvasTexture(c);
-  const g = new Group();
-  const items = [];
+  // one instanced draw for all of them (they used to be 140 separate sprites): drift, rise and
+  // twinkle are worked out on the GPU from each mote's own numbers
+  const quad = new PlaneGeometry(1, 1);
+  const geo = new InstancedBufferGeometry();
+  geo.index = quad.index;
+  geo.setAttribute('position', quad.attributes.position);
+  geo.setAttribute('uv', quad.attributes.uv);
+  const a = new Float32Array(count * 4), b = new Float32Array(count * 2);
   for (let i = 0; i < count; i++) {
-    const s = new Sprite(new SpriteMaterial({ map: tex, blending: AdditiveBlending, depthWrite: false, transparent: true }));
-    const a = r() * Math.PI * 2, d = Math.sqrt(r()) * radius;
-    s.userData = { x: Math.cos(a) * d, z: Math.sin(a) * d, y: 0.4 + r() * 6, ph: r() * 10, sp: 0.2 + r() * 0.5, sz: 0.08 + r() * 0.16 };
-    g.add(s);
-    items.push(s);
+    const ang = r() * Math.PI * 2, d = Math.sqrt(r()) * radius;
+    const y = 0.4 + r() * 6, ph = r() * 10, sp = 0.2 + r() * 0.5, sz = 0.08 + r() * 0.16;
+    a.set([Math.cos(ang) * d, Math.sin(ang) * d, y, ph], i * 4); b.set([sp, sz], i * 2);
   }
-  g.userData.update = (t) => {
-    for (const s of items) {
-      const u = s.userData;
-      const y = ((u.y + t * u.sp * 0.4) % 7);
-      s.position.set(u.x + Math.sin(t * 0.5 + u.ph) * 0.6, y, u.z + Math.cos(t * 0.4 + u.ph) * 0.6);
-      const tw = 0.6 + 0.4 * Math.sin(t * 2.5 + u.ph * 3);
-      s.scale.setScalar(u.sz * (0.7 + tw * 0.6));
-      s.material.opacity = tw * Math.min(1, y) * Math.min(1, (7 - y));
-    }
-  };
+  geo.setAttribute('aA', new InstancedBufferAttribute(a, 4));
+  geo.setAttribute('aB', new InstancedBufferAttribute(b, 2));
+  geo.instanceCount = count;
+  const mat = new ShaderMaterial({
+    uniforms: { uTime: shared.uTime, map: { value: tex } },
+    vertexShader: /* glsl */ `
+      attribute vec4 aA; attribute vec2 aB; uniform float uTime;
+      varying vec2 vUv; varying float vOp;
+      void main(){
+        float t = uTime;
+        float y = mod(aA.z + t * aB.x * 0.4, 7.0);
+        vec3 c = vec3(aA.x + sin(t * 0.5 + aA.w) * 0.6, y, aA.y + cos(t * 0.4 + aA.w) * 0.6);
+        float tw = 0.6 + 0.4 * sin(t * 2.5 + aA.w * 3.0);
+        vOp = tw * min(1.0, y) * min(1.0, 7.0 - y);
+        vec4 mv = modelViewMatrix * vec4(c, 1.0);
+        mv.xy += position.xy * aB.y * (0.7 + tw * 0.6);
+        vUv = uv;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */ `uniform sampler2D map; varying vec2 vUv; varying float vOp;
+      void main(){ vec4 tx = texture2D(map, vUv); gl_FragColor = vec4(tx.rgb, tx.a * vOp); }`,
+    blending: AdditiveBlending, depthWrite: false, transparent: true,
+  });
+  const g = new Group();
+  const m = new Mesh(geo, mat);
+  m.frustumCulled = false;
+  g.add(m);
+  g.userData.update = () => {}; // all on the GPU now
   return g;
 }

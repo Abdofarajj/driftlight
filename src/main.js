@@ -1,4 +1,4 @@
-import { WebGLRenderer, Scene, PerspectiveCamera, Vector3, Raycaster, ColorManagement, LinearSRGBColorSpace, NoToneMapping } from 'three';
+import { WebGLRenderer, Scene, PerspectiveCamera, Vector3, Raycaster, ColorManagement, LinearSRGBColorSpace, NoToneMapping, Group } from 'three';
 import { Post } from './look/post.js';
 import { shared, MAX_LIGHTS } from './look/material.js';
 import { makeSky, makeSparkles } from './look/sky.js';
@@ -19,6 +19,7 @@ import { cleanCode } from './net/session.js';
 import { Invite } from './ui/invite.js';
 import { Secrets } from './world/secrets.js';
 import { SECRET_HINTS } from './world/jokes.js';
+import { mergeStatic, mergeSiblings, Instancer } from './look/merge.js';
 
 ColorManagement.enabled = false; // palette colours are used as-is
 
@@ -69,6 +70,15 @@ winds.forEach((w) => scene.add(w.group));
 audio.winds = winds;
 const stars = new Stars(scene, [[-49, 3.9, -4], [53, 1.4, 10.5], [4, 2.3, -44.5]]);
 const secrets = new Secrets(world, scene, events);
+// fewer, bigger draws (phones pay for every separate one): bake the still pieces into one mesh per
+// material and area, and draw the swinging lanterns instanced. ?nomerge turns it off to compare.
+const baked = new Group(); scene.add(baked);
+const instancer = new Instancer(baked);
+if (!params.has('nomerge')) {
+  mergeStatic([world.root, secrets.grottoGroup, secrets.ringGroup, secrets.gardenGroup], baked);
+  instancer.add(world.swingParts);
+  for (const model of [meT.root, friendT.root, secrets.roro, secrets.gardenGroup]) mergeSiblings(model); // hair curls, eyes, stems + leaves
+}
 const hud = { stars: document.getElementById('stars'), secrets: document.getElementById('secrets'), secIcon: document.querySelector('.pill .sec') };
 
 // ---- objectives (tap a row to see more; finished ones fade away) ----
@@ -138,10 +148,12 @@ if (room && net) {
 let checkpoint = world.checkpoints[0];
 checkpoint.active = true;
 
+let curDpr = dpr; // adaptive: drops a little when the frame rate sags (see adaptRes)
 function resize() {
   const w = innerWidth, h = innerHeight;
+  renderer.setPixelRatio(curDpr);
   renderer.setSize(w, h, false);
-  post.setSize(Math.floor(w * dpr), Math.floor(h * dpr));
+  post.setSize(Math.floor(w * curDpr), Math.floor(h * curDpr));
   camera.aspect = w / h;
   // portrait phones: wider vertical FOV and a bit further back so the world still reads
   const portrait = h > w;
@@ -171,19 +183,36 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 1800);
 }
 
-// ---- lights: nearest lanterns + the two player lanterns ----
-const tmp = new Vector3();
+// ---- lights: the two player lanterns + the lanterns nearest to what you are looking at ----
+// (no allocations per frame: phones stutter on garbage collection)
+const tmp = new Vector3(), lightFocus = new Vector3(), camFwd = new Vector3();
+const lightList = [];
 function updateLights(focus) {
-  const L = world.lights.map((l) => {
-    l.obj.getWorldPosition(tmp);
-    const p = tmp.clone(); if (l.offset) p.y += l.offset;
-    return { p, s: l.str, d: p.distanceToSquared(focus) };
-  }).sort((a, b) => a.d - b.d);
+  // bias the choice towards the view: a point a little ahead of the focus, along the camera
+  camera.getWorldDirection(camFwd); camFwd.y = 0;
+  if (camFwd.lengthSq() > 1e-6) camFwd.normalize();
+  lightFocus.copy(focus).addScaledVector(camFwd, shot ? 9 : 5);
+  if (lightList.length !== world.lights.length) {
+    lightList.length = 0;
+    for (const l of world.lights) lightList.push({ l, p: new Vector3(), d: 0 });
+  }
+  for (const e of lightList) {
+    e.l.obj.getWorldPosition(e.p); if (e.l.offset) e.p.y += e.l.offset;
+    e.d = e.l.str > 0 ? e.p.distanceToSquared(lightFocus) : 1e12;
+  }
+  lightList.sort((a, b) => a.d - b.d);
   const pos = shared.uLightPos.value, str = shared.uLightStr.value;
   let i = 0;
   const shareBoost = hands.linked ? 1.6 : 1; // holding hands = shared, brighter light
   for (const t of [meT, friendT]) { t.bulb.getWorldPosition(pos[i]); str[i] = 0.6 * shareBoost; t.glowMat.uniforms.uStr.value = 1.3 * (hands.linked ? 1.3 : 1); i++; }
-  for (const l of L) { if (i >= MAX_LIGHTS) break; pos[i].copy(l.p); str[i] = l.s; i++; }
+  // the last few slots fade by distance, so a lantern swapping in or out as you walk never pops
+  const slots = MAX_LIGHTS - 2, cut = lightList.length > slots ? Math.sqrt(lightList[slots].d) : Infinity;
+  for (let k = 0; k < slots && k < lightList.length; k++) {
+    const e = lightList[k];
+    if (e.d >= 1e12) break;
+    const fade = Math.min(1, Math.max(0, (cut - Math.sqrt(e.d)) / 6));
+    pos[i].copy(e.p); str[i] = e.l.str * (k < slots - 4 ? 1 : fade); i++;
+  }
   for (; i < MAX_LIGHTS; i++) str[i] = 0;
 }
 
@@ -389,8 +418,32 @@ let last = performance.now();
 let t = 0;
 const camPos = new Vector3(), camLook = new Vector3();
 const FAST = Number(params.get('fast')) || 0;
+const SHOW_FPS = params.has('fps');
 const ray = new Raycaster();
+
+// ---- adaptive resolution: when the frame rate sags for a couple of seconds, draw fewer pixels
+// (the soft watercolour look hides it well); try going back up after a long smooth stretch, and
+// stop trying if going up made it sag again. Off for captures, ?fast bots and an explicit ?dpr.
+const AUTO_RES = !shot && !FAST && !params.has('dpr');
+const MIN_DPR = Math.min(dpr, 1.25);
+const res = { n: 0, time: 0, slow: 0, good: 0, raisedAt: -1e9, noRaise: false, since: performance.now() };
+function setDpr(v) { curDpr = Math.round(v * 100) / 100; resize(); }
+function adaptRes(rawDt, now) {
+  if (!AUTO_RES || document.hidden || now - res.since < 3000 || rawDt > 0.5) return; // skip loading hitches and tab switches
+  res.n++; res.time += rawDt;
+  if (res.time < 1) return;
+  const fps = res.n / res.time; res.n = 0; res.time = 0;
+  if (fps < 50) { res.slow++; res.good = 0; } else if (fps > 57) { res.good++; res.slow = 0; } else { res.slow = 0; res.good = 0; }
+  if (res.slow >= 2 && curDpr > MIN_DPR) {
+    if (now - res.raisedAt < 12000) res.noRaise = true; // the last step up was too much: stay here
+    setDpr(Math.max(MIN_DPR, curDpr - 0.25)); res.slow = 0; res.since = now - 2000; // a second to settle
+  } else if (res.good >= 8 && curDpr < dpr && !res.noRaise) {
+    setDpr(Math.min(dpr, curDpr + 0.25)); res.good = 0; res.raisedAt = now; res.since = now - 2000;
+  }
+}
+
 function frame(now) {
+  adaptRes((now - last) / 1000, now);
   const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); // rAF time can be a hair before "last" on the first frame
   last = now;
   if (shot) {
@@ -454,6 +507,8 @@ function frame(now) {
     });
   }
   updateLights(shot ? camera.position : A.pos);
+  instancer.sync();
+  if (SHOW_FPS) renderer.info.reset(); // count every pass of this frame (the ?fps readout shows draws)
   if (renderOn) post.render(scene, camera, t);
   frames++;
   if (shot && frames === 3) { window.__ready = true; return; } // freeze: captures need a still frame
@@ -474,19 +529,21 @@ window.__game = {
   camPos() { return camera.position.toArray().map((v) => +v.toFixed(2)); },
   frames() { return frames; },
   setRender(on) { renderOn = on; },
-  redraw() { updateLights(shot ? camera.position : A.pos); post.render(scene, camera, t); }, // tests: draw one frame now
+  redraw() { updateLights(shot ? camera.position : A.pos); instancer.sync(); post.render(scene, camera, t); }, // tests: draw one frame now
   scene, camera, renderer,
+  res() { return { dpr: curDpr, ...res }; }, setDpr, // adaptive resolution (tests)
   lightAll() { quest.completeNow(); },
   teleport(x, z, heading = Math.PI) { A.pos.set(x, world.floorAt(x, z) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
   pos() { return { lanterns: quest.count, stars: stars.count, secrets: secrets.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
 };
 
 // tiny FPS readout with ?fps
-if (params.has('fps')) {
+if (SHOW_FPS) {
+  renderer.info.autoReset = false;
   const el = document.createElement('div');
   // bottom middle, inside the safe area (a phone's rounded corners hide anything right in the corner)
   el.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom) + 10px);z-index:9;padding:3px 10px;border-radius:999px;background:rgba(110,70,90,.55);font:700 13px ui-monospace,Menlo,monospace;color:#fff7ea;pointer-events:none';
   document.body.appendChild(el);
   let n = 0, t0 = performance.now();
-  setInterval(() => { const t1 = performance.now(); el.textContent = `${Math.round((frames - n) * 1000 / (t1 - t0))} fps · ${dpr}x · ${renderer.domElement.width}×${renderer.domElement.height}`; n = frames; t0 = t1; }, 1000);
+  setInterval(() => { const t1 = performance.now(); el.textContent = `${Math.round((frames - n) * 1000 / (t1 - t0))} fps · ${curDpr}x · ${renderer.domElement.width}×${renderer.domElement.height} · ${renderer.info.render.calls} draws`; n = frames; t0 = t1; }, 1000);
 }

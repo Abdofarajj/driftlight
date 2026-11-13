@@ -32,3 +32,7 @@ Inside-joke text lives in `src/world/jokes.js` so more can be added any time.
 
 ## Round 5: polish on device
 Performance pass on iPhone, UI matching the portrait reference, title screen + invite flow.
+- **Performance (built 2026-11-13):** Abdo measured 40-60 fps in landscape (2x, 1704×566). Draws per frame
+  925 → 218 (landscape) and 398 → 139 (portrait) by baking still pieces together (`src/look/merge.js`),
+  lantern lights per pixel 24 → 16, no garbage made per frame by the light picker, and the resolution
+  steps down by itself when the frame rate sags. **Done when:** Abdo's `?fps` readout stays near 60.

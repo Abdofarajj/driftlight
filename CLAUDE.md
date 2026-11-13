@@ -14,6 +14,8 @@ Art director: Abdo. Targets: iPhone 15 Pro Safari (portrait + landscape) and Win
 - Glows are the brightest thing on screen; everything else stays mid-value.
 - Readability before looks: calm ground under players, big shapes, players highest contrast.
 - Small procedural motion (sway, squash, breathe) instead of rigs.
+- Phones: still meshes are baked together after the world is built (`src/look/merge.js`). Anything that moves,
+  scales or toggles visibility must have `userData.dynamic = true` or it freezes. Check draws with `?fps`.
 
 ## Look loop (do this every round)
 1. `npm run capture` renders fixed shots at iPhone 15 Pro resolution into `captures/<round>/` plus a side-by-side contact sheet with the references.

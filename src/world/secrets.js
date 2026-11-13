@@ -107,6 +107,7 @@ export class Secrets {
     cushion.scale.set(1, 0.32, 0.9); cushion.position.set(0, 0.06, -0.6); g.add(cushion);
     this.roro = makeRoroJr();
     this.roro.position.set(0, 0.16, -0.62); this.roro.scale.setScalar(1.05); g.add(this.roro);
+    this.roro.userData.dynamic = true; // he waves
     for (const s of [-1, 1]) { const sf = makeSunflower(0.95, 100 + s); sf.group.position.set(s * 0.82, -0.02, -0.75); sf.head.rotation.y = -s * 0.35; g.add(sf.group); }
     this.waveT = 0; this.lastWave = -99; this.showT = 0; this.showSide = 1;
     const rw = toWorld(0, -0.4);
@@ -116,7 +117,7 @@ export class Secrets {
 
   // ---------- the fairy ring ----------
   buildRing(scene) {
-    const g = new Group(); scene.add(g);
+    const g = new Group(); scene.add(g); this.ringGroup = g;
     const y0 = groundHeight(RING_C.x, RING_C.z);
     RING_C.y = y0;
     this.ringMush = [];
@@ -137,7 +138,7 @@ export class Secrets {
 
   // ---------- the sunflower garden ----------
   buildGarden(scene) {
-    const g = new Group(); g.position.copy(GARDEN_C); scene.add(g);
+    const g = new Group(); g.position.copy(GARDEN_C); scene.add(g); this.gardenGroup = g;
     const r = rng(300);
     this.flowers = [];
     const spots = [];
@@ -152,6 +153,7 @@ export class Secrets {
       sf.group.position.set(x, -0.02, z);
       sf.base = Math.PI / 2 + (r() - 0.5) * 0.7; // facing east, towards the forest, until you find them
       sf.head.rotation.y = sf.base; sf.ph = r() * 6; sf.bounce = 0; sf.world = new Vector3(GARDEN_C.x + x, GARDEN_C.y + 1.6, GARDEN_C.z + z);
+      sf.group.userData.dynamic = true; // sways, and the heads turn to watch you
       g.add(sf.group); this.flowers.push(sf);
     });
     this.items[3].pos.copy(GARDEN_C).setY(GARDEN_C.y + 1.4);

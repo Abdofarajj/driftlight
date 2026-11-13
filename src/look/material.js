@@ -2,7 +2,9 @@
 import { ShaderMaterial, Vector3, Color, DoubleSide, AdditiveBlending } from 'three';
 import { PAL } from './palette.js';
 
-export const MAX_LIGHTS = 24;
+// the two travelers' lanterns + the 14 lanterns nearest the view (main.js updateLights).
+// Every pixel loops over all of them, so this is one of the biggest costs on a phone.
+export const MAX_LIGHTS = 16;
 
 // Uniforms shared by every material (same object references, so updating once updates all).
 export const shared = {
@@ -34,6 +36,9 @@ const VERT = /* glsl */ `
   uniform float uTime;
   uniform float uSway;
   attribute float aMix;
+  #ifdef USE_SWAYH
+    attribute float aSwayH; // baked (merged) meshes: the original local height, see merge.js
+  #endif
   varying vec3 vWorld;
   varying vec3 vNormal;
   varying float vMix;
@@ -47,7 +52,11 @@ const VERT = /* glsl */ `
     #endif
     vec4 world = m * local;
     if (uSway > 0.0) {
-      float h = max(position.y, 0.0);
+      #ifdef USE_SWAYH
+        float h = max(aSwayH, 0.0);
+      #else
+        float h = max(position.y, 0.0);
+      #endif
       float ph = world.x*0.21 + world.z*0.17;
       world.x += sin(uTime*0.9 + ph) * uSway * h;
       world.z += cos(uTime*0.7 + ph*1.3) * uSway * h * 0.6;
@@ -107,6 +116,7 @@ const FRAG = /* glsl */ `
     // lantern light pools
     float L = 0.0;
     for (int i = 0; i < ${MAX_LIGHTS}; i++) {
+      if (uLightStr[i] <= 0.0) continue; // same for every pixel: a cheap skip
       vec3 d = uLightPos[i] - vWorld;
       float dd = dot(d, d);
       float facing = clamp(dot(n, normalize(d)) * 0.6 + 0.5, 0.0, 1.0);
@@ -148,6 +158,7 @@ export function makeWatercolorMaterial(o) {
     fragmentShader: FRAG,
     side: o.side ?? 0,
   });
+  m.userData.kind = 'watercolor'; // merge.js only bakes these
   return m;
 }
 
@@ -177,11 +188,13 @@ const GLOW_FRAG = /* glsl */ `
 
 /** Emissive material for lanterns, stars, bridge ropes. Values > 0.85 feed the bloom. */
 export function makeGlowMaterial(core = PAL.glowCore, halo = PAL.glowHalo, strength = 1.15) {
-  return new ShaderMaterial({
+  const m = new ShaderMaterial({
     uniforms: { ...shared, uCore: { value: core.clone() }, uHalo: { value: halo.clone() }, uStr: { value: strength }, uSway: { value: 0 } },
     vertexShader: GLOW_VERT,
     fragmentShader: GLOW_FRAG,
   });
+  m.userData.kind = 'glow';
+  return m;
 }
 
 /** Thin coloured outline (inverted hull). Shadow colour, never black. */

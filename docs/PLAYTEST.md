@@ -70,3 +70,14 @@ Found and fixed on the way:
   camera moment in front of you, off to one side, while he waves; the waterfall thins while you're inside.
 - The gold trim on both capes sat 0.74 m too low (under the ground). It only showed when floating in the fairy ring.
 - Test servers now run with HMR off, so editing code mid-test no longer reloads the test pages.
+
+## 2026-11-13, phone performance (`npm run playtest` 25/25, `npm run nettest` 13/13 on the second run)
+Draws per frame at Abdo's landscape size (852×283 at 2x): 925 → 218; portrait (393×852 at 2x): 398 → 139.
+Before/after captures of forest, portrait, bearers, close, grotto, Roro and garden: no pixel differs by more than
+40/255, mean difference about 3/255 (a little less lantern light on far trees).
+- Baked meshes first shaded slightly differently: the shaders turn normals by the plain model matrix, so baking now
+  does the same (not the "correct" inverse transpose), and the leafy canopy pattern matches again.
+- The first nettest run failed one check on jitter alone (partner jump 1.29 m against a 1.2 limit with 100 ms ± 60 ms
+  fake lag; 0.96 on the rerun). Networking code did not change.
+- Adaptive resolution checked with a fake slow phone (25 ms busy frames): 2x → 1.75 → 1.5 → 1.25 within ~8 s, then back
+  up to 2x about every 9 s once frames were quick again.

@@ -139,14 +139,23 @@ function mats() {
 }
 
 // ---------- props ----------
+// shared by every hanging lantern, so they can all be drawn as one instanced mesh (look/merge.js)
+let LG = null;
+const lanternGeos = () => LG || (LG = {
+  body: new CylinderGeometry(0.17, 0.17, 0.32, 10),
+  cap: new ConeGeometry(0.22, 0.14, 10),
+  base: new CylinderGeometry(0.19, 0.15, 0.05, 10),
+  string: new CylinderGeometry(0.015, 0.015, 1, 4), // scaled to the string's length
+});
+
 function makeLantern(lights, swingers, str = 0.9) {
   // hanging paper lantern: body glows, cap + base wood
+  const G = lanternGeos();
   const g = new Group();
-  const body = new Mesh(new CylinderGeometry(0.17, 0.17, 0.32, 10), M.glow);
-  body.scale.set(1, 1, 1);
-  const cap = new Mesh(new ConeGeometry(0.22, 0.14, 10), M.wood);
+  const body = new Mesh(G.body, M.glow);
+  const cap = new Mesh(G.cap, M.wood);
   cap.position.y = 0.23;
-  const base = new Mesh(new CylinderGeometry(0.19, 0.15, 0.05, 10), M.wood);
+  const base = new Mesh(G.base, M.wood);
   base.position.y = -0.18;
   g.add(body, cap, base);
   lights.push({ obj: body, str });
@@ -156,12 +165,14 @@ function makeLantern(lights, swingers, str = 0.9) {
 function hangLantern(parent, x, y, z, len, lights, swingers, ph) {
   const pivot = new Group();
   pivot.position.set(x, y, z);
-  const string = new Mesh(new CylinderGeometry(0.015, 0.015, len, 4), M.wood);
+  const string = new Mesh(lanternGeos().string, M.wood);
+  string.scale.y = len;
   string.position.y = -len / 2;
   const l = makeLantern(lights, swingers);
   l.position.y = -len - 0.18;
   pivot.add(string, l);
   pivot.userData.ph = ph;
+  pivot.userData.dynamic = true; // swings: drawn instanced, never baked
   swingers.push(pivot);
   parent.add(pivot);
 }
@@ -440,6 +451,7 @@ function makeShrine(lights, colliders, wx = 4, wz = -51) {
   const star = new Mesh(new ConeGeometry(0.28, 0.5, 4).translate(0, 0.25, 0), glowMat);
   const star2 = star.clone(); star2.rotation.z = Math.PI;
   const starG = new Group(); starG.add(star, star2); starG.position.y = y + 1.6; g.add(starG);
+  starG.userData.dynamic = true; // spins
   lights.push({ obj: starG, str: 0.6 });
   // four pillars with diamond glows
   for (let i = 0; i < 4; i++) {
@@ -513,6 +525,7 @@ function makeWaystone(x, z, y) {
   const star2 = star.clone(); star2.rotation.z = Math.PI;
   star.geometry.translate(0, 0.21, 0); // two cones tip to tip = a 4-point star
   g.add(disc, ring, pillar, star, star2);
+  star.userData.dynamic = star2.userData.dynamic = true; // spin
   g.position.set(x, y - 0.06, z);
   const ws = {
     obj: g, pos: new Vector3(x, y, z), active: false, pulse: 0,
@@ -621,6 +634,7 @@ export function buildLanternForest() {
   const nTo = new Vector3(3.5, 1.4, -41);
   const north = makeBridge(nFrom, nTo, lights, colliders, 0.7);
   root.add(north.group); bridges.push(north.data);
+  north.group.userData.dynamic = true; // its planks rise one by one
   north.setRise(0);
   const shrineIsle = addIsle(4, -49, 9.5, 1.4, 7, 14);
   const shrine = makeShrine(lights, colliders, 4, -51);
@@ -691,5 +705,7 @@ export function buildLanternForest() {
   });
   const update2 = (t, dt) => { update(t); checkpoints.forEach((c) => c.update(t, dt)); shrine.userData.update(t); };
 
-  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, spawn: new Vector3(1.2, 0, 11.5) };
+  const swingParts = [];
+  for (const p of swingers) p.traverse((o) => { if (o.isMesh) swingParts.push(o); });
+  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, spawn: new Vector3(1.2, 0, 11.5) };
 }

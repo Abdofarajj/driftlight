@@ -12,7 +12,9 @@ const { chromium } = createRequire(import.meta.url)('playwright');
 const args = process.argv.slice(2);
 const onlyIdx = args.indexOf('--only');
 const only = onlyIdx >= 0 ? args[onlyIdx + 1].split(',') : null;
-const round = args.find((a, i) => !a.startsWith('--') && (onlyIdx < 0 || i !== onlyIdx + 1)) || new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
+const qIdx = args.indexOf('--q'); // extra URL params for A/B shots, e.g. --q nomerge
+const extra = qIdx >= 0 ? `&${args[qIdx + 1]}` : '';
+const round = args.find((a, i) => !a.startsWith('--') && (onlyIdx < 0 || i !== onlyIdx + 1) && (qIdx < 0 || i !== qIdx + 1)) || new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-');
 const outDir = `captures/${round}`;
 mkdirSync(outDir, { recursive: true });
 
@@ -28,7 +30,7 @@ for (const [name, s] of Object.entries(SHOTS)) {
   page.on('pageerror', (e) => console.error(`[${name}] page error:`, e.message));
   page.on('console', (m) => { if (m.type() === 'error') console.error(`[${name}]`, m.text()); });
   const t0 = Date.now();
-  await page.goto(`http://127.0.0.1:5199/?shot=${name}${s.ui ? '&ui=1' : ''}${s.open ? `&open=${s.open}` : ''}`);
+  await page.goto(`http://127.0.0.1:5199/?shot=${name}${s.ui ? '&ui=1' : ''}${s.open ? `&open=${s.open}` : ''}${extra}`);
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 180000 });
   const file = `${outDir}/${name}.png`;
   await page.screenshot({ path: file, timeout: 120000 });

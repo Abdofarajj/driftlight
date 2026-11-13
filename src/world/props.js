@@ -123,6 +123,7 @@ export function makeFairyMushroom(s, seed) {
   group.add(at(new Mesh(displace(new CylinderGeometry(0.09, 0.13, 0.36, 8, 2), 0.01, 3, seed), m.stem), 0, 0.18, 0));
   const capGeo = displace(new SphereGeometry(0.27, 14, 8, 0, Math.PI * 2, 0, Math.PI / 2), 0.018, 3, seed);
   const cap = at(new Mesh(capGeo, m.fairyCap), 0, 0.3, 0); cap.scale.y = 0.7;
+  cap.userData.dynamic = true; // swaps with the glowing cap
   const glowMat = makeGlowMaterial(PAL.fairyCore, PAL.fairyHalo, 0);
   const glow = at(new Mesh(capGeo, glowMat), 0, 0.3, 0); glow.scale.set(1.03, 0.73, 1.03); glow.visible = false;
   group.add(cap, glow);
