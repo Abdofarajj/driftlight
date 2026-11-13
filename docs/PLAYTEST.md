@@ -48,3 +48,10 @@ star (host counts it); guest closes the tab (host is told and keeps playing). So
 Found and fixed:
 - Closing the tab left the partner standing there for ~30 s; the page now says goodbye on close, and a partner who goes
   silent for 12 s is shown as gone (and comes back if they resume, e.g. after switching apps on the phone).
+
+## 2026-11-13, round 3 fix: holding hands online (`npm run nettest`, 11/11 at 100 ms and 200 ms lag)
+Abdo found it live: holding hands, whoever stopped got dragged back to where the partner last stopped, and the
+pulled partner's camera didn't follow. Cause: each screen pulled its own traveler towards a slightly old copy of the
+other. Now whoever walks carries the pair (their updates say where they put the partner, the partner's screen plays it
+back), and the hands state has a sequence number in every update. The bot test now runs in real time over simulated
+lag with drawing paused (headless drawing is ~2 fps here), with walk-and-stop checks in both directions.
