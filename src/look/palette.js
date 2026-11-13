@@ -50,6 +50,11 @@ export const PAL = {
   seedHead: [c('#9a6446'), c('#5a3a40')],
   leaf: [c('#b2c66c'), c('#6d8a62')],
 
+  // Crystal Lake (round 6)
+  crystalStone: [c('#ece2fa'), c('#a796c9')], // pale lilac stone: crystal bridge planks, crystal bases
+  lotus: [c('#fbc6d6'), c('#c48db2')],        // carved lotus petals on the lotus stones
+  lily: [c('#bfd08a'), c('#7f9a7c')],         // lily pads
+
   glowCore: c('#fff3c6'),
   glowHalo: c('#ffb45e'),
   rim: c('#ffd08a'),

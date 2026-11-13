@@ -130,6 +130,10 @@ export class GameAudio {
           this.tone(140 * p, t, 0.16, 0.26 * v, 'sine', dest);
           this.tone(310 * p, t, 0.07, 0.08 * v, 'triangle', dest);
           this.burst(t, 0.07, 0.14 * v, 'bandpass', 900 * p, 1.5, dest);
+        } else if (s === 'water') { // wading: a soft slosh and a little bubble
+          this.burst(t, 0.22, 0.16 * v, 'lowpass', 900 * p, 0.8, dest, 400);
+          this.burst(t + 0.03, 0.12, 0.06 * v, 'bandpass', 2400 * p, 2, dest, 1400);
+          this.tone(320 * p, t + 0.02, 0.06, 0.02 * v, 'sine', dest);
         } else if (s === 'path') { // dirt crunch: two quick gritty bursts
           this.burst(t, 0.08, 0.2 * v, 'bandpass', 1500 * p, 0.9, dest);
           this.burst(t + 0.025, 0.06, 0.12 * v, 'highpass', 3200 * p, 0.7, dest);
@@ -163,6 +167,25 @@ export class GameAudio {
         this.bell(NOTE(93), t + 0.7, 0.06, this.sfx, 3.5);
         this.burst(t + 0.55, 1.4, 0.02, 'highpass', 5000, 0.7, this.sfx, 9000);
         this.swell(0.45, 6);
+        break;
+      }
+      case 'crystal': { // a crystal wakes: glassy bells climbing, with a soft shimmer
+        [76, 83, 88, 95].forEach((n, i) => { this.bell(NOTE(n), t + i * 0.08, 0.06, dest, 3.2); this.tone(NOTE(n + 19), t + i * 0.08, 0.5, 0.012, 'sine', dest); });
+        this.burst(t + 0.2, 1.6, 0.018, 'highpass', 6500, 0.6, dest, 10000);
+        this.swell(0.3, 4);
+        break;
+      }
+      case 'heart': { // the heart wakes: a slow bright chord over a low hum, and the music swells
+        [57, 64, 69, 73, 76, 81, 85, 88].forEach((n, i) => this.bell(NOTE(n), t + i * 0.13, 0.065, this.sfx, 4.5));
+        [33, 45, 52].forEach((n) => this.tone(NOTE(n), t, 6, 0.06, 'triangle', this.sfx, 1.5));
+        this.burst(t + 0.8, 2.5, 0.02, 'highpass', 6000, 0.6, this.sfx, 11000);
+        this.swell(0.6, 9);
+        break;
+      }
+      case 'splash': { // into the lake
+        this.burst(t, 0.5, 0.22 * v, 'lowpass', 1600, 0.7, dest, 300);
+        this.burst(t + 0.05, 0.35, 0.08 * v, 'bandpass', 3000, 1.2, dest, 900);
+        this.tone(180, t, 0.25, 0.05 * v, 'sine', dest);
         break;
       }
       case 'yip': { // the fox: two quick rising chirps

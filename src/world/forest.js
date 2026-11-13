@@ -8,6 +8,8 @@ import { makeWatercolorMaterial, makeGlowMaterial } from '../look/material.js';
 import { rng, fbm2, noise3 } from './rng.js';
 import { displace, setMix } from './shapes.js';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { buildCrystalLake } from './lake.js';
+import { mergeSiblings } from '../look/merge.js';
 
 const R = 24; // main island radius
 
@@ -355,7 +357,9 @@ function makeArch(x, z, rotY, s, colliders) {
   return g;
 }
 
-function makeBridge(from, to, lights, colliders, sagAmt = 1.0) {
+const noMerge = typeof location !== 'undefined' && new URLSearchParams(location.search).has('nomerge');
+function makeBridge(from, to, lights, colliders, sagAmt = 1.0, look = {}) {
+  const plankMat = look.plank || M.wood, postMat = look.post || M.wood, ropeMat = look.rope || M.rope;
   const g = new Group();
   const dir = new Vector3().subVectors(to, from);
   const len = dir.length();
@@ -369,7 +373,7 @@ function makeBridge(from, to, lights, colliders, sagAmt = 1.0) {
     const t = i / n;
     const p = new Vector3().lerpVectors(from, to, t);
     p.y += sag(t);
-    const b = new Mesh(plankGeo, M.wood);
+    const b = new Mesh(plankGeo, plankMat);
     b.position.copy(p);
     b.rotation.y = Math.atan2(-dir.z, dir.x);
     b.rotation.x = (i % 3 - 1) * 0.02;
@@ -385,7 +389,7 @@ function makeBridge(from, to, lights, colliders, sagAmt = 1.0) {
       const t = i / postN;
       const p = new Vector3().lerpVectors(from, to, t).addScaledVector(side, 1.35 * sgn);
       p.y += sag(t);
-      const post = new Mesh(displace(new CylinderGeometry(0.1, 0.13, 1.3, 7, 2), 0.02, 3, i), M.wood);
+      const post = new Mesh(displace(new CylinderGeometry(0.1, 0.13, 1.3, 7, 2), 0.02, 3, i), postMat);
       post.position.copy(p).setY(p.y + 0.55);
       g.add(post); extras.push(post);
       pts.push(p.clone().setY(p.y + 1.05));
@@ -396,7 +400,7 @@ function makeBridge(from, to, lights, colliders, sagAmt = 1.0) {
       }
       if (i % 2 === 0) lights.push({ obj: post, str: 0.35, offset: 1.1 });
     }
-    const rope = new Mesh(new TubeGeometry(new CatmullRomCurve3(pts), 60, 0.05, 5), M.rope);
+    const rope = new Mesh(new TubeGeometry(new CatmullRomCurve3(pts), 60, 0.05, 5), ropeMat);
     g.add(rope); extras.push(rope);
     const a = new Vector3().copy(from).addScaledVector(side, 1.35 * sgn), b = new Vector3().copy(to).addScaledVector(side, 1.35 * sgn);
     const c = { ax: a.x, az: a.z, bx: b.x, bz: b.z, r: 0.15 };
@@ -415,7 +419,10 @@ function makeBridge(from, to, lights, colliders, sagAmt = 1.0) {
     for (const x of extras) x.visible = k >= 1;
     data.enabled = k >= 1;
     for (const c of rails) c.off = k < 1;
+    // once it's fully up it never moves again: bake planks, posts and ropes into a few meshes (phones)
+    if (k >= 1 && !baked && !noMerge) { baked = true; mergeSiblings(g); }
   };
+  let baked = false;
   return { group: g, data, setRise };
 }
 
@@ -675,6 +682,14 @@ export function buildLanternForest() {
 
   // (the waterfall and its grotto live in secrets.js)
 
+  // ---- Crystal Lake: the next island, across a crystal bridge from the shrine (lake.js) ----
+  const lake = buildCrystalLake({
+    root, lights, swingers, colliders, bridges, M, makeBridge, makeTree, makeRock, makeMushroom, makeWaystone, buildCliff,
+    scatter: (kind, count, place, seed) => kind === 'tuft'
+      ? scatterInstanced(tuftGeo, M.tuft, count, place, seed, tuftTints)
+      : scatterInstanced(flowerGeo, M.flower, count, place, seed, PAL.flowers),
+  });
+
   const update = (t) => {
     for (const p of swingers) p.rotation.z = Math.sin(t * 1.3 + p.userData.ph) * 0.07, p.rotation.x = Math.cos(t * 1.1 + p.userData.ph) * 0.05;
   };
@@ -693,6 +708,8 @@ export function buildLanternForest() {
         best = Math.max(best ?? -1e9, br.from.y + (br.to.y - br.from.y) * tt - Math.sin(tt * Math.PI) * br.sag + 0.06);
       }
     }
+    const l = lake.floor(x, z);
+    if (l !== null) best = Math.max(best ?? -1e9, l);
     return best;
   };
 
@@ -703,9 +720,10 @@ export function buildLanternForest() {
     colliders.push({ x: x + 1.25, z, r: 0.2 });
     return ws;
   });
+  checkpoints.push(lake.checkpoint); // Crystal Lake, just past the crystal bridge
   const update2 = (t, dt) => { update(t); checkpoints.forEach((c) => c.update(t, dt)); shrine.userData.update(t); };
 
   const swingParts = [];
   for (const p of swingers) p.traverse((o) => { if (o.isMesh) swingParts.push(o); });
-  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, spawn: new Vector3(1.2, 0, 11.5) };
+  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, lake, deep: lake.deep, waterAt: lake.waterAt, spawn: new Vector3(1.2, 0, 11.5) };
 }

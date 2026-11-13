@@ -36,3 +36,25 @@ Performance pass on iPhone, UI matching the portrait reference, title screen + i
   925 → 218 (landscape) and 398 → 139 (portrait) by baking still pieces together (`src/look/merge.js`),
   lantern lights per pixel 24 → 16, no garbage made per frame by the light picker, and the resolution
   steps down by itself when the frame rate sags. **Done when:** Abdo's `?fps` readout stays near 60.
+  The title screen, invite flow and HUD restyle were parked at Abdo's request ("let's focus on gameplay"):
+  the HUD work is on branch `parked/hud-restyle`.
+
+## The world plan (rounds 6-10, from 2026-11-13)
+Abdo's goal is gameplay: more islands, zones and quests. The plan, with a map, is in `docs/WORLD.md`.
+Each zone is its own island linked by a bridge that its quest opens, and each has one co-op quest, a star and a secret.
+
+## Round 6: Crystal Lake (built 2026-11-13)
+Code: `src/world/lake.js` (the island) and `src/world/lakequest.js` (the quest, the rowboat, online sync).
+- Reaching the shrine raises a **crystal bridge** west to Crystal Lake, a round island with a lake in the middle,
+  a sandy beach, crystal shards, pink lantern trees and a checkpoint just past the bridge.
+- **Wake the crystal heart:** three crystals sleep on the shore, each with two lotus stones about 6 m apart in front
+  of it. Stand on both at once (one of you on each, so you have to let go of each other) and the crystal shoots its
+  light to the heart on the islet. With all three the heart wakes and stepping stones rise out of the lake.
+  Playing alone: walk your partner by the hand onto one stone, let go, step onto the other.
+- **Water:** you can wade at the edge but deep water is a soft wall. A slip or jump into it is a splash and you're
+  back on the last dry spot. Holding hands on a narrow path (stepping stones, the dock), your partner walks behind you.
+- **Star 4** waits by the heart. **Secret 5, the rowboat for two:** sit in it together at the dock and it drifts
+  round the lake and back (about 30 s).
+- Online: the host keeps the score (bridge, crystals, boat ride) and sends it with every update, like the lanterns.
+**Done when:** the bot can cross, wake all three crystals with its idle partner, cross the stones hand in hand,
+take the star and ride the boat (`npm run playtest`), and a crystal woken online shows on both screens (`npm run nettest`).

@@ -132,6 +132,45 @@ export const SHOTS = {
       cam(camera, [c.x + 3.4, c.y + 2.6, c.z + 5.2], [c.x, c.y + 0.7, c.z], 46);
     },
   },
+  // ---- round 6: Crystal Lake ----
+  // from the shrine island: the crystal bridge leading over the clouds to the lake
+  'lake-bridge': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, lake: Q }) {
+      Q.open(true);
+      const b = world.lake.bridge.data, d = b.dir;
+      const at = (k, side) => [b.from.x + d.x * k - d.z * side, b.from.z + d.z * k + d.x * side];
+      const h = Math.atan2(d.x, d.z);
+      place(me, world, ...at(1.5, -0.45), h, { speed: 1, t: 2 });
+      place(friend, world, ...at(1.5, 0.5), h, { speed: 1, t: 2.4 });
+      cam(camera, [b.from.x - d.x * 6 + d.z * 3, 5.2, b.from.z - d.z * 6 - d.x * 3], [b.to.x, 1.5, b.to.z], 50);
+    },
+  },
+  // over the lake: one crystal awake (you're on its two lotus stones), the other two asleep
+  lake: {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, lake: Q }) {
+      Q.open(true); Q.light(0, true);
+      const c = world.lake.lakeCenter, [s0, s1] = world.lake.pairs[0].stones;
+      place(me, world, s1.pos.x, s1.pos.z, -Math.PI / 2 - 0.3, { t: 2 });
+      place(friend, world, s0.pos.x, s0.pos.z, -Math.PI / 2 + 0.3, { t: 3.1 });
+      cam(camera, [c.x + 20, 8, c.z + 4], [c.x + 2, 0.5, c.z - 2], 50);
+    },
+  },
+  // the heart awake, the stepping stones up, the rowboat out on the water (phone, portrait)
+  'lake-heart': {
+    viewport: 'portrait',
+    apply({ me, friend, camera, world, lake: Q }) {
+      Q.open(true); [0, 1, 2].forEach((i) => Q.light(i, true));
+      Q.boat.riding = true; Q.boat.t = Q.rideDur * 0.42; // out on the far side
+      const L = world.lake, st = L.steps.map((s) => L.toWorld(s.x, s.z)), c = L.lakeCenter;
+      const h = Math.atan2(c.x - st[0].x, c.z - st[0].z);
+      place(me, world, st[1].x, st[1].z, h, { speed: 1, t: 2 });
+      place(friend, world, st[0].x, st[0].z, h, { speed: 1, t: 2.4 });
+      const back = { x: st[0].x - Math.sin(h) * 5.5, z: st[0].z - Math.cos(h) * 5.5 };
+      cam(camera, [back.x, 4.6, back.z], [c.x, 2.4, c.z], 62);
+    },
+  },
   // the hidden sunflower garden on the meadow island
   garden: {
     viewport: 'landscape',

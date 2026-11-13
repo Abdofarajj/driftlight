@@ -108,6 +108,7 @@ export class NetPlay {
     if (this.secrets && m.sc) for (let i = 0; i < this.secrets.items.length; i++) if (m.sc & (1 << i)) this.secrets.take(i, this.first);
     // lanterns: the host keeps the score
     if (m.q && this.role === 'guest') this.quest.applyState(m.q, this.first);
+    if (m.lk && this.lake && this.role === 'guest') this.lake.applyState(m.lk, this.first); // Crystal Lake: the host keeps that score too
     this.first = false;
   }
 
@@ -128,7 +129,7 @@ export class NetPlay {
     if (hands.carrying) { // you're walking them: say where they are on your screen
       Object.assign(m, { fp: v3(B.pos), fv: v3(B.vel), fh: Math.round(B.heading * 1000) / 1000, fg: B.grounded ? 1 : 0, fgl: B.glide ? 1 : 0 });
     }
-    if (this.role === 'host') m.q = this.quest.state();
+    if (this.role === 'host') { m.q = this.quest.state(); if (this.lake) m.lk = this.lake.state(); }
     this.session.send(m);
   }
 

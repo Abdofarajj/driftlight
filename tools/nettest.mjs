@@ -207,6 +207,31 @@ await objective('fairy ring online: stand in it together and it dances on both s
   return { pass: ok && n[0] === 2 && n[1] === 2, note: `danced on both=${ok}, secrets host/guest=${n.join('/')}` };
 });
 
+await objective('Crystal Lake online: one of you on each lotus stone wakes the crystal on both screens', async () => {
+  const st = await H(() => window.__game.world.lake.pairs[2].stones.map((s) => s.pos.toArray()));
+  await H(([x, z]) => window.__game.teleport(x, z, 0), [st[0][0], st[0][2]]);
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, 0), [st[1][0], st[1][2]]);
+  const ok = await until(async () => (await H(() => window.__game.lakeQuest.pairs[2].lit)) && (await guest.evaluate(() => window.__game.lakeQuest.pairs[2].lit)), 15000);
+  const n = [await H(() => window.__game.lakeQuest.count), await guest.evaluate(() => window.__game.lakeQuest.count)];
+  await until(async () => (await guest.evaluate(() => window.__game.lakeQuest.pairs[2].beamK)) >= 1, 4000);
+  await both('09-crystal');
+  return { pass: ok && n[0] === 1 && n[1] === 1, note: `lit on both=${ok}, crystals host/guest=${n.join('/')}` };
+});
+
+await objective('rowboat online: sit in it together, it drifts on both screens and brings you back', async () => {
+  const b = await H(() => { const L = window.__game.world.lake, s = L.boatState, w = L.boatWorld(); return [w.x, w.z, Math.sin(s.yaw), Math.cos(s.yaw)]; });
+  await H(([x, z]) => window.__game.teleport(x, z, 0), [b[0] + b[2] * 0.6, b[1] + b[3] * 0.6]);
+  await guest.evaluate(([x, z]) => window.__game.teleport(x, z, 0), [b[0] - b[2] * 0.6, b[1] - b[3] * 0.6]);
+  const ok = await until(async () => (await H(() => window.__game.lakeQuest.boat.riding)) && (await guest.evaluate(() => window.__game.lakeQuest.boat.riding)), 15000);
+  await wait(5000);
+  const mid = await guest.evaluate(() => { const g = window.__game, q = g.lakeQuest; return { u: q.boat.u, me: g.A.pos.toArray(), inBoat: g.world.lake.inBoat(g.A.pos, 0.3) }; });
+  const hu = await H(() => window.__game.lakeQuest.boat.u);
+  await both('10-rowboat');
+  const back = await until(async () => !(await H(() => window.__game.lakeQuest.boat.riding)) && !(await guest.evaluate(() => window.__game.lakeQuest.boat.riding)), 60000);
+  const n = [await H(() => window.__game.secrets.count), await guest.evaluate(() => window.__game.secrets.count)];
+  return { pass: ok && mid.inBoat && Math.abs(mid.u - hu) < 0.08 && back && n[0] === 3 && n[1] === 3, note: `riding on both=${ok}, guest still in the boat mid-ride=${mid.inBoat}, ride position host/guest=${hu.toFixed(2)}/${mid.u.toFixed(2)}, back at the dock=${back}, secrets host/guest=${n.join('/')}` };
+});
+
 await objective('guest leaves: the host is told and keeps playing', async () => {
   await guest.close({ runBeforeUnload: true }); guest = null; // like closing the tab
   const ok = await until(async () => !(await H(() => window.__game.net.online)), 20000);

@@ -71,5 +71,5 @@ export class LanternQuest {
   }
 
   /** debug: light everything at once */
-  completeNow() { for (const it of this.items) it.charge = 1; }
+  completeNow() { for (const it of this.items) this.light(it, false); }
 }

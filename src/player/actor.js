@@ -50,8 +50,9 @@ export class Actor {
     this.glide = !this.grounded && this.vel.y < 0 && glideHeld;
     if (this.glide) this.vel.y = Math.max(this.vel.y, -GLIDE_FALL);
     const p = this.pos;
+    const px = p.x, pz = p.z;
     p.addScaledVector(this.vel, dt);
-    if (collide) this.collide(world);
+    if (collide) { this.collide(world); this.keepDry(world, px, pz); }
     const f = world.floorAt(p.x, p.z);
     if (f !== null && p.y <= f + 0.02 && this.vel.y <= 0 && p.y > f - 1.2) {
       if (!this.grounded) this.t.land(Math.min(1, -this.vel.y / 14));
@@ -83,6 +84,14 @@ export class Actor {
         if (vn < 0) { this.vel.x -= vn * nx; this.vel.z -= vn * nz; }
       }
     }
+  }
+
+  /** Deep water is a soft wall: you can wade in the shallows but not walk out of your depth. */
+  keepDry(world, px, pz) {
+    const p = this.pos;
+    if (!world.deep || !world.deep(p.x, p.z) || world.deep(px, pz)) return; // already in: let them splash
+    if (!world.deep(p.x, pz)) { p.z = pz; this.vel.z = 0; } // slide along the shore
+    else if (!world.deep(px, p.z)) { p.x = px; this.vel.x = 0; } else { p.x = px; p.z = pz; this.vel.x = 0; this.vel.z = 0; }
   }
 
   /** Copy the actor onto its traveler model and animate it. */

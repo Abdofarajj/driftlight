@@ -73,6 +73,19 @@ export function makeSky() {
   return g;
 }
 
+// the play space: islands (x, z, radius) and bridge corridors (ax, az, bx, bz, half width) that cloud tops stay out of
+const CLEAR = [[0, 0, 30], [50, 8, 14], [4, -49, 13], [-50, -7, 13], [-30, -88, 28]];
+const CORRIDORS = [[18, 7.5, 60, 7.5, 9], [2, -22, 4, -41, 7], [-1.3, -55, -16.7, -72.7, 8], [-18, -3, -42, -7, 8]];
+function clearance(x, z) {
+  let d = Infinity;
+  for (const [cx, cz, r] of CLEAR) d = Math.min(d, Math.hypot(x - cx, z - cz) - r);
+  for (const [ax, az, bx, bz, w] of CORRIDORS) {
+    const abx = bx - ax, abz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * abx + (z - az) * abz) / (abx * abx + abz * abz)));
+    d = Math.min(d, Math.hypot(x - ax - abx * t, z - az - abz * t) - w);
+  }
+  return d;
+}
+
 /** Puffy 3D clouds made of displaced spheres (instanced), plus a flat soft layer far below. */
 function makeCloudSea() {
   const g = new Group();
@@ -93,7 +106,7 @@ function makeCloudSea() {
       const px = cx + (r() - 0.5) * big * 2.2, pz = cz + (r() - 0.5) * big * 1.6;
       let py = cy + r() * big * 0.5;
       // keep the play space clear: no cloud tops near the islands or the bridge corridor
-      const near = Math.min(Math.hypot(px, pz) - 30, Math.hypot(px - 50, pz - 8) - 14, Math.abs(pz - 7.5) - 9 + (px < 18 || px > 60 ? 99 : 0));
+      const near = clearance(px, pz);
       if (near < 12) py = Math.min(py, -6 - s * 0.6 - Math.max(0, 12 - near) * 0.4);
       puffs.push([px, py, pz, s, s * (0.7 + r() * 0.2), s]);
     }

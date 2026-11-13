@@ -128,7 +128,10 @@ export class Hands {
   /** pull the follower to the leader's side (the leader has already moved this step) */
   follow(leader, follower, side, dt, world, jumpNow) {
     localX(leader.heading, this._x);
-    const tx = leader.pos.x + this._x.x * side * SPACING, tz = leader.pos.z + this._x.z * side * SPACING;
+    let tx = leader.pos.x + this._x.x * side * SPACING, tz = leader.pos.z + this._x.z * side * SPACING;
+    if (leader.grounded && ((world.deep && world.deep(tx, tz)) || world.floorAt(tx, tz) === null)) { // no room beside you (a bridge's end, stepping stones, a dock): walk behind
+      tx = leader.pos.x - Math.sin(leader.heading) * SPACING; tz = leader.pos.z - Math.cos(leader.heading) * SPACING;
+    }
     const f = follower;
     const vx = (tx - f.pos.x) * 10, vz = (tz - f.pos.z) * 10;
     const sp = Math.hypot(vx, vz), max = RUN * 1.4;

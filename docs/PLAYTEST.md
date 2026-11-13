@@ -81,3 +81,16 @@ Before/after captures of forest, portrait, bearers, close, grotto, Roro and gard
   fake lag; 0.96 on the rerun). Networking code did not change.
 - Adaptive resolution checked with a fake slow phone (25 ms busy frames): 2x → 1.75 → 1.5 → 1.25 within ~8 s, then back
   up to 2x about every 9 s once frames were quick again.
+
+## 2026-11-13, round 6 Crystal Lake (`npm run playtest` 31/31, `npm run nettest` 15/15)
+New solo checks: the crystal bridge rises at the shrine and leads to the lake checkpoint; walking into the lake stops
+at wading depth (9.5 m from the middle, 0.3 m deep); all three crystals woken by parking the partner on one lotus stone
+and standing on the other; the stepping stones crossed hand in hand (she walks behind, stays above the water) to the
+4th star; a fall into deep water splashes you back onto dry ground; the rowboat ride (secret 5) and walking back up the dock.
+New online checks: a crystal woken by one player on each stone shows on both screens; the rowboat ride runs in step
+on both screens (ride position 0.03/0.03 a few seconds in) and brings you back.
+- First full run: the partner, held by the hand, was pulled off the shrine island's edge at the start of the crystal
+  bridge and the fall respawned both. Fix: when there's no ground (or deep water) beside you, your partner walks behind you.
+- `node tools/playtest.mjs <name> --from-lake` runs only the Crystal Lake checks (about 8 minutes).
+- Draws at the forest spawn (landscape) 218 → 259: the lake island shows on the horizon. Its still pieces are baked one
+  per material for the whole island, and bridges are baked once they finish rising (the shrine bridge alone was ~50 draws).
