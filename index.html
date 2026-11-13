@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="theme-color" content="#f2b9b4" />
+  <title>DriftLight</title>
+  <style>
+    :root { --glass: rgba(255, 240, 225, 0.28); --edge: rgba(255, 246, 232, 0.7); --ink: #6b4a55; --gold: #ffd98a; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #f2c3b0; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+    .ui { position: fixed; z-index: 2; font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif; color: #fff7ea; }
+    .pill { top: calc(env(safe-area-inset-top) + 14px); left: calc(env(safe-area-inset-left) + 14px); display: flex; align-items: center; gap: 8px;
+      padding: 6px 16px 6px 8px; border-radius: 999px; background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      font-size: 22px; font-weight: 700; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.45); }
+    .star { width: 30px; height: 30px; filter: drop-shadow(0 0 6px #ffcf6e); }
+    .round { width: 52px; height: 52px; border-radius: 50%; background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: grid; place-items: center; }
+    .round svg { width: 26px; height: 26px; }
+    #bset { top: calc(env(safe-area-inset-top) + 14px); right: calc(env(safe-area-inset-right) + 14px); }
+    #bbag { top: calc(env(safe-area-inset-top) + 76px); right: calc(env(safe-area-inset-right) + 14px); }
+    #joy { position: fixed; z-index: 2; left: calc(env(safe-area-inset-left) + 92px); bottom: calc(env(safe-area-inset-bottom) + 92px); top: auto; width: 128px; height: 128px; margin: -64px 0 0 -64px;
+      border-radius: 50%; background: var(--glass); border: 1.5px solid var(--edge); pointer-events: none; opacity: 0.85; transform: translateY(50%); }
+    #joy.on { bottom: auto; transform: none; opacity: 1; }
+    #knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255, 246, 232, 0.85); box-shadow: 0 2px 10px rgba(140, 90, 110, 0.3); }
+    #bjump { right: calc(env(safe-area-inset-right) + 128px); bottom: calc(env(safe-area-inset-bottom) + 132px); width: 64px; height: 64px; }
+    #bhands { right: calc(env(safe-area-inset-right) + 22px); bottom: calc(env(safe-area-inset-bottom) + 36px); width: 104px; height: 104px;
+      background: radial-gradient(circle, rgba(255, 214, 130, 0.55), rgba(255, 190, 110, 0.35)); box-shadow: 0 0 24px rgba(255, 200, 110, 0.55); }
+    #bhands svg { width: 56px; height: 56px; }
+    .down { transform: scale(0.92); filter: brightness(1.15); }
+    #hint { left: 50%; bottom: calc(env(safe-area-inset-bottom) + 18px); transform: translateX(-50%); font-size: 14px; opacity: 0.9; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.6); white-space: nowrap; }
+    @media (hover: hover) and (pointer: fine) { .touch { display: none !important; } }
+    @media (hover: none), (pointer: coarse) { #hint { display: none; } }
+    body.shot .ui, body.shot #joy { display: none; }
+    body.shot.showui .ui, body.shot.showui #joy { display: grid; }
+    body.shot.showui .pill { display: flex; }
+    body.shot.showui #hint { display: none; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="ui pill"><svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg><span id="stars">0</span></div>
+  <div class="ui round" id="bset"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/></svg></div>
+  <div class="ui round" id="bbag"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2"><path d="M6 8h12l-1 12H7z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></div>
+  <div id="joy" class="touch"><div id="knob"></div></div>
+  <div class="ui round touch" id="bjump"><svg viewBox="0 0 24 24"><path d="M12 2 C13 9 15 11 22 12 C15 13 13 15 12 22 C11 15 9 13 2 12 C9 11 11 9 12 2Z" fill="#fff4d6"/></svg></div>
+  <div class="ui round touch" id="bhands"><svg viewBox="0 0 48 48" fill="#fff7ea"><circle cx="15" cy="10" r="5"/><circle cx="33" cy="10" r="5"/><path d="M9 18h12l3 8 3-8h12v4l-6 2v20h-5V31h-2v13h-2V31h-2v13h-5V24l-6-2z"/></svg></div>
+  <div class="ui" id="hint">WASD / arrows to walk · Space to jump, hold to glide · drag to look</div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
