@@ -39,6 +39,21 @@ await objective('spawn on solid ground at the first checkpoint', async () => {
   return { pass: p.grounded && p.cp === 0, note: JSON.stringify(p) };
 });
 
+await objective('objectives panel: tap a row to see its details, tap again to close', async () => {
+  const before = await G(() => window.__game.objectives.list().map((o) => o.id).join(','));
+  // the page is busy with fast physics here, so give the CSS transitions time to settle
+  const openNow = () => G(() => window.__game.objectives.open);
+  const detailH = () => page.$eval('.obj[data-id="lanterns"] .d', (e) => e.getBoundingClientRect().height);
+  await page.click('.obj[data-id="lanterns"]');
+  await wait(1500);
+  const o1 = await openNow(), h1 = await detailH();
+  await shot('objectives-expanded');
+  await page.click('.obj[data-id="lanterns"]');
+  await wait(1500);
+  const o2 = await openNow(), h2 = await detailH();
+  return { pass: before === 'hands,lanterns,wind,stars' && o1 === 'lanterns' && h1 > 20 && o2 === null && h2 < 2, note: `rows=${before} open=${o1} (${h1.toFixed(0)}px) then ${o2} (${h2.toFixed(0)}px)` };
+});
+
 await objective('walk the path to the arch checkpoint', async () => {
   const legs = [[-1.5, 5], [-1.5, 0], [0.5, -5], [1.5, -10], [1.4, -13.5]];
   for (const [x, z] of legs) { const r = await goTo(x, z); if (!r.ok) return { pass: false, note: `stopped at leg ${x},${z}: ${JSON.stringify(r)}` }; }
@@ -108,6 +123,8 @@ await objective('hold hands with her and pull her along', async () => {
   let p = await pos();
   if (!p.linked) return { pass: false, note: `could not link, me=${p.me} friend=${p.friend}` };
   await shot('holding-hands');
+  const handsRow = await G(() => window.__game.objectives.list().find((o) => o.id === 'hands'));
+  if (handsRow && !handsRow.done) return { pass: false, note: 'hands objective not ticked after linking' };
   await goTo(-1.5, 0, { run: true });
   p = await pos(); await shot('pulled-along');
   const gap = Math.hypot(p.me[0] - p.friend[0], p.me[2] - p.friend[2]);
@@ -203,6 +220,14 @@ await objective('collect the star on the east island', async () => {
   await wait(1200);
   const p = await pos();
   return { pass: p.stars === s0 + 1, note: `stars ${s0} -> ${p.stars}` };
+});
+
+await objective('objectives panel: every finished goal has been removed', async () => {
+  await wait(2600);
+  const left = await G(() => window.__game.objectives.list());
+  const rows = await page.$$eval('.obj', (els) => els.length);
+  await shot('objectives-cleared');
+  return { pass: left.length === 0 && rows === 0, note: `left=${JSON.stringify(left)} rows=${rows}` };
 });
 
 writeFileSync(`${out}/results.json`, JSON.stringify({ results, errors }, null, 2));

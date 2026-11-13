@@ -98,3 +98,5 @@ cape flutters with speed, sparkles drift up. No skeletal rigs in the MVP.
 - 2026-11-13: Stack = Three.js + Vite, custom shared watercolour shader, no imported models for MVP.
 - 2026-11-13: Palette and recipe above taken from Abdo's references.
 - 2026-11-13: Added `lantern-bearers.png` as the 3D feel target; grass nudged greener to match it. Cloud sea and a distant light beam become part of every vista.
+- 2026-11-13: Music direction (Abdo): dreamy, sparse solo piano in the spirit of calm sandbox-game piano scores. Always composed by our own generator (src/music.js), never a recreation of any existing track. Long quiet pauses between pieces. The music button mutes only music; sound effects always stay on.
+- 2026-11-13: HUD: objectives live in a glass panel under the star counter. Tap a row to expand its details; finished objectives tick, glow, then fade out and are removed. The lantern count lives in its row (no separate lantern pill).

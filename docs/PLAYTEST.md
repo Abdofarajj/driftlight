@@ -29,3 +29,12 @@ Found and fixed:
 - Return wind dropped you into the clouds short of the island; stream now holds you on its centre line and lands further in.
 - Wind ribbons flared white when they passed the camera; they fade near the camera now and are thinner.
 - Camera could end up inside a tree canopy; it now moves in front of trees between you and it.
+
+## 2026-11-13, round 2b (20/20 pass)
+New objectives: tap an objectives row to expand it and tap again to close; at the end of the run every finished objective
+has been removed from the panel. The hand-hold objective is checked to tick as soon as you link.
+
+Found and fixed:
+- On a real browser the first frame's timestamp can land a hair before the start time, so time went negative for one
+  frame, the wind petals asked for a point before the start of their path, and the game loop stopped. The bot never saw
+  it because it runs fixed time steps; a direct load of the single-file preview did. Frame time is now clamped at 0.

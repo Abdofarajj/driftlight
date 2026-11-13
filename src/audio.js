@@ -1,20 +1,19 @@
 // Sound as a system, all synthesized with Web Audio (no audio files):
-// - music: slow warm pads + a music-box melody that wanders over the chords, swells on big moments
+// - music: original dreamy solo piano pieces with quiet pauses between them (src/music.js)
 // - ambience: wind bed, birdsong over the forest, airy hum near the cloud edge, wind-current whoosh
 // - one-shots: footsteps by surface, jump, land, hands, lantern, checkpoint, star, quest complete
 // iOS only allows audio after a tap, so start() is called from the first touch / key.
 import { Vector3 } from 'three';
+import { PianoMusic } from './music.js';
 
 const NOTE = (n) => 440 * Math.pow(2, (n - 69) / 12); // midi -> Hz
-// D major: D  Bm  G  A   (as midi chord tones)
-const CHORDS = [[50, 57, 62, 66], [47, 54, 59, 62], [43, 50, 55, 59], [45, 52, 57, 61]];
-const SCALE = [62, 64, 66, 69, 71, 74, 76, 78, 81]; // D major pentatonic-ish, upper register
+const MUSIC_VOL = 0.75;
 
 export class GameAudio {
   constructor() {
     this.ctx = null;
-    this.muted = false;
-    try { this.muted = localStorage.getItem('driftlight-muted') === '1'; } catch { /* storage blocked */ }
+    this.musicOn = true; // the mute button only silences the music; sound effects always play
+    try { this.musicOn = localStorage.getItem('driftlight-music') !== '0'; } catch { /* storage blocked */ }
     this.listener = { pos: new Vector3(), right: new Vector3(1, 0, 0) };
     this.nextBar = 0; this.bar = 0; this.nextNote = 0;
     this.lastBird = 0;
@@ -28,7 +27,7 @@ export class GameAudio {
     const ctx = this.ctx = new AC();
     this.master = ctx.createGain();
     this.master.gain.value = 0;
-    this.master.gain.linearRampToValueAtTime(this.muted ? 0 : 0.9, ctx.currentTime + 2.5); // fade in
+    this.master.gain.linearRampToValueAtTime(0.9, ctx.currentTime + 2.0); // fade in
     const comp = ctx.createDynamicsCompressor();
     this.master.connect(comp).connect(ctx.destination);
     // reverb: generated impulse response (soft, 2.8s)
@@ -38,8 +37,10 @@ export class GameAudio {
     this.reverb.buffer = ir;
     const wet = ctx.createGain(); wet.gain.value = 0.45;
     this.reverb.connect(wet).connect(this.master);
-    this.music = ctx.createGain(); this.music.gain.value = 0.55;
-    this.music.connect(this.master); this.music.connect(this.reverb);
+    this.music = ctx.createGain(); this.music.gain.value = this.musicOn ? MUSIC_VOL : 0;
+    const musicWet = ctx.createGain(); musicWet.gain.value = 1.4; // piano sits in a big soft room
+    this.music.connect(this.master); this.music.connect(musicWet).connect(this.reverb);
+    this.piano = new PianoMusic(ctx, this.music);
     this.sfx = ctx.createGain(); this.sfx.gain.value = 0.9;
     this.sfx.connect(this.master); this.sfx.connect(this.reverb);
     this.amb = ctx.createGain(); this.amb.gain.value = 0.8;
@@ -52,14 +53,12 @@ export class GameAudio {
     this.windBed = this.loopNoise(380, 0.6, 0.035, this.amb);
     this.air = this.loopNoise(2400, 0.8, 0.0, this.amb);
     this.windWhoosh = this.winds.map(() => this.loopNoise(650, 0.9, 0.0, this.amb));
-    this.nextBar = ctx.currentTime + 0.5;
-    this.nextNote = this.nextBar;
   }
 
-  setMuted(m) {
-    this.muted = m;
-    try { localStorage.setItem('driftlight-muted', m ? '1' : '0'); } catch { /* ignore */ }
-    if (this.ctx) this.master.gain.setTargetAtTime(m ? 0 : 0.9, this.ctx.currentTime, 0.15);
+  setMusic(on) {
+    this.musicOn = on;
+    try { localStorage.setItem('driftlight-music', on ? '1' : '0'); } catch { /* ignore */ }
+    if (this.ctx) { const g = this.music.gain; g.cancelScheduledValues(this.ctx.currentTime); g.setTargetAtTime(on ? MUSIC_VOL : 0, this.ctx.currentTime, 0.3); }
   }
 
   loopNoise(freq, q, gain, dest) {
@@ -77,7 +76,7 @@ export class GameAudio {
     const d = pos.distanceTo(this.listener.pos);
     const rel = new Vector3().subVectors(pos, this.listener.pos);
     const pan = Math.max(-1, Math.min(1, rel.dot(this.listener.right) / (d + 2)));
-    return { gain: 1 / (1 + d * 0.12), pan };
+    return { gain: 1 / (1 + Math.max(0, d - 1.5) * 0.15), pan };
   }
   out(pos, dest = this.sfx) {
     const ctx = this.ctx;
@@ -115,16 +114,26 @@ export class GameAudio {
 
   /** one-shot sound effects */
   play(name, opts = {}) {
-    if (!this.ctx || this.muted) return;
+    if (!this.ctx) return;
     const t = this.ctx.currentTime + 0.01;
     const dest = this.out(opts.pos);
     const v = opts.vol ?? 1;
     switch (name) {
       case 'step': {
         const s = opts.surface;
-        if (s === 'wood') { this.tone(150 + Math.random() * 30, t, 0.12, 0.09 * v, 'sine', dest); this.burst(t, 0.06, 0.05 * v, 'bandpass', 700, 2, dest); }
-        else if (s === 'path') this.burst(t, 0.07, 0.06 * v, 'bandpass', 1800 + Math.random() * 500, 1.2, dest);
-        else this.burst(t, 0.09, 0.05 * v, 'lowpass', 1100 + Math.random() * 300, 0.7, dest);
+        const p = 0.9 + Math.random() * 0.2;
+        if (s === 'wood') { // hollow plank knock
+          this.tone(140 * p, t, 0.16, 0.26 * v, 'sine', dest);
+          this.tone(310 * p, t, 0.07, 0.08 * v, 'triangle', dest);
+          this.burst(t, 0.07, 0.14 * v, 'bandpass', 900 * p, 1.5, dest);
+        } else if (s === 'path') { // dirt crunch: two quick gritty bursts
+          this.burst(t, 0.08, 0.2 * v, 'bandpass', 1500 * p, 0.9, dest);
+          this.burst(t + 0.025, 0.06, 0.12 * v, 'highpass', 3200 * p, 0.7, dest);
+          this.tone(95 * p, t, 0.08, 0.08 * v, 'sine', dest);
+        } else { // soft grass swish + body
+          this.burst(t, 0.13, 0.2 * v, 'bandpass', 1300 * p, 0.6, dest, 2600);
+          this.tone(85 * p, t, 0.09, 0.09 * v, 'sine', dest);
+        }
         break;
       }
       case 'jump': this.burst(t, 0.3, 0.07 * v, 'bandpass', 350, 1.5, dest, 1600); break;
@@ -160,32 +169,18 @@ export class GameAudio {
     if (!this.ctx) return;
     const g = this.music.gain, t = this.ctx.currentTime;
     g.cancelScheduledValues(t); g.setValueAtTime(g.value, t);
-    g.linearRampToValueAtTime(0.55 + amount, t + 0.6);
-    g.linearRampToValueAtTime(0.55, t + secs);
+    if (!this.musicOn) return;
+    g.linearRampToValueAtTime(MUSIC_VOL * (1 + amount), t + 0.6);
+    g.linearRampToValueAtTime(MUSIC_VOL, t + secs);
   }
 
   /** called every frame */
   update(dt, s) {
     if (!this.ctx) return;
     const ctx = this.ctx, now = ctx.currentTime;
-    this.listener.pos.copy(s.camPos);
+    this.listener.pos.copy(s.playerPos); // third-person: you hear from where your traveler stands
     this.listener.right.copy(s.camRight);
-    // music scheduler (66 bpm, one chord per bar of 4 beats)
-    const beat = 60 / 66;
-    while (this.nextBar < now + 0.3) {
-      const ch = CHORDS[this.bar % 4];
-      for (const n of ch.slice(1)) this.tone(NOTE(n), this.nextBar, beat * 4.6, 0.022, 'triangle', this.music, 1.2);
-      this.tone(NOTE(ch[0] - 12), this.nextBar, beat * 4, 0.05, 'sine', this.music, 0.3);
-      this.nextBar += beat * 4; this.bar++;
-    }
-    while (this.nextNote < now + 0.3) {
-      if (Math.random() < 0.38) {
-        const ch = CHORDS[(this.bar + 3) % 4];
-        const pool = Math.random() < 0.6 ? ch.map((n) => n + 24).filter((n) => n >= 62) : SCALE;
-        this.bell(NOTE(pool[Math.floor(Math.random() * pool.length)]), this.nextNote, 0.03, this.music, 1.8);
-      }
-      this.nextNote += beat / 2;
-    }
+    this.piano.update();
     // ambience
     const k = 1 - Math.exp(-dt * 2);
     const edge = Math.max(0, Math.min(1, (s.distFromCenter - 14) / 12));

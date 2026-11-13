@@ -28,7 +28,7 @@ for (const [name, s] of Object.entries(SHOTS)) {
   page.on('pageerror', (e) => console.error(`[${name}] page error:`, e.message));
   page.on('console', (m) => { if (m.type() === 'error') console.error(`[${name}]`, m.text()); });
   const t0 = Date.now();
-  await page.goto(`http://127.0.0.1:5199/?shot=${name}${s.ui ? '&ui=1' : ''}`);
+  await page.goto(`http://127.0.0.1:5199/?shot=${name}${s.ui ? '&ui=1' : ''}${s.open ? `&open=${s.open}` : ''}`);
   await page.waitForFunction(() => window.__ready === true, null, { timeout: 180000 });
   const file = `${outDir}/${name}.png`;
   await page.screenshot({ path: file, timeout: 120000 });

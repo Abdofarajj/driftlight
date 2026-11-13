@@ -33,6 +33,11 @@ export const SHOTS = {
       cam(camera, [1.0, 3.2, 13.8], [-2.0, 2.4, -2], 62);
     },
   },
+  // same framing with an objective expanded, to check the panel on the phone
+  'portrait-open': {
+    viewport: 'portrait', ref: 'phone-portrait.png', ui: true, open: 'lanterns',
+    apply(o) { SHOTS.portrait.apply(o); },
+  },
   // ref: lantern-bearers.png (low camera, cloud sea, beam on the horizon)
   bearers: {
     viewport: 'landscape', ref: 'lantern-bearers.png',

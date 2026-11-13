@@ -13,6 +13,7 @@ import { buildWinds } from './world/wind.js';
 import { Stars } from './world/stars.js';
 import { GameAudio } from './audio.js';
 import { pathMask, onIsland, groundHeight } from './world/forest.js';
+import { Objectives } from './ui/objectives.js';
 
 ColorManagement.enabled = false; // palette colours are used as-is
 
@@ -59,7 +60,23 @@ const winds = buildWinds(world);
 winds.forEach((w) => scene.add(w.group));
 audio.winds = winds;
 const stars = new Stars(scene, [[-49, 3.9, -4], [53, 1.4, 10.5], [4, 2.3, -44.5]]);
-const hud = { stars: document.getElementById('stars'), lanterns: document.getElementById('lanterns') };
+const hud = { stars: document.getElementById('stars') };
+
+// ---- objectives (tap a row to see more; finished ones fade away) ----
+const touchUI = matchMedia('(hover: none), (pointer: coarse)').matches;
+const partner = playAs === 'him' ? 'her' : 'him', partnerHer = playAs === 'him' ? 'her' : 'his';
+const objectives = new Objectives(document.getElementById('objectives'), { instant: !!shot });
+const westIsle = world.isles.find((i) => i.x < -40);
+const shrineIsle = world.isles.find((i) => i.z < -40);
+const OBJ = {
+  hands: { title: `Take ${partnerHer} hand`, detail: `Walk up beside ${partner} and ${touchUI ? 'tap the big hands button' : 'press E'}. Holding hands you move together, share your light, and can pull ${partner} along.` },
+  lanterns: { title: 'Light the lanterns', progress: '0/5', detail: 'Five stone lanterns sleep in the forest. Hold hands and stand together beside one until its golden ring fills. Light all five to wake the shrine.' },
+  wind: { title: 'Ride the warm wind', detail: `On the west edge of the forest a ring of drifting petals marks a warm current. Step in${touchUI ? '' : ' (hold Space to glide)'} and it carries you to the meadow island.` },
+  stars: { title: 'Find the stars', progress: '0/3', detail: 'Three stars are hidden: one past the east rope bridge, one on the meadow island, and one waiting by the shrine.' },
+  shrine: { title: 'Visit the shrine', detail: 'A bridge of light now leads north from the forest. Cross it together to reach the shrine.' },
+};
+for (const id of ['hands', 'lanterns', 'wind', 'stars']) objectives.add(id, OBJ[id]);
+if (params.get('open')) objectives.setOpen(params.get('open')); // captures: show a row expanded
 let checkpoint = world.checkpoints[0];
 checkpoint.active = true;
 
@@ -82,9 +99,9 @@ if (!shot) {
   const startAudio = () => audio.start();
   for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, startAudio, { capture: true });
   const sb = document.getElementById('bset');
-  const paint = () => sb.classList.toggle('muted', audio.muted);
+  const paint = () => sb.classList.toggle('muted', !audio.musicOn);
   paint();
-  const toggle = (e) => { e.stopPropagation(); e.preventDefault(); audio.start(); audio.setMuted(!audio.muted); paint(); toast(audio.muted ? 'Sound off' : 'Sound on'); };
+  const toggle = (e) => { e.stopPropagation(); e.preventDefault(); audio.start(); audio.setMusic(!audio.musicOn); paint(); toast(audio.musicOn ? 'Music on' : 'Music off (sound effects stay on)'); };
   sb.addEventListener('click', toggle);
   sb.addEventListener('touchend', toggle);
   addEventListener('keydown', (e) => { if (e.code === 'KeyM') toggle(e); });
@@ -161,10 +178,10 @@ function onEvent(name, d) {
     case 'hint': toast(d); break;
     case 'lantern':
       toast(`Lantern ${d.n} / ${d.of} lit ✦`); audio.play('lantern', { pos: d.pos });
-      hud.lanterns.textContent = `${d.n}/${d.of}`;
+      objectives.update('lanterns', { progress: `${d.n}/${d.of}` });
       break;
-    case 'quest-complete': toast('All lanterns lit! The way north opens…'); audio.play('complete'); break;
-    case 'bridge-open': toast('A bridge of light leads to the shrine ✦'); break;
+    case 'quest-complete': toast('All lanterns lit! The way north opens…'); audio.play('complete'); objectives.complete('lanterns'); break;
+    case 'bridge-open': toast('A bridge of light leads to the shrine ✦'); objectives.add('shrine', OBJ.shrine); break;
     default: break;
   }
 }
@@ -218,6 +235,7 @@ function step(dt) {
   }
   hands.step(dt, world);
   if (hands.linked !== wasLinked) { audio.play(hands.linked ? 'hands' : 'release', { pos: A.pos }); wasLinked = hands.linked; }
+  if (hands.linked) objectives.complete('hands');
 
   // wind currents carry anyone inside them
   windState = { inWind: -1, windDist: [] };
@@ -237,7 +255,17 @@ function step(dt) {
   const ch = quest.items.reduce((m, it) => Math.max(m, it.lit ? 0 : it.charge), 0);
   if (ch > 0.05 && Math.floor(ch * 6) !== Math.floor(lastCharge * 6)) audio.play('charge', { k: ch, pos: A.pos });
   lastCharge = ch;
-  stars.update(dt, t, [A, B], camera, (st, n) => { hud.stars.textContent = n; audio.play('star', { pos: st.pos }); toast(`Star found! ${n} / ${stars.items.length}`); });
+  stars.update(dt, t, [A, B], camera, (st, n) => {
+    hud.stars.textContent = n; audio.play('star', { pos: st.pos }); toast(`Star found! ${n} / ${stars.items.length}`);
+    objectives.update('stars', { progress: `${n}/${stars.items.length}` });
+    if (n >= stars.items.length) objectives.complete('stars');
+  });
+  // place-based objectives: land on the meadow island / reach the shrine
+  if (A.grounded) {
+    const on = (i) => i && Math.hypot(A.pos.x - i.x, A.pos.z - i.z) < i.r - 0.5 && Math.abs(A.pos.y - i.y) < 0.5;
+    if (objectives.has('wind') && on(westIsle)) objectives.complete('wind');
+    if (objectives.has('shrine') && on(shrineIsle)) { objectives.complete('shrine'); toast('You reached the shrine together ✦'); }
+  }
 
   // camera: drifts behind the direction you walk, unless you moved it by hand recently
   if (cam.manualT > 0.7 && A.speed01 > 0.15) {
@@ -267,7 +295,7 @@ const camPos = new Vector3(), camLook = new Vector3();
 const FAST = Number(params.get('fast')) || 0;
 const ray = new Raycaster();
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const dt = Math.max(0, Math.min(0.05, (now - last) / 1000)); // rAF time can be a hair before "last" on the first frame
   last = now;
   if (shot) {
     t = shot.time ?? 2.0;
@@ -337,7 +365,7 @@ window.__game = {
   goTo(x, z, opts = {}) { return new Promise((resolve) => { auto = { x, z, t: 0, lastT: 0, lastD: 1e9, resolve, ...opts }; }); },
   jump(hold = 0) { botJump = true; botJumpHeld = hold > 0; if (hold > 0) setTimeout(() => (botJumpHeld = false), hold); },
   holdHands() { input.handsPressed = true; },
-  quest, stars, winds, audio,
+  quest, stars, winds, audio, objectives,
   lightAll() { quest.completeNow(); },
   teleport(x, z, heading = Math.PI) { A.pos.set(x, world.floorAt(x, z) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
   pos() { return { lanterns: quest.count, stars: stars.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },

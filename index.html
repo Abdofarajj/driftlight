@@ -14,11 +14,26 @@
     .pill { top: calc(env(safe-area-inset-top) + 14px); left: calc(env(safe-area-inset-left) + 14px); display: flex; align-items: center; gap: 8px;
       padding: 6px 16px 6px 8px; border-radius: 999px; background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
       font-size: 22px; font-weight: 700; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.45); }
-    .pill2 { top: calc(env(safe-area-inset-top) + 66px); font-size: 18px; }
+    #objectives { top: calc(env(safe-area-inset-top) + 66px); left: calc(env(safe-area-inset-left) + 14px); display: flex; flex-direction: column; gap: 6px; width: min(250px, 62vw); }
+    .obj { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 16px 1fr auto 10px; align-items: center; column-gap: 8px; padding: 7px 12px 7px 10px; border-radius: 16px;
+      background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: #fff7ea; font-size: 14px; font-weight: 700; line-height: 1.25;
+      text-shadow: 0 1px 6px rgba(120, 70, 90, 0.5); cursor: pointer; overflow: hidden; max-height: 170px; -webkit-tap-highlight-color: transparent;
+      transition: opacity .55s, transform .55s, max-height .55s, padding .55s, margin .55s, border-width .55s, background .4s, box-shadow .4s; }
+    .obj .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--gold); box-sizing: border-box; box-shadow: 0 0 6px #ffcf6e; display: grid; place-items: center; font-size: 9px; color: #9a6440; text-shadow: none; }
+    .obj .p { font-size: 13px; opacity: .95; }
+    .obj .chev { font-size: 17px; line-height: 1; opacity: .8; transition: transform .3s; justify-self: center; }
+    .obj.open .chev { transform: rotate(90deg); }
+    .obj .d { grid-column: 2 / -1; font-size: 13px; font-weight: 600; line-height: 1.35; max-height: 0; opacity: 0; overflow: hidden; transition: max-height .35s, opacity .35s, margin .35s; }
+    .obj.open .d { max-height: 110px; opacity: .95; margin-top: 5px; }
+    .obj.new { opacity: 0; transform: translateX(-14px); }
+    .obj.done { background: rgba(255, 222, 150, 0.5); box-shadow: 0 0 20px rgba(255, 205, 120, 0.85); }
+    .obj.done .dot { background: var(--gold); }
+    .obj.done .dot::after { content: '\2713'; font-weight: 900; }
+    .obj.gone { opacity: 0; transform: translateX(-18px); max-height: 0; padding-top: 0; padding-bottom: 0; border-width: 0; margin-top: -6px; }
     .star { width: 30px; height: 30px; filter: drop-shadow(0 0 6px #ffcf6e); }
     .round { width: 52px; height: 52px; border-radius: 50%; background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: grid; place-items: center; }
     .round svg { width: 26px; height: 26px; }
-    #bset .slash { display: none; } #bset.muted .slash { display: inline; } #bset.muted .wave { display: none; }
+    #bset .slash { display: none; } #bset.muted .slash { display: inline; } #bset.muted svg { opacity: .6; }
     #bset { top: calc(env(safe-area-inset-top) + 14px); right: calc(env(safe-area-inset-right) + 14px); }
     #bbag { top: calc(env(safe-area-inset-top) + 76px); right: calc(env(safe-area-inset-right) + 14px); }
     #joy { position: fixed; z-index: 2; left: calc(env(safe-area-inset-left) + 92px); bottom: calc(env(safe-area-inset-bottom) + 92px); top: auto; width: 128px; height: 128px; margin: -64px 0 0 -64px;
@@ -42,20 +57,20 @@
     @media (hover: none), (pointer: coarse) { #hint { display: none; } }
     body.shot .ui, body.shot #joy { display: none; }
     body.shot.showui .ui, body.shot.showui #joy { display: grid; }
-    body.shot.showui .pill { display: flex; }
+    body.shot.showui .pill, body.shot.showui #objectives { display: flex; }
     body.shot.showui #hint { display: none; }
   </style>
 </head>
 <body>
   <canvas id="c"></canvas>
   <div class="ui pill"><svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg><span id="stars">0</span></div>
-  <div class="ui pill pill2"><svg class="star" viewBox="0 0 24 24"><path d="M8 3h8l-1 3H9z" fill="#c9a07a"/><rect x="7" y="6" width="10" height="11" rx="2" fill="#ffe7a6" stroke="#ffbf5e"/><path d="M9 17h6l1 3H8z" fill="#c9a07a"/></svg><span id="lanterns">0/5</span></div>
-  <div class="ui round" id="bset" title="Sound (M)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2" stroke-linecap="round"><path d="M4 10v4h4l5 4V6L8 10z" fill="#8a6670" fill-opacity=".25"/><path class="wave" d="M16 9a4 4 0 0 1 0 6M18.5 6.5a7.5 7.5 0 0 1 0 11"/><path class="slash" d="M16 9l5 6M21 9l-5 6"/></svg></div>
+  <div class="ui" id="objectives" aria-label="Objectives"></div>
+  <div class="ui round" id="bset" title="Music (M)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2" stroke-linecap="round"><path d="M9 17V5l10-2v12"/><circle cx="6.5" cy="17" r="2.5" fill="#8a6670" fill-opacity=".3"/><circle cx="16.5" cy="15" r="2.5" fill="#8a6670" fill-opacity=".3"/><path class="slash" d="M3 3l18 18"/></svg></div>
   <div class="ui round" id="bbag"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2"><path d="M6 8h12l-1 12H7z"/><path d="M9 8V6a3 3 0 0 1 6 0v2"/></svg></div>
   <div id="joy" class="touch"><div id="knob"></div></div>
   <div class="ui round touch" id="bjump"><svg viewBox="0 0 24 24"><path d="M12 2 C13 9 15 11 22 12 C15 13 13 15 12 22 C11 15 9 13 2 12 C9 11 11 9 12 2Z" fill="#fff4d6"/></svg></div>
   <div class="ui round touch" id="bhands"><svg viewBox="0 0 48 48" fill="#fff7ea"><circle cx="15" cy="10" r="5"/><circle cx="33" cy="10" r="5"/><path d="M9 18h12l3 8 3-8h12v4l-6 2v20h-5V31h-2v13h-2V31h-2v13h-5V24l-6-2z"/></svg></div>
-  <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · M sound · drag to look</div>
+  <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · M music · drag to look</div>
   <div class="ui" id="toast"></div>
   <div id="fade"></div>
   <script type="module" src="./src/main.js"></script>

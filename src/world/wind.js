@@ -95,7 +95,7 @@ export class WindCurrent {
   update(t) {
     const o = this._o;
     this.petalData.forEach((d, i) => {
-      const u = (d.u + t * d.sp) % 1;
+      const u = (((d.u + t * d.sp) % 1) + 1) % 1;
       const p = this.curve.getPointAt(u);
       const a = d.a + t * 1.4;
       o.position.set(p.x + Math.cos(a) * d.rad, p.y + Math.sin(a) * d.rad * 0.7, p.z + Math.sin(a * 1.3) * d.rad);
