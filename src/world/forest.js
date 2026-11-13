@@ -6,7 +6,8 @@ import {
 import { PAL } from '../look/palette.js';
 import { makeWatercolorMaterial, makeGlowMaterial } from '../look/material.js';
 import { rng, fbm2, noise3 } from './rng.js';
-import { displace, bend, setMix } from './shapes.js';
+import { displace, setMix } from './shapes.js';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 
 const R = 24; // main island radius
 
@@ -121,15 +122,15 @@ function mats() {
   M.ground = makeWatercolorMaterial({ lit: PAL.grass, lit2: PAL.path, mix: true, rim: 0.0, wash: 0.16 });
   M.cliff = makeWatercolorMaterial({ lit: PAL.cliff, lit2: PAL.moss, mix: true, rim: 0.4 });
   M.trunk = makeWatercolorMaterial({ lit: PAL.trunk, rim: 0.4 });
-  M.canopy = makeWatercolorMaterial({ lit: PAL.canopy, rim: 0.55, sway: 0.03, wash: 0.2, breakup: 0.55 });
-  M.canopyAlt = makeWatercolorMaterial({ lit: PAL.canopyAlt, rim: 0.55, sway: 0.03, wash: 0.2, breakup: 0.55 });
+  M.canopy = makeWatercolorMaterial({ lit: PAL.canopy, rim: 0.6, sway: 0.03, wash: 0.22, breakup: 0.85 });
+  M.canopyAlt = makeWatercolorMaterial({ lit: PAL.canopyAlt, rim: 0.6, sway: 0.03, wash: 0.22, breakup: 0.85 });
   M.stone = makeWatercolorMaterial({ lit: PAL.stone, rim: 0.35, wash: 0.18 });
   M.moss = makeWatercolorMaterial({ lit: PAL.moss, rim: 0.3, sway: 0.02 });
   M.wood = makeWatercolorMaterial({ lit: PAL.wood, rim: 0.3 });
   M.mush = makeWatercolorMaterial({ lit: PAL.mushroom, rim: 0.4 });
   M.spot = makeWatercolorMaterial({ lit: PAL.spot, rim: 0.2 });
   M.stem = makeWatercolorMaterial({ lit: PAL.tunic, rim: 0.2 });
-  M.tuft = makeWatercolorMaterial({ lit: [new Color('#c3c472'), new Color('#7c9870')], rim: 0.0, sway: 0.12, tint: true, lightRecv: 0.7 });
+  M.tuft = makeWatercolorMaterial({ lit: [new Color('#b2bb70'), new Color('#76926e')], rim: 0.0, sway: 0.12, tint: true, lightRecv: 0.7 });
   M.flower = makeWatercolorMaterial({ lit: [new Color('#ffffff'), new Color('#b8a3c4')], rim: 0.25, sway: 0.08, tint: true });
   M.glow = makeGlowMaterial();
   M.glowDim = makeGlowMaterial(PAL.glowCore, PAL.glowHalo, 0.75);
@@ -165,57 +166,86 @@ function hangLantern(parent, x, y, z, len, lights, swingers, ph) {
   parent.add(pivot);
 }
 
+/** Tube along a curve whose radius tapers from r0 to r1. Ends are capped by sinking them into other shapes. */
+function taperTube(points, r0, r1, radial = 10, tubular = 16, seed = 0, amp = 0.06) {
+  const curve = new CatmullRomCurve3(points);
+  const geo = new TubeGeometry(curve, tubular, 1, radial, false);
+  const p = geo.attributes.position;
+  const c = new Vector3();
+  for (let i = 0; i <= tubular; i++) {
+    const t = i / tubular;
+    curve.getPointAt(t, c);
+    const rad = r0 + (r1 - r0) * Math.pow(t, 0.8);
+    for (let j = 0; j <= radial; j++) {
+      const k = i * (radial + 1) + j;
+      const x = p.getX(k) - c.x, y = p.getY(k) - c.y, z = p.getZ(k) - c.z;
+      const n = 1 + (noise3(p.getX(k) * 2 + seed, p.getY(k) * 2, p.getZ(k) * 2) - 0.5) * amp * 2;
+      p.setXYZ(k, c.x + x * rad * n, c.y + y * rad * n, c.z + z * rad * n);
+    }
+  }
+  geo.computeVertexNormals();
+  return { geo, curve };
+}
+
 function makeTree(x, z, s, seed, lights, swingers, colliders, alt = false) {
   const r = rng(seed);
   const g = new Group();
   const y0 = groundHeight(x, z);
-  g.position.set(x, y0 - 0.2, z);
+  g.position.set(x, y0 - 0.25, z);
+  g.rotation.y = r() * Math.PI * 2;
   const H = 5.5 * s;
-  const trunkGeo = bend(displace(new CylinderGeometry(0.55 * s, 1.0 * s, H, 12, 10).translate(0, H / 2, 0), 0.12 * s, 1.2, seed), 0.25 * (r() - 0.5));
-  const trunk = new Mesh(trunkGeo, M.trunk);
-  trunk.rotation.y = r() * 6;
-  g.add(trunk);
-  // root flares
+  const lean = (r() - 0.5) * 1.6 * s;
+  // trunk spine: gentle S-curve with a lean; everything else attaches to points on this curve
+  const spine = [0, 0.25, 0.5, 0.75, 1].map((t) => new Vector3(lean * t * t + Math.sin(t * 3.1) * 0.25 * s, t * H, Math.sin(t * 2.3 + seed) * 0.2 * s));
+  const { geo: trunkGeo, curve } = taperTube(spine, 0.95 * s, 0.5 * s, 12, 18, seed, 0.08);
+  g.add(new Mesh(trunkGeo, M.trunk));
+  const top = curve.getPointAt(1);
+  // root flares, sunk into the trunk base and the ground
   for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2 + r();
-    const root = new Mesh(displace(new ConeGeometry(0.45 * s, 1.8 * s, 7, 3), 0.06, 2, seed + i), M.trunk);
-    root.position.set(Math.cos(a) * 0.7 * s, 0.25 * s, Math.sin(a) * 0.7 * s);
-    root.rotation.set(Math.sin(a) * 1.25, 0, -Math.cos(a) * 1.25);
-    g.add(root);
+    const a = (i / 5) * Math.PI * 2 + r() * 0.6;
+    const dir = new Vector3(Math.cos(a), 0, Math.sin(a));
+    const pts = [new Vector3(0, 1.0 * s, 0).addScaledVector(dir, 0.2 * s), new Vector3(0, 0.35 * s, 0).addScaledVector(dir, 0.9 * s), new Vector3(0, -0.1, 0).addScaledVector(dir, 1.6 * s)];
+    g.add(new Mesh(taperTube(pts, 0.42 * s, 0.1 * s, 7, 6, seed + i, 0.05).geo, M.trunk));
   }
-  // branches
-  for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + r() * 1.5;
-    const L = 2.6 * s;
-    const br = new Mesh(new CylinderGeometry(0.16 * s, 0.32 * s, L, 7).translate(0, L / 2, 0), M.trunk);
-    br.position.y = H * (0.7 + r() * 0.2);
-    br.rotation.set(Math.sin(a) * 0.9, 0, -Math.cos(a) * 0.9);
-    g.add(br);
-  }
-  // canopy: overlapping blobs in a wide dome
-  const blobGeo = displace(new IcosahedronGeometry(1, 4), 0.1, 1.8, seed);
-  const nb = 14;
+  // canopy: overlapping blobs in a wide dome centred over the trunk top
+  const blobGeo = displace(displace(new IcosahedronGeometry(1, 4), 0.1, 1.8, seed), 0.07, 4.5, seed + 3);
+  const nb = 20;
   const mat = alt ? M.canopyAlt : M.canopy;
-  const cy = H + 1.6 * s;
+  const cy = top.y + 1.4 * s;
   const blobs = [];
   for (let i = 0; i < nb; i++) {
     const a = (i / nb) * Math.PI * 2 + r() * 0.6;
-    const d = i === 0 ? 0 : (1.6 + r() * 2.2) * s;
+    const d = i === 0 ? 0 : (1.4 + r() * 2.0) * s;
     const b = new Mesh(blobGeo, mat);
-    const rad = (i === 0 ? 2.8 : 1.4 + r() * 0.9) * s;
-    b.position.set(Math.cos(a) * d, cy + (i === 0 ? 1.0 * s : (r() - 0.3) * 1.6 * s), Math.sin(a) * d);
+    const rad = (i === 0 ? 2.6 : 1.15 + r() * 0.8) * s;
+    b.position.set(top.x + Math.cos(a) * d, cy + (i === 0 ? 0.9 * s : (r() - 0.35) * 1.4 * s), top.z + Math.sin(a) * d);
     b.scale.set(rad, rad * 0.78, rad);
     b.rotation.y = r() * 6;
+    b.userData.rad = rad;
     g.add(b);
     blobs.push(b);
   }
-  // hanging lanterns along the canopy underside
+  // branches: from a point on the trunk into the centre of an outer blob (always attached at both ends)
+  const outer = blobs.slice(1).sort((p, q) => q.userData.rad - p.userData.rad);
+  for (let i = 0; i < 3; i++) {
+    const b = outer[i * 3 % outer.length];
+    const st = curve.getPointAt(0.62 + i * 0.1);
+    const end = b.position.clone();
+    const mid = st.clone().lerp(end, 0.5); mid.y -= 0.35 * s;
+    g.add(new Mesh(taperTube([st, mid, end], 0.34 * s, 0.14 * s, 8, 10, seed + 10 + i, 0.06).geo, M.trunk));
+  }
+  // hanging lanterns: each hangs from the underside of a real blob
   const nl = 3 + Math.floor(r() * 3);
   for (let i = 0; i < nl; i++) {
-    const a = r() * Math.PI * 2, d = (2.0 + r() * 2.2) * s;
-    hangLantern(g, Math.cos(a) * d, cy - 1.1 * s, Math.sin(a) * d, 0.6 + r() * 1.2, lights, swingers, r() * 6);
+    const b = outer[(i * 2 + 1) % outer.length];
+    const rad = b.userData.rad;
+    const a = r() * Math.PI * 2, off = rad * 0.45;
+    const hx = b.position.x + Math.cos(a) * off, hz = b.position.z + Math.sin(a) * off;
+    // underside of an ellipsoid at that offset, nudged inside so the string disappears into the leaves
+    const hy = b.position.y - rad * 0.78 * Math.sqrt(1 - 0.45 * 0.45) + 0.15;
+    hangLantern(g, hx, hy, hz, 0.5 + r() * 1.0, lights, swingers, r() * 6);
   }
-  colliders.push({ x, z, r: 1.1 * s });
+  colliders.push({ x, z, r: 1.0 * s });
   return g;
 }
 
@@ -353,6 +383,8 @@ function makeBridge(from, to, lights, colliders) {
     }
     const rope = new Mesh(new TubeGeometry(new CatmullRomCurve3(pts), 60, 0.05, 5), M.rope);
     g.add(rope);
+    const a = new Vector3().copy(from).addScaledVector(side, 1.35 * sgn), b = new Vector3().copy(to).addScaledVector(side, 1.35 * sgn);
+    colliders.push({ ax: a.x, az: a.z, bx: b.x, bz: b.z, r: 0.15 });
   }
   return g;
 }
@@ -375,6 +407,36 @@ function scatterInstanced(geo, mat, count, place, seed, tints) {
   }
   im.count = k;
   return im;
+}
+
+/** Checkpoint: a round stepping stone with a small star pillar that lights up when you pass. */
+function makeWaystone(x, z, y) {
+  const g = new Group();
+  const disc = new Mesh(displace(new CylinderGeometry(1.0, 1.1, 0.22, 24, 1), 0.03, 2, x), M.stone);
+  disc.position.y = 0.0;
+  const ring = new Mesh(new TorusGeometry(0.75, 0.035, 6, 40), makeGlowMaterial(PAL.glowCore, PAL.glowHalo, 0.5));
+  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.12;
+  const pillar = new Mesh(displace(new CylinderGeometry(0.12, 0.18, 0.75, 7, 2), 0.02, 3, z), M.stone);
+  pillar.position.set(1.25, 0.4, 0);
+  const starMat = makeGlowMaterial(PAL.glowCore, PAL.glowHalo, 0.45);
+  const star = new Mesh(new ConeGeometry(0.16, 0.42, 4), starMat);
+  star.position.set(1.25, 0.95, 0);
+  const star2 = star.clone(); star2.rotation.z = Math.PI;
+  star.geometry.translate(0, 0.21, 0); // two cones tip to tip = a 4-point star
+  g.add(disc, ring, pillar, star, star2);
+  g.position.set(x, y - 0.06, z);
+  const ws = {
+    obj: g, pos: new Vector3(x, y, z), active: false, pulse: 0,
+    activate() { if (this.active) return false; this.active = true; this.pulse = 1; return true; },
+    update(t, dt) {
+      this.pulse = Math.max(0, this.pulse - dt * 0.8);
+      const base = this.active ? 1.25 : 0.45;
+      starMat.uniforms.uStr.value = base + this.pulse * 1.5 + (this.active ? Math.sin(t * 2) * 0.1 : 0);
+      ring.material.uniforms.uStr.value = this.active ? 0.95 + this.pulse : 0.5;
+      star.rotation.y = star2.rotation.y = t * (this.active ? 1.2 : 0.3);
+    },
+  };
+  return ws;
 }
 
 // ---------- build the zone ----------
@@ -421,18 +483,35 @@ export function buildLanternForest() {
     for (let i = 0; i < 3; i++) root.add(makeMushroom(cx + (mr() - 0.5) * 2, cz + (mr() - 0.5) * 2, 0.7 + mr() * 0.9, mr() * 100));
   }
 
-  // fence along the path near the bridge
-  for (let i = 0; i < 5; i++) {
-    const x = 8 + i * 2.2, z = 11.5 + Math.sin(i) * 0.3;
-    const post = new Mesh(displace(new CylinderGeometry(0.12, 0.15, 1.2, 7, 2), 0.02, 3, i), M.wood);
-    post.position.set(x, groundHeight(x, z) + 0.5, z);
-    root.add(post);
-    if (i < 4) {
-      const rail = new Mesh(new BoxGeometry(2.2, 0.1, 0.08), M.wood);
-      rail.position.set(x + 1.1, groundHeight(x, z) + 0.85, z);
-      root.add(rail);
-    }
+  // fence along the path near the bridge: posts sunk into the ground, rails span post to post
+  const fencePts = [];
+  for (let i = 0; i < 6; i++) {
+    const x = 6.5 + i * 2.1, z = 12.2 - i * 0.35 + Math.sin(i * 1.3) * 0.2;
+    fencePts.push(new Vector3(x, groundHeight(x, z), z));
   }
+  const postGeo = displace(new CylinderGeometry(0.12, 0.15, 1.6, 7, 2), 0.02, 3, 1);
+  const railGeo = new CylinderGeometry(0.055, 0.055, 1, 6);
+  railGeo.rotateZ(Math.PI / 2);
+  fencePts.forEach((pt, i) => {
+    const post = new Mesh(postGeo, M.wood);
+    post.position.set(pt.x, pt.y + 0.45, pt.z); // 0.35 of it is under the ground
+    post.rotation.z = (i % 2 ? 1 : -1) * 0.04;
+    root.add(post);
+    const cap = new Mesh(new SphereGeometry(0.14, 8, 6), M.wood); cap.scale.y = 0.5; cap.position.set(pt.x, pt.y + 1.25, pt.z);
+    root.add(cap);
+    if (i < fencePts.length - 1) {
+      const nx = fencePts[i + 1];
+      for (const h of [0.55, 0.95]) {
+        const p0 = new Vector3(pt.x, pt.y + h, pt.z), p1 = new Vector3(nx.x, nx.y + h, nx.z);
+        const rail = new Mesh(railGeo, M.wood);
+        rail.position.copy(p0).lerp(p1, 0.5);
+        rail.scale.x = p0.distanceTo(p1) + 0.1;
+        rail.lookAt(p1); rail.rotateY(-Math.PI / 2); // align the rail's X axis with p0 -> p1
+        root.add(rail);
+      }
+      colliders.push({ ax: pt.x, az: pt.z, bx: nx.x, bz: nx.z, r: 0.15 });
+    }
+  });
 
   // bridge east to a small island
   const bFrom = new Vector3(22.5, groundHeight(22, 6.8) + 0.05, 6.8);
@@ -444,11 +523,16 @@ export function buildLanternForest() {
   small.add(top);
   small.add(new Mesh(buildCliff(sr, () => 0.2, 12, 4, 48, 14), M.cliff));
   small.position.set(50, 0, 8);
-  small.add(makeTree(0, 0, 0.9, 41, lights, swingers, [], true).translateY(0.3 - groundHeight(0, 0)));
+  small.add(makeTree(1.5, -1, 0.9, 41, lights, swingers, [], true).translateY(0.3 - groundHeight(1.5, -1)));
+  colliders.push({ x: 51.5, z: 7, r: 0.9 });
   root.add(small);
 
   // grass tufts at the edges (calm in the middle), flowers in drifts
-  const tuftGeo = new ConeGeometry(0.06, 0.36, 4, 1).translate(0, 0.18, 0);
+  const tuftGeo = mergeGeometries([-0.35, 0.05, 0.4].map((lean, i) => {
+    const g = new ConeGeometry(0.03, 0.34 - i * 0.04, 3, 1).translate(0, 0.17, 0);
+    g.rotateZ(lean); g.rotateY(i * 2.1); g.translate(Math.sin(i * 2.1) * 0.04, 0, Math.cos(i * 2.1) * 0.04);
+    return g;
+  }));
   const tuftTints = [new Color('#ffffff'), new Color('#e8f0c8'), new Color('#d6e6b0'), new Color('#f2e4b0')];
   root.add(scatterInstanced(tuftGeo, M.tuft, 2600, (r) => {
     const a = r() * 6.283, d = Math.sqrt(r()) * R;
@@ -459,14 +543,14 @@ export function buildLanternForest() {
     return { x, y: groundHeight(x, z) - 0.05, z, s: 0.5 + r() * 0.6, rx: (r() - 0.5) * 0.5, rz: (r() - 0.5) * 0.5 };
   }, 51, tuftTints));
 
-  const flowerGeo = displace(new IcosahedronGeometry(0.11, 1), 0.02, 5, 1);
-  root.add(scatterInstanced(flowerGeo, M.flower, 900, (r) => {
+  const flowerGeo = displace(new IcosahedronGeometry(0.075, 1), 0.012, 5, 1);
+  root.add(scatterInstanced(flowerGeo, M.flower, 1400, (r) => {
     const a = r() * 6.283, d = Math.sqrt(r()) * R;
     const x = Math.cos(a) * d, z = Math.sin(a) * d;
     if (!onIsland(x, z) || pathMask(x, z) > 0.05) return null;
     const drift = noise3(x * 0.22 + 7, 2, z * 0.22);
-    if (drift < 0.56 + r() * 0.12) return null;
-    return { x, y: groundHeight(x, z) + 0.12 + r() * 0.15, z, s: 0.8 + r() * 0.8, sy: 0.6 };
+    if (drift < 0.6 + r() * 0.1) return null;
+    return { x, y: groundHeight(x, z) + 0.1 + r() * 0.16, z, s: 0.7 + r() * 0.6 };
   }, 52, PAL.flowers));
 
   // waterfall off the north-west cliff (secret cave goes here in round 4)
@@ -494,5 +578,14 @@ export function buildLanternForest() {
     return best;
   };
 
-  return { root, lights, colliders, stoneLanterns, update, floorAt, spawn: new Vector3(1, 0, 10) };
+  // checkpoints: start, before the arch, and on the far side of the bridge
+  const checkpoints = [[1.2, 11.5], [1.4, -13.5], [46, 8.2]].map(([x, z]) => {
+    const ws = makeWaystone(x, z, floorAt(x, z));
+    root.add(ws.obj);
+    colliders.push({ x: x + 1.25, z, r: 0.2 });
+    return ws;
+  });
+  const update2 = (t, dt) => { update(t); checkpoints.forEach((c) => c.update(t, dt)); };
+
+  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, spawn: new Vector3(1.2, 0, 11.5) };
 }

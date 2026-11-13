@@ -6,7 +6,8 @@
     "dev": "vite --host",
     "build": "vite build",
     "preview": "vite preview --host",
-    "capture": "node tools/capture.mjs"
+    "capture": "node tools/capture.mjs",
+    "playtest": "node tools/playtest.mjs"
   },
   "keywords": [],
   "author": "",

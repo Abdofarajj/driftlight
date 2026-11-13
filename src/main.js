@@ -6,6 +6,8 @@ import { buildLanternForest } from './world/forest.js';
 import { Traveler } from './player/traveler.js';
 import { Input } from './input.js';
 import { SHOTS } from './shots.js';
+import { Actor } from './player/actor.js';
+import { Hands } from './player/hands.js';
 
 ColorManagement.enabled = false; // palette colours are used as-is
 
@@ -32,18 +34,21 @@ scene.add(world.root);
 const sparkles = makeSparkles();
 scene.add(sparkles);
 
-// players: red = you, blue = friend (idle until round 2 online)
-const me = new Traveler('red');
-const friend = new Traveler('blue');
-scene.add(me.root, me.shadow, friend.root, friend.shadow);
+// players: him = you (Abdo), her = your girlfriend. ?as=her swaps who you control.
+const playAs = params.get('as') === 'her' ? 'her' : 'him';
+const meT = new Traveler(playAs);
+const friendT = new Traveler(playAs === 'him' ? 'her' : 'him');
+const me = meT, friend = friendT; // shots.js names
+scene.add(meT.root, meT.shadow, friendT.root, friendT.shadow);
 
-const state = {
-  pos: world.spawn.clone(), vel: new Vector3(), heading: Math.PI, grounded: true, glide: false,
-  camYaw: 0, camPitch: 0.36, camDist: 9,
-};
-state.pos.y = world.floorAt(state.pos.x, state.pos.z);
-const friendPos = new Vector3(state.pos.x - 1.3, 0, state.pos.z + 0.2);
-friendPos.y = world.floorAt(friendPos.x, friendPos.z);
+const spawn = world.spawn.clone(); spawn.y = world.floorAt(spawn.x, spawn.z);
+const A = new Actor(meT, spawn);
+const B = new Actor(friendT, new Vector3(spawn.x - 1.2, 0, spawn.z - 1.6));
+B.pos.y = world.floorAt(B.pos.x, B.pos.z);
+const hands = new Hands(A, B, scene);
+const cam = { yaw: 0, pitch: 0.36, dist: 9, manualT: 10 };
+let checkpoint = world.checkpoints[0];
+checkpoint.active = true;
 
 function resize() {
   const w = innerWidth, h = innerHeight;
@@ -53,13 +58,19 @@ function resize() {
   // portrait phones: wider vertical FOV and a bit further back so the world still reads
   const portrait = h > w;
   camera.fov = portrait ? 62 : 46;
-  state.camDist = portrait ? 8.5 : 9.5;
+  cam.dist = portrait ? 8.5 : 9.5;
   camera.updateProjectionMatrix();
 }
 addEventListener('resize', resize);
 resize();
 
 const input = shot ? null : new Input(canvas);
+const toastEl = document.getElementById('toast');
+let toastTimer = 0;
+function toast(msg) {
+  toastEl.textContent = msg; toastEl.classList.add('on');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 1800);
+}
 
 // ---- lights: nearest lanterns + the two player lanterns ----
 const tmp = new Vector3();
@@ -71,105 +82,149 @@ function updateLights(focus) {
   }).sort((a, b) => a.d - b.d);
   const pos = shared.uLightPos.value, str = shared.uLightStr.value;
   let i = 0;
-  for (const t of [me, friend]) { t.bulb.getWorldPosition(pos[i]); str[i] = 0.6; i++; }
+  const shareBoost = hands.linked ? 1.6 : 1; // holding hands = shared, brighter light
+  for (const t of [meT, friendT]) { t.bulb.getWorldPosition(pos[i]); str[i] = 0.6 * shareBoost; t.glowMat.uniforms.uStr.value = 1.3 * (hands.linked ? 1.3 : 1); i++; }
   for (const l of L) { if (i >= MAX_LIGHTS) break; pos[i].copy(l.p); str[i] = l.s; i++; }
   for (; i < MAX_LIGHTS; i++) str[i] = 0;
 }
 
 function placeShadow(t, p) {
   const f = world.floorAt(p.x, p.z);
-  if (f === null) { t.shadow.visible = false; return; }
+  if (f === null || p.y < f - 1) { t.shadow.visible = false; return; }
   t.shadow.visible = true;
   t.shadow.position.set(p.x, f + 0.03, p.z);
   const h = Math.max(0, p.y - f);
-  t.shadow.scale.setScalar(0.9 / (1 + h * 0.3));
+  t.shadow.scale.setScalar(1.1 / (1 + h * 0.3));
 }
 
-// ---- movement ----
-const GRAV = 24, JUMP = 8.2, SPEED = 4.6;
+// ---- autopilot (used by the playtest bot via window.__game.goTo) ----
+let auto = null;
+function autopilotIntent(dt) {
+  if (!auto) return null;
+  const dx = auto.x - A.pos.x, dz = auto.z - A.pos.z, d = Math.hypot(dx, dz);
+  auto.t += dt;
+  if (d < (auto.tol ?? 0.7)) { const r = auto.resolve; auto = null; r({ ok: true, reason: 'arrived' }); return { x: 0, z: 0 }; }
+  if (auto.t - auto.lastT > 1.5) {
+    if (auto.lastD - d < 0.3) { const r = auto.resolve; auto = null; r({ ok: false, reason: 'stuck', at: [A.pos.x, A.pos.y, A.pos.z] }); return { x: 0, z: 0 }; }
+    auto.lastD = d; auto.lastT = auto.t;
+  }
+  if (auto.t > (auto.timeout ?? 25)) { const r = auto.resolve; auto = null; r({ ok: false, reason: 'timeout' }); return { x: 0, z: 0 }; }
+  return { x: dx / d, z: dz / d, run: auto.run };
+}
+
+// ---- one game step ----
+function respawn() {
+  const fade = document.getElementById('fade');
+  if (respawning) return;
+  respawning = true;
+  fade.classList.add('on');
+  setTimeout(() => {
+    if (auto) { const r = auto.resolve; auto = null; r({ ok: false, reason: 'respawned' }); }
+    const p = checkpoint.pos;
+    A.pos.set(p.x, p.y + 0.1, p.z); A.vel.set(0, 0, 0); A.heading = Math.PI;
+    if (hands.linked || B.pos.y < -18) { B.pos.set(p.x - 1.0, p.y + 0.1, p.z); B.vel.set(0, 0, 0); B.heading = Math.PI; }
+    cam.yaw = 0;
+    fade.classList.remove('on');
+    respawning = false;
+    stats.respawns++;
+  }, 380);
+}
+let respawning = false;
+const stats = { respawns: 0, checkpoints: 1 };
+
 function step(dt) {
   input.update();
   const [dx, dy] = input.consumeCam();
-  state.camYaw -= dx * 0.005;
-  state.camPitch = Math.max(0.12, Math.min(0.9, state.camPitch + dy * 0.003));
+  if (dx || dy) cam.manualT = 0; else cam.manualT += dt;
+  cam.yaw -= dx * 0.005;
+  cam.pitch = Math.max(0.12, Math.min(0.9, cam.pitch + dy * 0.003));
 
-  const fwd = new Vector3(-Math.sin(state.camYaw), 0, -Math.cos(state.camYaw));
-  const right = new Vector3(-fwd.z, 0, fwd.x);
-  const want = new Vector3().addScaledVector(right, input.move.x).addScaledVector(fwd, input.move.y);
-  const mag = want.length();
-  const accel = state.grounded ? 14 : 5;
-  state.vel.x += (want.x * SPEED - state.vel.x) * Math.min(1, accel * dt);
-  state.vel.z += (want.z * SPEED - state.vel.z) * Math.min(1, accel * dt);
-  if (mag > 0.05) {
-    const target = Math.atan2(want.x, want.z);
-    let d = target - state.heading; d = Math.atan2(Math.sin(d), Math.cos(d));
-    state.heading += d * Math.min(1, dt * 12);
+  // intent in world space, relative to the camera
+  const fwdX = -Math.sin(cam.yaw), fwdZ = -Math.cos(cam.yaw);
+  const ap = autopilotIntent(dt);
+  let ix, iz, run;
+  if (ap) { ix = ap.x; iz = ap.z; run = !!ap.run; } else {
+    ix = fwdX * input.move.y - fwdZ * input.move.x;
+    iz = fwdZ * input.move.y + fwdX * input.move.x;
+    run = input.run;
   }
-  if (input.consumeJump() && state.grounded) { state.vel.y = JUMP; state.grounded = false; }
-  state.vel.y -= GRAV * dt;
-  state.glide = !state.grounded && state.vel.y < 0 && input.jumpHeld;
-  if (state.glide) state.vel.y = Math.max(state.vel.y, -1.8);
+  Object.assign(A.intent, { x: ix, z: iz, run, jumpHeld: input.jumpHeld || botJumpHeld });
+  if (input.consumeJump() || botJump) { A.intent.jump = true; botJump = false; }
+  B.intent.x = 0; B.intent.z = 0; B.intent.run = false; B.intent.jumpHeld = false;
 
-  const p = state.pos;
-  p.addScaledVector(state.vel, dt);
-  for (const c of world.colliders) {
-    const ex = p.x - c.x, ez = p.z - c.z, d = Math.hypot(ex, ez), r = c.r + 0.3;
-    if (d < r && d > 1e-4) { p.x = c.x + (ex / d) * r; p.z = c.z + (ez / d) * r; }
+  if (input.consumeHands()) {
+    const r = hands.toggle();
+    if (r === 'too-far') toast('Get closer to hold hands');
+    document.getElementById('bhands').classList.toggle('on', hands.linked);
   }
-  const f = world.floorAt(p.x, p.z);
-  if (f !== null && p.y <= f + 0.02 && state.vel.y <= 0) {
-    if (!state.grounded) me.land(Math.min(1, -state.vel.y / 14));
-    p.y = f; state.vel.y = 0; state.grounded = true;
-  } else if (f === null || p.y > f + 0.25) {
-    state.grounded = false;
-  } else if (state.grounded) {
-    p.y = f;
+  hands.step(dt, world);
+
+  // camera: drifts behind the direction you walk, unless you moved it by hand recently
+  if (cam.manualT > 0.7 && A.speed01 > 0.15) {
+    const target = A.heading + Math.PI;
+    const d = Math.atan2(Math.sin(target - cam.yaw), Math.cos(target - cam.yaw));
+    const toward = 1 - smooth(1.9, 2.8, Math.abs(d)); // walking at the camera: don't swing round
+    const rate = 1.6 * Math.min(1, A.speed01) * toward;
+    cam.yaw += d * Math.min(1, rate * dt);
   }
-  if (p.y < -40) { p.copy(world.spawn); p.y = world.floorAt(p.x, p.z) + 3; state.vel.set(0, 0, 0); }
-  return Math.min(1, Math.hypot(state.vel.x, state.vel.z) / SPEED);
+
+  // checkpoints
+  for (const c of world.checkpoints) {
+    if (A.pos.distanceTo(c.pos) < 1.7 && c !== checkpoint) {
+      if (c.activate()) { toast('Checkpoint ✦'); stats.checkpoints++; }
+      checkpoint = c;
+    }
+  }
+  if (A.pos.y < -18 || B.pos.y < -30) respawn();
 }
+function smooth(a, b, x) { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); }
+let botJump = false, botJumpHeld = false;
 
 // ---- loop ----
 let last = performance.now();
 let t = 0;
 const camPos = new Vector3(), camLook = new Vector3();
+const FAST = Number(params.get('fast')) || 0;
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (shot) {
     t = shot.time ?? 2.0;
-    shot.apply({ me, friend, camera, world });
+    shot.apply({ me: meT, friend: friendT, camera, world });
   } else {
-    t += dt;
-    const sp = step(dt);
-    me.root.position.copy(state.pos);
-    me.root.rotation.y = state.heading;
-    me.animate(dt, t, sp, !state.grounded, state.glide);
-    // friend idles and turns toward you
-    friend.root.position.copy(friendPos);
-    friend.root.rotation.y = Math.atan2(state.pos.x - friendPos.x, state.pos.z - friendPos.z) * 0.5 + Math.PI * 0.5;
-    friend.animate(dt, t + 1.3, 0, false, false);
+    // ?fast=N runs N fixed physics steps per rendered frame (used by the playtest bot on slow headless GPUs)
+    const n = FAST || 1, sdt = FAST ? 1 / 30 : dt;
+    for (let k = 0; k < n; k++) {
+      t += sdt;
+      step(sdt);
+      A.apply(sdt, t);
+      B.apply(sdt, t + 1.3);
+    }
+    hands.afterAnimate(t, camera);
 
-    const target = new Vector3(state.pos.x, state.pos.y + 1.1, state.pos.z);
-    const cd = state.camDist;
+    const target = new Vector3(A.pos.x, A.pos.y + 1.1, A.pos.z);
+    const cd = cam.dist;
     const want = new Vector3(
-      target.x + Math.sin(state.camYaw) * Math.cos(state.camPitch) * cd,
-      target.y + Math.sin(state.camPitch) * cd,
-      target.z + Math.cos(state.camYaw) * Math.cos(state.camPitch) * cd,
+      target.x + Math.sin(cam.yaw) * Math.cos(cam.pitch) * cd,
+      target.y + Math.sin(cam.pitch) * cd,
+      target.z + Math.cos(cam.yaw) * Math.cos(cam.pitch) * cd,
     );
+    // never let the camera dip into the ground
+    const gy = world.floorAt(want.x, want.z);
+    if (gy !== null) want.y = Math.max(want.y, gy + 1.2);
     if (camPos.lengthSq() === 0) { camPos.copy(want); camLook.copy(target); }
-    camPos.lerp(want, 1 - Math.exp(-dt * 6));
-    camLook.lerp(target, 1 - Math.exp(-dt * 10));
+    const cdt = FAST ? FAST / 30 : dt;
+    camPos.lerp(want, 1 - Math.exp(-cdt * 6));
+    camLook.lerp(target, 1 - Math.exp(-cdt * 10));
     camera.position.copy(camPos);
     camera.lookAt(camLook.x, camLook.y + 0.6, camLook.z);
   }
-  placeShadow(me, me.root.position);
-  placeShadow(friend, friend.root.position);
+  placeShadow(meT, meT.root.position);
+  placeShadow(friendT, friendT.root.position);
   shared.uTime.value = t;
-  world.update(t);
+  world.update(t, dt);
   sparkles.userData.update(t);
-  sparkles.position.set(0, 0, 0);
-  updateLights(shot ? camera.position : state.pos);
+  updateLights(shot ? camera.position : A.pos);
   post.render(scene, camera, t);
   frames++;
   if (shot && frames === 3) { window.__ready = true; return; } // freeze: captures need a still frame
@@ -177,6 +232,17 @@ function frame(now) {
 }
 let frames = 0;
 requestAnimationFrame(frame);
+
+// Debug / playtest hooks (used by tools/playtest.mjs).
+window.__game = {
+  A, B, hands, cam, stats, world,
+  get checkpoint() { return world.checkpoints.indexOf(checkpoint); },
+  goTo(x, z, opts = {}) { return new Promise((resolve) => { auto = { x, z, t: 0, lastT: 0, lastD: 1e9, resolve, ...opts }; }); },
+  jump(hold = 0) { botJump = true; botJumpHeld = hold > 0; if (hold > 0) setTimeout(() => (botJumpHeld = false), hold); },
+  holdHands() { input.handsPressed = true; },
+  teleport(x, z, heading = Math.PI) { A.pos.set(x, world.floorAt(x, z) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
+  pos() { return { me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
+};
 
 // tiny FPS readout with ?fps
 if (params.has('fps')) {

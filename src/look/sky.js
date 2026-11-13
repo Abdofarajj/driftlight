@@ -90,7 +90,12 @@ function makeCloudSea() {
     const big = 4 + r() * 10 + d * 0.04;
     for (let k = 0; k < n; k++) {
       const s = big * (0.5 + r() * 0.6);
-      puffs.push([cx + (r() - 0.5) * big * 2.2, cy + r() * big * 0.5, cz + (r() - 0.5) * big * 1.6, s, s * (0.7 + r() * 0.2), s]);
+      const px = cx + (r() - 0.5) * big * 2.2, pz = cz + (r() - 0.5) * big * 1.6;
+      let py = cy + r() * big * 0.5;
+      // keep the play space clear: no cloud tops near the islands or the bridge corridor
+      const near = Math.min(Math.hypot(px, pz) - 30, Math.hypot(px - 50, pz - 8) - 14, Math.abs(pz - 7.5) - 9 + (px < 18 || px > 60 ? 99 : 0));
+      if (near < 12) py = Math.min(py, -6 - s * 0.6 - Math.max(0, 12 - near) * 0.4);
+      puffs.push([px, py, pz, s, s * (0.7 + r() * 0.2), s]);
     }
   }
   const im = new InstancedMesh(geo, mat, puffs.length);

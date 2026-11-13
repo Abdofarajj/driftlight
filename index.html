@@ -29,6 +29,13 @@
     #bhands svg { width: 56px; height: 56px; }
     .down { transform: scale(0.92); filter: brightness(1.15); }
     #hint { left: 50%; bottom: calc(env(safe-area-inset-bottom) + 18px); transform: translateX(-50%); font-size: 14px; opacity: 0.9; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.6); white-space: nowrap; }
+    #toast { left: 50%; top: calc(env(safe-area-inset-top) + 22px); transform: translate(-50%, -8px); padding: 8px 18px; border-radius: 999px; background: var(--glass);
+      border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); font-size: 16px; font-weight: 700; opacity: 0; transition: opacity .4s, transform .4s;
+      text-shadow: 0 1px 6px rgba(120, 70, 90, 0.5); pointer-events: none; white-space: nowrap; }
+    #toast.on { opacity: 1; transform: translate(-50%, 0); }
+    #fade { position: fixed; inset: 0; z-index: 3; background: #fbe6d8; opacity: 0; pointer-events: none; transition: opacity .35s; }
+    #fade.on { opacity: 1; }
+    #bhands.on { box-shadow: 0 0 34px rgba(255, 210, 120, 0.95); background: radial-gradient(circle, rgba(255, 228, 160, 0.85), rgba(255, 196, 110, 0.55)); }
     @media (hover: hover) and (pointer: fine) { .touch { display: none !important; } }
     @media (hover: none), (pointer: coarse) { #hint { display: none; } }
     body.shot .ui, body.shot #joy { display: none; }
@@ -45,7 +52,9 @@
   <div id="joy" class="touch"><div id="knob"></div></div>
   <div class="ui round touch" id="bjump"><svg viewBox="0 0 24 24"><path d="M12 2 C13 9 15 11 22 12 C15 13 13 15 12 22 C11 15 9 13 2 12 C9 11 11 9 12 2Z" fill="#fff4d6"/></svg></div>
   <div class="ui round touch" id="bhands"><svg viewBox="0 0 48 48" fill="#fff7ea"><circle cx="15" cy="10" r="5"/><circle cx="33" cy="10" r="5"/><path d="M9 18h12l3 8 3-8h12v4l-6 2v20h-5V31h-2v13h-2V31h-2v13h-5V24l-6-2z"/></svg></div>
-  <div class="ui" id="hint">WASD / arrows to walk · Space to jump, hold to glide · drag to look</div>
+  <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · drag to look</div>
+  <div class="ui" id="toast"></div>
+  <div id="fade"></div>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

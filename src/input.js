@@ -16,6 +16,7 @@ export class Input {
       if (e.repeat) return;
       this.keys.add(e.code);
       if (e.code === 'Space') { this.jumpPressed = true; e.preventDefault(); }
+      if (e.code === 'KeyE' || e.code === 'KeyF') this.handsPressed = true;
     });
     addEventListener('keyup', (e) => this.keys.delete(e.code));
     addEventListener('blur', () => this.keys.clear());
@@ -70,7 +71,10 @@ export class Input {
     };
     this.btnJump = false; this.btnHands = false;
     btn('bjump', () => { this.btnJump = true; this.jumpPressed = true; }, () => (this.btnJump = false));
-    btn('bhands', () => (this.btnHands = true), () => (this.btnHands = false));
+    btn('bhands', () => { this.btnHands = true; this.handsPressed = true; }, () => (this.btnHands = false));
+    this.handsPressed = false;
+    this.run = false;
+    this.camActive = 0; // seconds since the player last moved the camera by hand
   }
 
   update() {
@@ -80,6 +84,7 @@ export class Input {
     if (k.has('KeyS') || k.has('ArrowDown')) y -= 1;
     if (k.has('KeyD') || k.has('ArrowRight')) x += 1;
     if (k.has('KeyA') || k.has('ArrowLeft')) x -= 1;
+    let joyRun = false;
     if (this.touch.id !== null) {
       const R = 52;
       let dx = this.touch.x - this.touch.ox, dy = this.touch.y - this.touch.oy;
@@ -87,14 +92,16 @@ export class Input {
       if (l > R) { dx *= R / l; dy *= R / l; }
       this.knobEl.style.transform = `translate(${dx}px, ${dy}px)`;
       x = dx / R; y = -dy / R;
+      joyRun = Math.hypot(dx, dy) > R * 0.93; // push the stick all the way to run
     }
     const l = Math.hypot(x, y);
     if (l > 1) { x /= l; y /= l; }
     this.move.x = x; this.move.y = y;
     this.jumpHeld = k.has('Space') || this.btnJump;
-    this.handsHeld = k.has('KeyE') || k.has('ShiftLeft') || this.btnHands;
+    this.run = k.has('ShiftLeft') || k.has('ShiftRight') || joyRun;
   }
 
+  consumeHands() { const h = this.handsPressed; this.handsPressed = false; return h; }
   consumeJump() { const j = this.jumpPressed; this.jumpPressed = false; return j; }
   consumeCam() { const d = [this.camDX, this.camDY]; this.camDX = 0; this.camDY = 0; return d; }
 }
