@@ -19,7 +19,7 @@ import { displace } from './shapes.js';
 
 const PICK = 1.35;   // how close you walk to pick one up
 const NEAR = 8;      // the shimmer and chime start this close
-const SOCKET_R = 3.0; // both of you this close to the stone
+const SOCKET_R = 3.6; // both of you this close to the stone (generous: one of you is usually a step behind)
 const NEED = 1.4;    // seconds of standing there together
 const flat = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
 

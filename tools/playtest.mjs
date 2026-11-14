@@ -23,7 +23,7 @@ const pos = () => G(() => window.__game.pos());
 const goTo = (x, z, opts = {}) => G(([x, z, o]) => window.__game.goTo(x, z, o), [x, z, opts]);
 const wait = (ms) => page.waitForTimeout(ms);
 let shotN = 0;
-const shot = async (name) => { const f = `${out}/${String(++shotN).padStart(2, '0')}-${name}.png`; await page.screenshot({ path: f }); return f; };
+const shot = async (name) => { const f = `${out}/${String(++shotN).padStart(2, '0')}-${name}.png`; await page.screenshot({ path: f, timeout: 120000 }); return f; };
 const results = [];
 // --from-lake: skip straight to the Crystal Lake checks (set up as if the lantern quest and shrine were done)
 // --from-desert: skip to the Sunset Desert checks (the crystal heart already awake)
@@ -217,15 +217,18 @@ await objective('lantern quest: light all 5 lanterns together, holding hands', a
 // ---- keepsakes (2026-11-14): each island's three, placed together at its stone, open the way on ----
 const ks = (id) => G((id) => { const K = window.__game.keepsakes; return { n: K.count(id), of: K.of(id), placed: K.placed(id), stone: K.set(id).pos.toArray(),
   left: K.items.filter((it) => it.set.id === id && !it.got).map((it) => [it.key, ...it.pos.toArray()]) }; }, id);
+const stoneWhy = (id) => G((id) => { const g = window.__game, s = g.keepsakes.set(id), d = (p) => Math.hypot(p.x - s.pos.x, p.z - s.pos.z).toFixed(1);
+  return `linked=${g.hands.linked} me ${d(g.A.pos)} m / her ${d(g.B.pos)} m from the stone, charge=${s.charge.toFixed(2)}`; }, id);
 /** walk hand in hand to the stone and wait for the keepsakes to settle in */
 async function fillStone(id, via = []) {
   const k = await ks(id);
   for (const [x, z] of via) await goTo(x, z, { tol: 0.8, timeout: 30 });
   const r = await goTo(k.stone[0] + 1.6, k.stone[2] + 0.6, { tol: 0.6, timeout: 30 });
   if (!(await pos()).linked) { await G(() => window.__game.holdHands()); await wait(900); }
-  for (let i = 0; i < 20 && !(await ks(id)).placed; i++) await wait(600);
+  // wait on the game, not the clock: on a slow headless GPU a few seconds of play can take a minute
+  await page.waitForFunction((id) => window.__game.keepsakes.placed(id), id, { timeout: 90000 }).catch(() => {});
   await shot(`stone-${id}`);
-  return { r, k: await ks(id) };
+  return { r, k: { ...(await ks(id)), why: await stoneWhy(id) } };
 }
 
 await objective('keepsakes: the bridge waits for the firefly jars; gather all three and place them at the stone together', async () => {
@@ -240,7 +243,7 @@ await objective('keepsakes: the bridge waits for the firefly jars; gather all th
   await G(() => { const g = window.__game; g.teleport(2, -12, Math.PI); g.B.pos.set(3, g.world.floorAt(3, -12), -12); g.B.vel.set(0, 0, 0); });
   await wait(600); await G(() => window.__game.holdHands()); await wait(900);
   const { k } = await fillStone('forest');
-  return { pass: shut && k.n === 3 && k.placed, note: `bridge waited=${shut} jars=${k.n}/${k.of} placed=${k.placed} left=${JSON.stringify(k.left)} walks=${log.join(',')}` };
+  return { pass: shut && k.n === 3 && k.placed, note: `bridge waited=${shut} jars=${k.n}/${k.of} placed=${k.placed} (${k.why}) left=${JSON.stringify(k.left)} walks=${log.join(',')}` };
 });
 
 await objective('bridge of light rises and leads to the shrine star', async () => {
@@ -413,7 +416,7 @@ await objective('keepsakes: the rowboat brought back a moon pearl; find the othe
   const st = (await ks('lake')).stone;
   await shoreTo(lakeAng(st[0], st[2]));
   const { k } = await fillStone('lake');
-  return { pass: shut && boatPearl && k.n === 3 && k.placed, note: `bridge waited=${shut} pearl from the boat=${boatPearl} pearls=${k.n}/${k.of} placed=${k.placed} left=${JSON.stringify(k.left)} walks=${log.join(',')}` };
+  return { pass: shut && boatPearl && k.n === 3 && k.placed, note: `bridge waited=${shut} pearl from the boat=${boatPearl} pearls=${k.n}/${k.of} placed=${k.placed} (${k.why}) left=${JSON.stringify(k.left)} walks=${log.join(',')}` };
 });
 
 await objective('the crystal heart raises a sandstone bridge; cross it hand in hand to the Sunset Desert', async () => {
@@ -634,7 +637,7 @@ await objective('keepsakes: gather the three pieces of sun-glass and place them 
   await G(([x, y, z]) => { const g = window.__game; g.teleport(x + 1.6, z + 2.2, 0, y + 0.5); g.B.pos.set(x + 2.4, g.world.floorAt(x + 2.4, z + 2.4, y + 0.5) ?? y, z + 2.4); g.B.vel.set(0, 0, 0); }, st);
   await wait(800); if (!(await pos()).linked) { await G(() => window.__game.holdHands()); await wait(900); }
   const { k } = await fillStone('desert');
-  return { pass: shut && k.n === 3 && k.placed, note: `bridge waited=${shut} sun-glass=${k.n}/${k.of} placed=${k.placed} left=${JSON.stringify(k.left)} walks=${log.join(',')}` };
+  return { pass: shut && k.n === 3 && k.placed, note: `bridge waited=${shut} sun-glass=${k.n}/${k.of} placed=${k.placed} (${k.why}) left=${JSON.stringify(k.left)} walks=${log.join(',')}` };
 });
 
 await objective('the little sun home raises an old rope bridge; cross it hand in hand into the dark Hollow', async () => {
@@ -927,9 +930,9 @@ async function gatherNear(id, y0) {
   await G(() => { const g = window.__game; if (g.hands.linked) g.holdHands(); }); await wait(400);
   await G(([x, y, z]) => { const g = window.__game; g.teleport(x + 1.6, z + 1.6, 0, y + 0.5); g.B.pos.set(x + 2.3, g.world.floorAt(x + 2.3, z + 2.2, y + 0.5) ?? y, z + 2.2); g.B.vel.set(0, 0, 0); }, st);
   await wait(800); await G(() => window.__game.holdHands()); await wait(900);
-  for (let i = 0; i < 20 && !(await ks(id)).placed; i++) await wait(600);
+  await page.waitForFunction((id) => window.__game.keepsakes.placed(id), id, { timeout: 90000 }).catch(() => {});
   await shot(`stone-${id}`);
-  return { k: await ks(id), log };
+  return { k: { ...(await ks(id)), why: await stoneWhy(id) }, log };
 }
 
 await objective('keepsakes: follow the humming to the three lullaby notes, and place them at the stone by the way on together', async () => {
@@ -937,7 +940,7 @@ await objective('keepsakes: follow the humming to the three lullaby notes, and p
   const { k, log } = await gatherNear('hollow');
   for (let i = 0; i < 20 && !(await G(() => window.__game.peakQuest.opened)); i++) await wait(600);
   const opened = await G(() => window.__game.peakQuest.opened);
-  return { pass: shut && k.n === 3 && k.placed && opened, note: `bridge waited=${shut} notes=${k.n}/${k.of} placed=${k.placed} bridge opens after=${opened} walks=${log.join(',')}` };
+  return { pass: shut && k.n === 3 && k.placed && opened, note: `bridge waited=${shut} notes=${k.n}/${k.of} placed=${k.placed} (${k.why}) bridge opens after=${opened} walks=${log.join(',')}` };
 });
 
 await objective('the fireflies raise a stone bridge; cross it hand in hand to the Snowy Peak', async () => {
@@ -1142,7 +1145,7 @@ async function fetchHerT() {
 await objective('keepsakes: the three aurora feathers, placed together at the stone on the summit', async () => {
   const shut = await G(() => window.__game.peakQuest.rung && !window.__game.towerQuest.opened);
   const { k, log } = await gatherNear('peak');
-  return { pass: shut && k.n === 3 && k.placed, note: `steps waited=${shut} feathers=${k.n}/${k.of} placed=${k.placed} walks=${log.join(',')}` };
+  return { pass: shut && k.n === 3 && k.placed, note: `steps waited=${shut} feathers=${k.n}/${k.of} placed=${k.placed} (${k.why}) walks=${log.join(',')}` };
 });
 
 await objective('the aurora lifts a stair of cloud steps from the summit', async () => {
