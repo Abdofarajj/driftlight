@@ -409,7 +409,9 @@ await objective('out in the open in the Windy Pass, a gust pushes you back and t
   const exposed = dl(1.9, 2.4);
   const r = await goTo(...exposed, { tol: 0.5 });
   const before = await pos();
-  await phaseIs('gust'); await wait(900);
+  await phaseIs('gust');
+  // game time, not real time: a quarter second out in the gust tears your hands apart (frames can be slow here)
+  await page.waitForFunction(() => window.__game.desertQuest.tears >= 1 || window.__game.desertQuest.phase !== 'gust', null, { timeout: 30000 }).catch(() => {});
   const mid = await pos(), q = await ds(), msg = await toast(); await shot('gust-torn');
   await phaseIs('calm');
   const after = await pos();
@@ -604,8 +606,9 @@ await objective('hand in hand by an old lamp post, it glows again and becomes wh
 
 await objective('let go in the dark: the shy shadows creep in and dim your lantern until it goes out, and you wake by the lamp you lit', async () => {
   await unlink();
-  await G(() => { const q = window.__game.hollowQuest; window.__lo = { minLv: 1, cling: 0, out: false, prev: 1, near: 99 };
+  await G(() => { const q = window.__game.hollowQuest; window.__lo = { minLv: 1, cling: 0, out: false, prev: 1, near: 99, dimMsg: '' };
     const tick = () => { const w = window.__lo, lv = q.lv[0], A = window.__game.A.pos;
+      const tt = document.querySelector('#toast').textContent; if (/dimming your lantern/.test(tt)) w.dimMsg = tt; // it can be replaced before the bot looks
       if (lv > w.prev + 0.5) w.out = true; w.prev = lv; w.minLv = Math.min(w.minLv, lv); w.cling = Math.max(w.cling, q.clinging[0]);
       for (const s of q.shadows) w.near = Math.min(w.near, Math.hypot(s.pos.x - A.x, s.pos.z - A.z));
       if (!w.out) requestAnimationFrame(tick); };
@@ -613,11 +616,10 @@ await objective('let go in the dark: the shy shadows creep in and dim your lante
   const r = await hgo(HW.heart, { tol: 0.8 }); // the middle of the Hollow, far from the lit lamp
   await page.waitForFunction(() => window.__lo.minLv < 0.6, null, { timeout: 120000 }).catch(() => {});
   await shot('lantern-dimming');
-  const dimMsg = await toast();
   await page.waitForFunction(() => window.__lo.out, null, { timeout: 150000 }).catch(() => {});
   const outMsg = await toast();
   await wait(1500);
-  const w = await G(() => window.__lo), p = await pos(), q = await hq();
+  const w = await G(() => window.__lo), p = await pos(), q = await hq(), dimMsg = w.dimMsg;
   const fromLamp = dist2(p.me, HW.lampCps[0]);
   await shot('woke-by-lamp');
   return { pass: w.cling >= 1 && w.minLv < 0.1 && w.out && /dimming your lantern/.test(dimMsg) && /went out/.test(outMsg) && fromLamp < 1.5 && q.lv[0] > 0.9 && p.cp === HW.cpLamps[0],
@@ -881,19 +883,19 @@ await objective('hand in hand by the meadow brazier, it roars to life and become
 
 await objective('let go out in the cold: your lantern dims until it goes out, and you wake by the brazier', async () => {
   await unlink();
-  await G(() => { const q = window.__game.peakQuest; window.__lo = { minLv: 1, out: false, prev: 1, coldF: 0, stop: false };
+  await G(() => { const q = window.__game.peakQuest; window.__lo = { minLv: 1, out: false, prev: 1, coldF: 0, stop: false, dimMsg: '' };
     const tick = () => { const w = window.__lo, lv = q.lv[0];
+      const tt = document.querySelector('#toast').textContent; if (/cold is dimming your lantern/.test(tt)) w.dimMsg = tt;
       if (lv > w.prev + 0.5) w.out = true; w.prev = lv; w.minLv = Math.min(w.minLv, lv); w.coldF = Math.max(w.coldF, q.cold[1]);
       if (!w.out) requestAnimationFrame(tick); };
     tick(); });
   const r = await pgo(KW.cold, { tol: 0.8 }); // out on the meadow, away from the brazier's warmth
   await page.waitForFunction(() => window.__lo.minLv < 0.6, null, { timeout: 150000 }).catch(() => {});
   await shot('lantern-cold');
-  const dimMsg = await toast();
   await page.waitForFunction(() => window.__lo.out, null, { timeout: 200000 }).catch(() => {});
   const outMsg = await toast();
   await wait(1500);
-  const w = await G(() => window.__lo), p = await pos(), q = await pq();
+  const w = await G(() => window.__lo), p = await pos(), q = await pq(), dimMsg = w.dimMsg;
   const fromB = dist2(p.me, KW.brazierCps[0]);
   return { pass: w.minLv < 0.1 && w.out && /cold is dimming your lantern/.test(dimMsg) && /cold put your lantern out/.test(outMsg) && fromB < 1.5 && q.lv[0] > 0.9 && p.cp === KW.cpBraz[0] && w.coldF === 0,
     note: `walk=${JSON.stringify(r)} lantern down to ${w.minLv.toFixed(2)}, out=${w.out} "${dimMsg}" / "${outMsg}", woke ${fromB.toFixed(1)} m from the brazier, her cold (warm by the fire)=${w.coldF}` };
