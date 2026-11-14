@@ -222,6 +222,11 @@ const stoneWhy = (id) => G((id) => { const g = window.__game, s = g.keepsakes.se
 /** walk hand in hand to the stone and wait for the keepsakes to settle in */
 async function fillStone(id, via = []) {
   const k = await ks(id);
+  // take her hand first (holdHands toggles, so only if you're not already holding it); she's brought beside you if she wandered off
+  await G(() => { const g = window.__game, a = g.A.pos; if (g.hands.linked) return;
+    if (a.distanceTo(g.B.pos) > 2) { g.B.pos.set(a.x + 0.9, g.world.floorAt(a.x + 0.9, a.z, a.y + 0.5) ?? a.y, a.z); g.B.vel.set(0, 0, 0); }
+    g.holdHands(); });
+  await wait(900);
   for (const [x, z] of via) await goTo(x, z, { tol: 0.8, timeout: 30 });
   const r = await goTo(k.stone[0] + 1.6, k.stone[2] + 0.6, { tol: 0.6, timeout: 30 });
   if (!(await pos()).linked) { await G(() => window.__game.holdHands()); await wait(900); }
@@ -241,7 +246,7 @@ await objective('keepsakes: the bridge waits for the firefly jars; gather all th
   await wait(600); const r3 = await goTo(-46.5, -4, { tol: 0.4, timeout: 10 }); log.push(r3.reason);
   await wait(800); await shot('meadow-jar');
   await G(() => { const g = window.__game; g.teleport(2, -12, Math.PI); g.B.pos.set(3, g.world.floorAt(3, -12), -12); g.B.vel.set(0, 0, 0); });
-  await wait(600); await G(() => window.__game.holdHands()); await wait(900);
+  await wait(600);
   const { k } = await fillStone('forest');
   return { pass: shut && k.n === 3 && k.placed, note: `bridge waited=${shut} jars=${k.n}/${k.of} placed=${k.placed} (${k.why}) left=${JSON.stringify(k.left)} walks=${log.join(',')}` };
 });
