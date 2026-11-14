@@ -274,31 +274,51 @@ export function makeSoftMaterial(color, opacity = 1, additive = false) {
  */
 export function makeWaterMaterial({ mode = 0, flow = 1.2, opacity = 0.62 } = {}) {
   return new ShaderMaterial({
-    uniforms: { uTime: shared.uTime, uLit: { value: PAL.water[0].clone() }, uShade: { value: PAL.water[1].clone() }, uFlow: { value: flow }, uOp: { value: opacity }, uMode: { value: mode } },
-    vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-    fragmentShader: /* glsl */ `uniform float uTime; uniform vec3 uLit; uniform vec3 uShade; uniform float uFlow; uniform float uOp; uniform float uMode; varying vec2 vUv;
+    uniforms: {
+      uTime: shared.uTime, uLit: { value: PAL.water[0].clone() }, uShade: { value: PAL.water[1].clone() }, uFlow: { value: flow }, uOp: { value: opacity }, uMode: { value: mode },
+      uShallow: { value: PAL.pool[0].clone() }, uDeep: { value: PAL.pool[1].clone() }, uSky: { value: PAL.skyHorizon.clone() }, uSkyHi: { value: PAL.skyTop.clone() }, uSunDir: shared.uSunDir,
+    },
+    vertexShader: /* glsl */ `varying vec2 vUv; varying vec3 vW; void main(){ vUv = uv; vec4 w = modelMatrix * vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix * viewMatrix * w; }`,
+    fragmentShader: /* glsl */ `uniform float uTime; uniform vec3 uLit; uniform vec3 uShade; uniform float uFlow; uniform float uOp; uniform float uMode;
+      uniform vec3 uShallow, uDeep, uSky, uSkyHi, uSunDir; varying vec2 vUv; varying vec3 vW;
       float h(float n){ return fract(sin(n) * 43758.5453); }
       float vn(vec2 p){ vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
         float a = h(i.x + i.y * 57.0), b = h(i.x + 1.0 + i.y * 57.0), c = h(i.x + (i.y + 1.0) * 57.0), d = h(i.x + 1.0 + (i.y + 1.0) * 57.0);
         return mix(mix(a, b, f.x), mix(c, d, f.x), f.y); }
       void main(){
-        float s, edge, foam = 0.0;
-        if (uMode < 0.5) {
+        if (uMode < 0.5) { // a falling sheet: soft lavender-white streaks, foam at the bottom, a bright lip at the top
           vec2 p = vec2(vUv.x * 16.0, vUv.y * 2.5 + uTime * uFlow);
-          s = vn(p) * 0.65 + vn(p * vec2(2.3, 1.7) + 7.0) * 0.35;
-          edge = smoothstep(0.0, 0.14, vUv.x) * smoothstep(1.0, 0.86, vUv.x);
-          foam = max(smoothstep(0.14, 0.0, vUv.y), smoothstep(0.9, 1.0, vUv.y) * 0.7);
-        } else {
-          vec2 q = vUv - 0.5;
-          float r = length(q) * 2.0;
-          s = vn(vec2(r * 9.0 - uTime * uFlow, atan(q.y, q.x) * 3.0)) * 0.5 + vn(vUv * 11.0 + uTime * 0.2) * 0.5;
-          edge = smoothstep(1.0, 0.8, r);
-          foam = smoothstep(0.7, 0.95, r) * edge * 0.6;
+          float s = vn(p) * 0.65 + vn(p * vec2(2.3, 1.7) + 7.0) * 0.35;
+          float edge = smoothstep(0.0, 0.14, vUv.x) * (1.0 - smoothstep(0.86, 1.0, vUv.x));
+          float foam = max(1.0 - smoothstep(0.0, 0.14, vUv.y), smoothstep(0.9, 1.0, vUv.y) * 0.7);
+          vec3 c = mix(uShade, uLit, 0.4 + s * 0.6);
+          c = mix(c, vec3(1.0, 0.98, 0.95), foam * 0.75);
+          gl_FragColor = vec4(c, max(uOp * (0.55 + s * 0.45), foam * 0.85) * edge);
+          return;
         }
-        vec3 c = mix(uShade, uLit, 0.4 + s * 0.6);
-        c = mix(c, vec3(1.0, 0.98, 0.95), foam * 0.75);
-        float a = max(uOp * (0.55 + s * 0.45), foam * 0.85) * edge;
-        gl_FragColor = vec4(c, a);
+        // a still pool: clear mint-sky shallows over the sand, deepening to periwinkle in the middle; the warm sky
+        // mirrored where you look across it, slow ripples, sun glints that catch the bloom, a soft foam ring at the shore
+        vec2 q = vUv - 0.5;
+        float r = length(q) * 2.0;
+        float s = vn(vec2(r * 9.0 - uTime * uFlow, atan(q.y, q.x) * 3.0)) * 0.5 + vn(vUv * 11.0 + uTime * 0.2) * 0.5;
+        float edge = 1.0 - smoothstep(0.8, 1.0, r);
+        float depth = 1.0 - smoothstep(0.3, 0.92, r);
+        vec3 V = normalize(cameraPosition - vW);
+        float fres = pow(1.0 - clamp(V.y, 0.0, 1.0), 2.2);
+        vec3 c = mix(uShallow, uDeep, depth * 0.85);
+        c *= 0.94 + s * 0.12;
+        vec3 sky = mix(uSkyHi, uSky, smoothstep(0.15, 0.85, fres));
+        c = mix(c, sky, 0.05 + fres * 0.5);
+        vec2 gp = vW.xz * 4.5;
+        float g = vn(gp + vec2(uTime * 0.6, -uTime * 0.4)) * vn(gp * 1.37 - vec2(uTime * 0.45, uTime * 0.5));
+        vec3 R = reflect(-V, vec3(0.0, 1.0, 0.0));
+        float sunward = pow(clamp(dot(R, uSunDir) * 0.5 + 0.5, 0.0, 1.0), 3.0);
+        float near = 1.0 - smoothstep(12.0, 40.0, length(cameraPosition - vW)); // tiny glints only up close
+        c += vec3(1.0, 0.93, 0.8) * smoothstep(0.58, 0.7, g) * (0.25 + 0.9 * sunward) * depth * near;
+        float foam = smoothstep(0.72, 0.95, r) * edge * 0.55;
+        c = mix(c, vec3(1.0, 0.97, 0.94), foam * 0.7);
+        float a = mix(0.66, 0.94, depth) * min(1.0, uOp + 0.2);
+        gl_FragColor = vec4(c, max(a, foam * 0.85) * edge);
       }`,
     transparent: true,
     depthWrite: false,

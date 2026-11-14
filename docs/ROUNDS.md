@@ -168,3 +168,10 @@ Gaps found in the first full capture (biggest first):
 - The travelers' cape: two options for Abdo (A open at the front, live; B poncho like the character sheet, `?cape=poncho`).
 **Done when:** the forest shot shows soft lavender shade under the trees, lanterns, rocks and walls with no speckles or
 blocky edges, and Abdo has picked a cape.
+
+### Look round 2: water + lanterns (2026-11-14)
+- Still water (lake, oasis, grotto pool): mint-sky shallows over the sand deepening to periwinkle, the warm sky mirrored
+  where you look across it, small sun glints up close, a soft foam ring; glowing lotus blossoms on some lily pads.
+- Lantern Forest: oval paper lanterns, 1.6x bigger, warm amber glow that blooms, 5-7 per tree (was 3-5).
+**Done when:** the lake reads as water at a glance next to `other-zones.png`, and the forest's lanterns read as warm
+glowing paper lanterns next to `lantern-forest.png`.

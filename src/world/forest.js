@@ -1,7 +1,7 @@
 // Lantern Forest: the first zone. Everything is built from primitives through the look recipe.
 import {
   Group, Mesh, InstancedMesh, Object3D, BufferGeometry, Float32BufferAttribute, CylinderGeometry, IcosahedronGeometry,
-  SphereGeometry, BoxGeometry, ConeGeometry, TubeGeometry, CatmullRomCurve3, Vector3, Color, TorusGeometry,
+  SphereGeometry, BoxGeometry, ConeGeometry, TubeGeometry, CatmullRomCurve3, Vector3, Color, TorusGeometry, LatheGeometry, Vector2,
 } from 'three';
 import { PAL } from '../look/palette.js';
 import { makeWatercolorMaterial, makeGlowMaterial } from '../look/material.js';
@@ -143,6 +143,7 @@ function mats() {
   M.tuft = makeWatercolorMaterial({ lit: [new Color('#b2bb70'), new Color('#76926e')], rim: 0.0, sway: 0.12, tint: true, lightRecv: 0.7 });
   M.flower = makeWatercolorMaterial({ lit: [new Color('#ffffff'), new Color('#b8a3c4')], rim: 0.25, sway: 0.08, tint: true });
   M.glow = makeGlowMaterial();
+  M.paper = makeGlowMaterial(PAL.paperCore, PAL.paperHalo, 1.35); // hanging paper lanterns: bright enough to bloom
   M.glowDim = makeGlowMaterial(PAL.glowCore, PAL.glowHalo, 0.75);
   M.rope = makeGlowMaterial(PAL.glowCore, PAL.glowHalo, 0.95);
   return M;
@@ -152,9 +153,10 @@ function mats() {
 // shared by every hanging lantern, so they can all be drawn as one instanced mesh (look/merge.js)
 let LG = null;
 const lanternGeos = () => LG || (LG = {
-  body: new CylinderGeometry(0.17, 0.17, 0.32, 10),
-  cap: new ConeGeometry(0.22, 0.14, 10),
-  base: new CylinderGeometry(0.19, 0.15, 0.05, 10),
+  // an oval paper lantern (look round 2: bigger and brighter, like the forest reference), wooden cap and foot
+  body: new LatheGeometry(Array.from({ length: 9 }, (_, i) => { const t = -1 + (i / 8) * 2; return new Vector2(0.075 + 0.135 * Math.sqrt(1 - t * t), t * 0.29); }), 14),
+  cap: new CylinderGeometry(0.085, 0.11, 0.06, 12),
+  base: new CylinderGeometry(0.1, 0.075, 0.05, 12),
   string: new CylinderGeometry(0.015, 0.015, 1, 4), // scaled to the string's length
 });
 
@@ -162,11 +164,11 @@ function makeLantern(lights, swingers, str = 0.9) {
   // hanging paper lantern: body glows, cap + base wood
   const G = lanternGeos();
   const g = new Group();
-  const body = new Mesh(G.body, M.glow);
+  const body = new Mesh(G.body, M.paper);
   const cap = new Mesh(G.cap, M.wood);
-  cap.position.y = 0.23;
+  cap.position.y = 0.31;
   const base = new Mesh(G.base, M.wood);
-  base.position.y = -0.18;
+  base.position.y = -0.31;
   g.add(body, cap, base);
   lights.push({ obj: body, str });
   return g;
@@ -179,7 +181,7 @@ function hangLantern(parent, x, y, z, len, lights, swingers, ph) {
   string.scale.y = len;
   string.position.y = -len / 2;
   const l = makeLantern(lights, swingers);
-  l.position.y = -len - 0.18;
+  l.position.y = -len - 0.34;
   pivot.add(string, l);
   pivot.userData.ph = ph;
   pivot.userData.dynamic = true; // swings: drawn instanced, never baked
@@ -257,7 +259,7 @@ function makeTree(x, z, s, seed, lights, swingers, colliders, alt = false) {
     g.add(new Mesh(taperTube([st, mid, end], 0.34 * s, 0.14 * s, 8, 10, seed + 10 + i, 0.06).geo, M.trunk));
   }
   // hanging lanterns: each hangs from the underside of a real blob
-  const nl = 3 + Math.floor(r() * 3);
+  const nl = 5 + Math.floor(r() * 3);
   for (let i = 0; i < nl; i++) {
     const b = outer[(i * 2 + 1) % outer.length];
     const rad = b.userData.rad;

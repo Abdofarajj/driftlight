@@ -104,6 +104,7 @@ function lakeMats(M) {
     crystalStone: makeWatercolorMaterial({ lit: PAL.crystalStone, rim: 0.7, wash: 0.14 }),
     lotus: makeWatercolorMaterial({ lit: PAL.lotus, rim: 0.5, sway: 0.03 }),
     lily: makeWatercolorMaterial({ lit: PAL.lily, rim: 0.2, wash: 0.2 }),
+    lotusGlow: makeGlowMaterial(PAL.lotusCore, PAL.lotusHalo, 1.3),
     shard: makeGlowMaterial(PAL.crystalCore, PAL.crystalHalo, 0.9),
     rope: makeGlowMaterial(PAL.crystalCore, PAL.crystalHalo, 1.0),
     beam: makeGlowMaterial(PAL.crystalCore, PAL.crystalHalo, 1.5),
@@ -160,6 +161,7 @@ export function buildCrystalLake(ctx) {
   // lily pads drifting near the shore (still: they bake into one mesh)
   const lr = rng(301);
   const padGeo = new CylinderGeometry(0.42, 0.42, 0.04, 14, 1, false, 0.5, Math.PI * 2 - 0.9);
+  const lotusPetal = new SphereGeometry(0.1, 8, 6).scale(0.55, 0.22, 1.0);
   for (let i = 0; i < 16; i++) {
     const a = lr() * Math.PI * 2;
     if (Math.abs(Math.atan2(Math.sin(a - STEP_TH), Math.cos(a - STEP_TH))) < 0.35) continue; // keep the stepping stones clear
@@ -168,6 +170,21 @@ export function buildCrystalLake(ctx) {
     const pad = new Mesh(padGeo, M.lily);
     pad.position.set(p.x, WATER_Y + 0.02, p.z); pad.rotation.y = lr() * 6; pad.scale.setScalar(0.7 + lr() * 0.6);
     g.add(pad);
+    if (i % 3 === 0) { // a lotus in flower on some pads, with a soft light in its heart
+      const bloom = new Group();
+      for (let k = 0; k < 7; k++) {
+        const pet = new Mesh(lotusPetal, M.lotus);
+        const a2 = (k / 7) * Math.PI * 2;
+        pet.position.set(Math.cos(a2) * 0.1, 0.07, Math.sin(a2) * 0.1);
+        pet.rotation.set(0, -a2, 0.75); pet.rotation.order = 'YZX';
+        bloom.add(pet);
+      }
+      const core = new Mesh(new SphereGeometry(0.075, 10, 8), M.lotusGlow);
+      core.position.y = 0.1;
+      bloom.add(core);
+      bloom.position.set(p.x + 0.08, WATER_Y + 0.04, p.z - 0.05); bloom.scale.setScalar(1.9);
+      g.add(bloom);
+    }
   }
 
   // ---- the heart: an islet in the middle with a sleeping crystal over a round stone ----

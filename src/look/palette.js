@@ -39,6 +39,9 @@ export const PAL = {
 
   // secrets (round 4)
   water: [c('#f4f0ff'), c('#a9b4dc')],
+  pool: [c('#9fd6e6'), c('#6f7cc6')],        // still water (look round 2): mint-sky shallows, periwinkle deep, never dark
+  lotusCore: c('#fff6e8'), lotusHalo: c('#ff9fc4'), // floating lotus lights on the lake
+  paperCore: c('#ffe2a8'), paperHalo: c('#ff9548'), // hanging paper lanterns: warm amber, not white
   crystalCore: c('#f6f0ff'), crystalHalo: c('#b49cff'),
   foxCore: c('#fff4e2'), foxHalo: c('#ffa870'),
   fairyCap: [c('#f6c6e0'), c('#b48ab8')], fairyCore: c('#fff0f6'), fairyHalo: c('#ff8fc0'),
