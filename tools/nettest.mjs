@@ -291,6 +291,23 @@ await objective('sundial online: bring the little sun home together and the sun 
   return { pass: follows && walk.ok && home && ph.every((p) => p === 'calm'), note: `follows=${follows} walk=${walk.reason} home, dial lit and gate open on both=${home}, wind host/guest=${ph.join('/')}` };
 });
 
+// ---- keepsakes (2026-11-14) ----
+await objective('keepsakes online: the guest picks up the sun-glass and the host counts it; placed at the stone together, it fills on both screens', async () => {
+  await letGo();
+  const items = await H(() => window.__game.keepsakes.items.filter((it) => it.set.id === 'desert').map((it) => it.pos.toArray()));
+  for (const p of items) { await guest.evaluate(([x, y, z]) => window.__game.teleport(x + 0.6, z, Math.PI, y + 0.5), p); await wait(1200); }
+  const counted = await until(() => onBoth(() => window.__game.keepsakes.count('desert') === 3), 10000);
+  const st = await H(() => window.__game.keepsakes.set('desert').pos.toArray());
+  await H(([x, y, z]) => window.__game.teleport(x + 1.4, z + 1.0, Math.PI, y + 0.5), st);
+  await guest.evaluate(([x, y, z]) => window.__game.teleport(x + 2.2, z + 1.2, Math.PI, y + 0.5), st);
+  await wait(1500);
+  await H(() => window.__game.holdHands());
+  await until(() => onBoth(() => window.__game.hands.linked), 6000);
+  const placed = await until(() => onBoth(() => window.__game.keepsakes.placed('desert')), 15000);
+  await both('12b-keepsakes');
+  return { pass: counted && placed, note: `guest's pickups counted on both=${counted}, stone filled on both=${placed}` };
+});
+
 // ---- round 8: Whispering Hollow ----
 const HWN = await H(() => { const H = window.__game.world.hollow, a = (v) => v.toArray(); return { lampCps: H.lamps.map((L) => a(L.checkpoint.pos)), plates: H.bells.map((B) => a(B.plate)), heart: a(H.heart) }; });
 const shadowGap = async () => {
@@ -351,6 +368,7 @@ const KWN = await H(() => { const K = window.__game.world.peak, a = (v) => v.toA
 
 await objective('Snowy Peak online: the stone bridge rises on both screens, a brazier you light together burns on both, and each of you feels your own cold', async () => {
   await letGo();
+  await H(() => window.__game.keepAll('hollow')); // the keepsakes online are covered in the desert
   const risen = await until(() => onBoth(() => window.__game.peakQuest.rise >= 1), 40000);
   const C = KWN.cps[0];
   await H(([x, z]) => window.__game.teleport(x, z, Math.PI), [C[0], C[2]]);
@@ -392,6 +410,7 @@ await objective('the aurora bell online: holding hands you both jump higher, and
 // ---- round 10: the Cloud Kingdom ----
 await objective('Cloud Kingdom online: the cloud steps form on both screens, and hand in hand a bridge of light holds you both', async () => {
   await letGo();
+  await H(() => window.__game.keepAll('peak'));
   const formed = await until(() => onBoth(() => window.__game.towerQuest.formed), 45000);
   const g0 = await H(() => window.__game.world.tower.gaps[0][0]);
   const at = (f, dr) => H(([f, dr]) => window.__game.world.tower.rampAt(f, dr).toArray(), [f, dr]);
@@ -417,6 +436,7 @@ await objective('the beacon online: lit together, the sun rises and the closing 
   const at = (f, dr) => H(([f, dr]) => window.__game.world.tower.rampAt(f, dr).toArray(), [f, dr]);
   const a = await at(T.ftop - 0.07, -3.7), b = await at(T.ftop - 0.03, -3.9);
   await letGo();
+  for (let i = 0; i < 2; i++) await H((i) => { const K = window.__game.keepsakes; K.take(K.items.findIndex((it) => it.key === `tower${i}`)); }, i); // both halves of the locket
   await H(([x, z, y]) => window.__game.teleport(x, z, Math.PI, y), [a[0], a[2], T.top]);
   await guest.evaluate(([x, z, y]) => window.__game.teleport(x, z, Math.PI, y), [b[0], b[2], T.top]);
   await wait(1500);

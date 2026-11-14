@@ -23,6 +23,7 @@ import { NetPlay } from './net/netplay.js';
 import { cleanCode } from './net/session.js';
 import { Invite } from './ui/invite.js';
 import { WorldMap } from './ui/map.js';
+import { Satchel } from './ui/satchel.js';
 import { Secrets } from './world/secrets.js';
 import { Keepsakes } from './world/keepsakes.js';
 import { MoreSecrets } from './world/moresecrets.js';
@@ -143,6 +144,9 @@ const hud = { stars: document.getElementById('stars'), secrets: document.getElem
 const touchUI = matchMedia('(hover: none), (pointer: coarse)').matches;
 const partner = playAs === 'him' ? 'her' : 'him', partnerHer = playAs === 'him' ? 'her' : 'his';
 const objectives = new Objectives(document.getElementById('objectives'), { instant: !!shot, limit: document.getElementById('joy') });
+// the satchel (bag button / B): keepsakes per island, stars, and the secrets you've found
+const satchel = new Satchel({ keepsakes, secrets, stars,
+  reached: (id) => ({ forest: true, lake: lakeQuest.opened || lakeQuest.awake, desert: desertQuest.opened, hollow: hollowQuest.opened, peak: peakQuest.opened, tower: towerQuest.opened })[id] });
 const westIsle = world.isles.find((i) => i.x < -40);
 const shrineIsle = world.isles.find((i) => i.z < -40);
 const OBJ = {
@@ -347,6 +351,34 @@ addEventListener('resize', resize);
 resize();
 
 const input = shot ? null : new Input(canvas);
+// ---- the title card: shown on every fresh visit (not in captures or bot runs) ----
+if (!shot && !params.has('fast') && !params.has('peerhost') && !params.has('notitle')) {
+  const tEl = document.getElementById('title');
+  document.body.classList.add('titled');
+  const play = document.getElementById('title-play'), together = document.getElementById('title-together');
+  if (room) {
+    document.getElementById('title-sub').textContent = `${She}'s waiting for you`;
+    play.textContent = 'Join'; together.hidden = true;
+  }
+  if (!net) together.hidden = true;
+  let gone = false;
+  const go = (then) => {
+    if (gone) return; gone = true;
+    audio.start();
+    tEl.style.display = 'grid'; tEl.classList.add('out'); // fade the card while the HUD comes in
+    document.body.classList.remove('titled');
+    setTimeout(() => { tEl.style.display = ''; }, 1150);
+    if (then) setTimeout(then, 350);
+  };
+  const tap = (el, fn) => {
+    el.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); fn(); });
+    el.addEventListener('touchend', (e) => { e.stopPropagation(); e.preventDefault(); fn(); });
+  };
+  tap(play, () => go());
+  tap(together, () => go(() => invite.open()));
+  for (const ev of ['touchstart', 'touchmove', 'mousedown']) tEl.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
+  addEventListener('keydown', (e) => { if (!gone && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); go(); } });
+}
 if (!shot) {
   const startAudio = () => audio.start();
   for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, startAudio, { capture: true });
@@ -485,6 +517,7 @@ function onEvent(name, d) {
       addKeep(d.set);
       objectives.update(`keep-${d.set}`, { progress: `${d.n}/${d.of}` });
       if (d.quiet) break;
+      satchel.ping();
       audio.play('keepsake', { pos: d.pos });
       const One = d.one[0].toUpperCase() + d.one.slice(1);
       toast(d.n < d.of ? `${One} found (${d.n}/${d.of}) ✦` : d.set === 'tower' ? 'Both halves of the locket! Light the beacon together to join them ✦'
@@ -507,6 +540,7 @@ function onEvent(name, d) {
       objectives.update('secrets', { progress: `${d.n}/${d.of}` });
       if (d.n >= d.of) objectives.complete('secrets');
       if (!d.quiet) {
+        satchel.ping();
         audio.play('secret', { pos: d.pos });
         discover(`Secret ${d.n} of ${d.of}`, d.title, d.line);
         hud.secIcon.classList.remove('found'); void hud.secIcon.getBoundingClientRect(); hud.secIcon.classList.add('found');

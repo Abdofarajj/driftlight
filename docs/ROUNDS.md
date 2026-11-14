@@ -221,3 +221,16 @@ with the new keepsake checks, nettest passes, and the shots show the keepsakes a
   a cloud tuft and a telescope you look through together (Cloud Kingdom). 21 secrets in all.
 **Done when (round 2):** keepcheck passes for all six islands and all 12 new secrets, the long playtest from the lake
 (`playtest -- name --from-lake`, which runs on to the ending) and nettest pass, and the shots show everything grounded.
+
+## Title screen and HUD polish (unparked 2026-11-14, Abdo: "continue with everything else that's missing… let's finish this")
+- **Title card** over the live world: DriftLight, "A little journey for two", Play and Play together (opens the invite
+  card). Opening an invite link shows "She's/He's waiting for you" with a Join button. Not shown in captures, bot runs
+  (`?fast`), net tests (`?peerhost`) or with `?notitle`. Enter/Space also starts.
+- **HUD restyle** (from `parked/hud-restyle`): cream pills, a joystick ring with arrows, a glowing hands button with
+  twinkles, jump above it in portrait and left of it in landscape, cream round buttons top right.
+- **Satchel** (`src/ui/satchel.js`, bag button or B): one row per island you've reached with its keepsakes (lit once
+  found, a tick once in the stone), the next island as "? ? ?", then stars, secrets and the names of the ones found.
+  A little dot on the bag when something new goes in.
+- Tool: `node tools/hudcheck.mjs` shoots the title, HUD, satchel and map in portrait and landscape at iPhone size into
+  `captures/hud/` and fails if any two HUD controls overlap or one runs off screen.
+**Done when:** hudcheck passes in both orientations and the shots read cleanly.

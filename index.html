@@ -12,8 +12,8 @@
     canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
     .ui { position: fixed; z-index: 2; font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif; color: #fff7ea; }
     .pill { top: calc(env(safe-area-inset-top) + 14px); left: calc(env(safe-area-inset-left) + 14px); display: flex; align-items: center; gap: 8px;
-      padding: 6px 16px 6px 8px; border-radius: 999px; background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
-      font-size: 22px; font-weight: 700; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.45); }
+      padding: 5px 18px 5px 8px; border-radius: 999px; background: rgba(150, 105, 130, 0.24); border: 1.5px solid rgba(255, 240, 228, 0.6); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+      font-size: 22px; font-weight: 700; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.45); box-shadow: inset 0 0 12px rgba(255, 236, 214, 0.18); }
     #objectives { top: calc(env(safe-area-inset-top) + 66px); left: calc(env(safe-area-inset-left) + 14px); display: flex; flex-direction: column; gap: 6px; width: min(250px, 62vw); }
     .obj { all: unset; box-sizing: border-box; display: grid; grid-template-columns: 16px 1fr auto 10px; align-items: center; column-gap: 8px; padding: 7px 12px 7px 10px; border-radius: 16px;
       background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); color: #fff7ea; font-size: 14px; font-weight: 700; line-height: 1.25;
@@ -50,8 +50,8 @@
       box-shadow: 0 0 34px rgba(255, 214, 150, 0.75), 0 8px 30px rgba(150, 90, 110, 0.25); opacity: 0; pointer-events: none; transition: opacity .7s, transform .7s; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.5); }
     #discover.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
     @media (orientation: landscape) and (max-height: 520px) { #discover { padding: 10px 18px 12px; } #discover .t { font-size: 21px; } }
-    body.discovering #objectives, body.discovering .pill, body.discovering #bset, body.discovering #btogether, body.discovering #bmap { opacity: 0.12; }
-    #objectives, .pill, #bset, #btogether, #bmap { transition: opacity .6s; }
+    body.discovering #objectives, body.discovering .pill, body.discovering #bset, body.discovering #btogether, body.discovering #bmap, body.discovering #bbag { opacity: 0.12; }
+    #objectives, .pill, #bset, #btogether, #bmap, #bbag { transition: opacity .6s; }
     body.ending .ui:not(#toast), body.ending #joy { opacity: 0 !important; pointer-events: none; transition: opacity .8s; }
     #discover .k { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .9; }
     #discover .t { margin-top: 4px; font-size: 23px; font-weight: 800; color: #fff3c8; text-shadow: 0 0 12px rgba(255, 190, 110, 0.9), 0 1px 6px rgba(120, 70, 90, 0.5); }
@@ -59,10 +59,38 @@
     .round { width: 52px; height: 52px; border-radius: 50%; background: var(--glass); border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); display: grid; place-items: center; }
     .round svg { width: 26px; height: 26px; }
     #bset .slash { display: none; } #bset.muted .slash { display: inline; } #bset.muted svg { opacity: .6; }
-    #bset { top: calc(env(safe-area-inset-top) + 14px); right: calc(env(safe-area-inset-right) + 14px); }
-    #btogether { top: calc(env(safe-area-inset-top) + 76px); right: calc(env(safe-area-inset-right) + 14px); cursor: pointer; }
-    #bmap { top: calc(env(safe-area-inset-top) + 138px); right: calc(env(safe-area-inset-right) + 14px); cursor: pointer; }
-    #bmap.on { box-shadow: 0 0 22px rgba(255, 205, 120, 0.9); }
+    /* top-right: cream discs with a soft shadow (ref: phone-portrait.png gear + bag) */
+    #bset, #btogether, #bmap, #bbag { width: 48px; height: 48px; right: calc(env(safe-area-inset-right) + 14px); cursor: pointer;
+      background: radial-gradient(circle at 50% 38%, rgba(255, 250, 244, 0.92), rgba(250, 232, 222, 0.82)); border: 1.5px solid rgba(255, 255, 255, 0.95);
+      box-shadow: 0 3px 12px rgba(140, 90, 110, 0.28), inset 0 -2px 6px rgba(200, 160, 170, 0.25); }
+    #bset { top: calc(env(safe-area-inset-top) + 14px); }
+    #btogether { top: calc(env(safe-area-inset-top) + 72px); }
+    #bmap { top: calc(env(safe-area-inset-top) + 130px); }
+    #bbag { top: calc(env(safe-area-inset-top) + 188px); }
+    #bmap.on, #bbag.on { box-shadow: 0 0 22px rgba(255, 205, 120, 0.9); }
+    #bbag.new::after { content: ''; position: absolute; top: 2px; right: 2px; width: 11px; height: 11px; border-radius: 50%; background: #ffb45e; box-shadow: 0 0 8px #ffcf6e; }
+    /* the satchel: what you've gathered on each island, and the secrets you've found */
+    #satchel { position: fixed; inset: 0; z-index: 3; display: none; place-items: center; background: rgba(110, 70, 90, 0.3); font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif; }
+    #satchel.on { display: grid; }
+    #satchel .card { position: relative; width: min(440px, calc(100vw - 32px)); max-height: min(720px, calc(100vh - 32px), calc(100dvh - 32px)); overflow-y: auto; box-sizing: border-box;
+      padding: 18px 18px 16px; border-radius: 26px; background: linear-gradient(#fff8f0, #fbe9e0); border: 1.5px solid #fff; color: var(--ink);
+      box-shadow: 0 10px 40px rgba(140, 80, 100, 0.35), 0 0 30px rgba(255, 210, 140, 0.45); -webkit-overflow-scrolling: touch; touch-action: pan-y; }
+    #satchel h2 { pointer-events: none; margin: 0 0 10px; text-align: center; font-size: 13px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .75; }
+    #satchel .isle { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 10px; padding: 8px 10px; border-radius: 16px; }
+    #satchel .isle:nth-child(odd) { background: rgba(255, 226, 200, 0.35); }
+    #satchel .isle .n { font-size: 15px; font-weight: 800; }
+    #satchel .isle .w { grid-column: 1; font-size: 12px; font-weight: 650; opacity: .75; }
+    #satchel .isle .ks { grid-row: 1 / span 2; grid-column: 2; display: flex; gap: 4px; align-items: center; }
+    #satchel .ks svg { width: 26px; height: 26px; }
+    #satchel .ks .off { opacity: .22; filter: grayscale(.6); }
+    #satchel .ks .on { filter: drop-shadow(0 0 5px rgba(255, 190, 100, 0.9)); }
+    #satchel .ks .tick { margin-left: 4px; width: 20px; height: 20px; border-radius: 50%; background: var(--gold); color: #8a5a3a; font-size: 12px; font-weight: 900; display: grid; place-items: center; box-shadow: 0 0 8px #ffcf6e; }
+    #satchel .isle.unknown .n { opacity: .45; }
+    #satchel .sec { margin-top: 12px; font-size: 13px; font-weight: 800; text-align: center; }
+    #satchel .chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 8px; }
+    #satchel .chip { padding: 4px 10px; border-radius: 999px; background: rgba(255, 214, 160, 0.45); font-size: 12px; font-weight: 750; }
+    #satchel .chip.q { background: rgba(200, 170, 190, 0.25); opacity: .7; }
+    #satchel .x { all: unset; z-index: 2; position: absolute; top: 8px; right: 12px; width: 32px; height: 32px; line-height: 32px; text-align: center; font-size: 22px; color: #b48a90; cursor: pointer; }
     #map { position: fixed; inset: 0; z-index: 3; display: none; place-items: center; background: rgba(110, 70, 90, 0.3); font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif; }
     #map.on { display: grid; }
     #map .card { position: relative; width: min(560px, calc(100vw - 32px)); height: min(720px, calc(100vh - 32px), calc(100dvh - 32px)); box-sizing: border-box; border-radius: 26px; overflow: hidden;
@@ -85,14 +113,29 @@
     #sheet .x { position: absolute; top: 8px; right: 10px; flex: none; width: 34px; height: 34px; padding: 0; line-height: 34px; font-size: 22px; color: #b48a90; }
     #sheet .wait { margin-top: 12px; font-size: 13px; opacity: 0.8; font-weight: 700; }
     #sheet [hidden] { display: none !important; }
+    /* touch controls (ref: phone-portrait.png): a ring with arrow marks, a cream knob, the star (jump) above a glowing hold-hands button */
     #joy { position: fixed; z-index: 2; left: calc(env(safe-area-inset-left) + 92px); bottom: calc(env(safe-area-inset-bottom) + 92px); top: auto; width: 128px; height: 128px; margin: -64px 0 0 -64px;
-      border-radius: 50%; background: var(--glass); border: 1.5px solid var(--edge); pointer-events: none; opacity: 0.85; transform: translateY(50%); }
+      border-radius: 50%; box-sizing: border-box; background: radial-gradient(circle, rgba(255, 248, 240, 0.1) 30%, rgba(255, 246, 236, 0.3) 100%);
+      border: 2px solid rgba(255, 250, 242, 0.8); box-shadow: 0 2px 14px rgba(140, 90, 110, 0.22), inset 0 0 14px rgba(255, 244, 230, 0.25);
+      backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); pointer-events: none; opacity: 0.85; transform: translateY(50%); }
     #joy.on { bottom: auto; transform: none; opacity: 1; }
-    #knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%; background: rgba(255, 246, 232, 0.85); box-shadow: 0 2px 10px rgba(140, 90, 110, 0.3); }
-    #bjump { right: calc(env(safe-area-inset-right) + 128px); bottom: calc(env(safe-area-inset-bottom) + 132px); width: 64px; height: 64px; }
-    #bhands { right: calc(env(safe-area-inset-right) + 22px); bottom: calc(env(safe-area-inset-bottom) + 36px); width: 104px; height: 104px;
-      background: radial-gradient(circle, rgba(255, 214, 130, 0.55), rgba(255, 190, 110, 0.35)); box-shadow: 0 0 24px rgba(255, 200, 110, 0.55); }
-    #bhands svg { width: 56px; height: 56px; }
+    #joy .arrows { position: absolute; inset: 0; width: 100%; height: 100%; }
+    #knob { position: absolute; left: 50%; top: 50%; width: 52px; height: 52px; margin: -26px 0 0 -26px; border-radius: 50%;
+      background: radial-gradient(circle at 45% 38%, #fffaf2, #f5e6dc 75%); border: 1.5px solid rgba(255, 255, 255, 0.9); box-shadow: 0 3px 10px rgba(140, 90, 110, 0.32); }
+    #bjump { right: calc(env(safe-area-inset-right) + 36px); bottom: calc(env(safe-area-inset-bottom) + 150px); width: 62px; height: 62px; box-sizing: border-box;
+      background: radial-gradient(circle, rgba(255, 248, 236, 0.22), rgba(255, 240, 226, 0.36)); border: 2px solid rgba(255, 250, 242, 0.8); box-shadow: 0 2px 12px rgba(140, 90, 110, 0.22); }
+    #bjump svg { width: 30px; height: 30px; filter: drop-shadow(0 0 5px rgba(255, 214, 140, 0.95)); }
+    @media (orientation: landscape) and (max-height: 520px) { #bjump { right: calc(env(safe-area-inset-right) + 132px); bottom: calc(env(safe-area-inset-bottom) + 118px); } }
+    #bhands { right: calc(env(safe-area-inset-right) + 20px); bottom: calc(env(safe-area-inset-bottom) + 32px); width: 104px; height: 104px; box-sizing: border-box;
+      background: radial-gradient(circle at 50% 42%, rgba(255, 232, 170, 0.92), rgba(250, 192, 104, 0.82) 70%, rgba(242, 168, 88, 0.8));
+      border: 3px solid rgba(255, 246, 222, 0.92); box-shadow: 0 0 0 6px rgba(255, 220, 150, 0.22), 0 0 28px rgba(255, 196, 100, 0.75), inset 0 0 14px rgba(255, 250, 230, 0.5); }
+    #bhands svg { width: 60px; height: 60px; filter: drop-shadow(0 1px 3px rgba(190, 110, 50, 0.45)); }
+    /* little twinkles round the hands button */
+    #bhands::before, #bhands::after { content: '\2726'; position: absolute; color: #fff6d6; text-shadow: 0 0 6px #ffd98a, 0 0 12px #ffbf5e; pointer-events: none; animation: twinkle 2.6s ease-in-out infinite; }
+    #bhands::before { left: -14px; top: 4px; font-size: 13px; }
+    #bhands::after { right: -10px; bottom: 26px; font-size: 10px; animation-delay: 1.3s; }
+    #bhands .tw { position: absolute; left: 10px; bottom: -12px; font-size: 9px; font-style: normal; color: #fff6d6; text-shadow: 0 0 6px #ffd98a; pointer-events: none; animation: twinkle 2.6s ease-in-out .7s infinite; }
+    @keyframes twinkle { 0%, 100% { opacity: .25; transform: scale(.7); } 50% { opacity: 1; transform: scale(1.15); } }
     .down { transform: scale(0.92); filter: brightness(1.15); }
     #hint { left: 50%; bottom: calc(env(safe-area-inset-bottom) + 18px); transform: translateX(-50%); font-size: 14px; opacity: 0.9; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.6); white-space: nowrap; }
     #toast { left: 50%; top: calc(env(safe-area-inset-top) + 22px); transform: translate(-50%, -8px); padding: 8px 18px; border-radius: 999px; background: var(--glass);
@@ -120,10 +163,30 @@
     body.shot #ending, body.shot #ending * { transition: none !important; transition-delay: 0s !important; }
     #fade { position: fixed; inset: 0; z-index: 3; background: #fbe6d8; opacity: 0; pointer-events: none; transition: opacity .35s; }
     #fade.on { opacity: 1; }
-    #bhands.on { box-shadow: 0 0 34px rgba(255, 210, 120, 0.95); background: radial-gradient(circle, rgba(255, 228, 160, 0.85), rgba(255, 196, 110, 0.55)); }
+    #bhands.on { box-shadow: 0 0 0 7px rgba(255, 228, 160, 0.35), 0 0 40px rgba(255, 210, 120, 1), inset 0 0 18px rgba(255, 252, 236, 0.75);
+      background: radial-gradient(circle at 50% 42%, rgba(255, 244, 200, 0.98), rgba(255, 206, 120, 0.9) 70%, rgba(248, 178, 92, 0.88)); }
     @media (hover: hover) and (pointer: fine) { .touch { display: none !important; } }
     @media (hover: none), (pointer: coarse) { #hint { display: none; } }
     body.shot .ui, body.shot #joy, body.shot #objectives { display: none; }
+    /* the title card: over the live world, the HUD waits until you press play */
+    #title { position: fixed; inset: 0; z-index: 5; display: none; place-items: center; padding: 24px; box-sizing: border-box; font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif;
+      background: radial-gradient(ellipse at 50% 40%, rgba(255, 236, 214, 0.05), rgba(150, 100, 140, 0.38)); transition: opacity 1.1s; }
+    body.titled #title { display: grid; }
+    body.titled .ui, body.titled #joy, body.titled #objectives { opacity: 0 !important; pointer-events: none; }
+    #title.out { opacity: 0; pointer-events: none; }
+    #title .wrap { text-align: center; color: #fff7ea; display: flex; flex-direction: column; align-items: center; }
+    #title .logo { font-size: clamp(46px, 13vw, 84px); font-weight: 800; letter-spacing: .01em; line-height: 1; color: #fff6e4;
+      text-shadow: 0 0 18px rgba(255, 200, 120, 0.95), 0 0 42px rgba(255, 170, 110, 0.6), 0 3px 10px rgba(130, 70, 100, 0.55); }
+    #title .logo .l { color: #ffe7a6; }
+    #title .sub { margin-top: 10px; font-size: clamp(15px, 4vw, 19px); font-weight: 700; opacity: .95; text-shadow: 0 1px 8px rgba(120, 70, 90, 0.6); }
+    #title .spark { width: 34px; height: 34px; margin-bottom: 10px; filter: drop-shadow(0 0 8px #ffcf6e); animation: twinkle 3s ease-in-out infinite; }
+    #title .btns { margin-top: 26px; display: flex; flex-direction: column; gap: 12px; width: min(260px, 70vw); }
+    #title button { all: unset; box-sizing: border-box; padding: 13px 20px; border-radius: 20px; text-align: center; font-size: 18px; font-weight: 800; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    #title .main { color: #fff; background: linear-gradient(#ffcf7f, #f6a865); text-shadow: 0 1px 4px rgba(160, 80, 50, 0.5); box-shadow: 0 4px 16px rgba(240, 150, 90, 0.5), 0 0 24px rgba(255, 210, 140, 0.55); }
+    #title .soft { color: #fff7ea; background: rgba(255, 240, 225, 0.28); border: 1.5px solid rgba(255, 246, 232, 0.8); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); text-shadow: 0 1px 6px rgba(120, 70, 90, 0.5); }
+    #title .foot { margin-top: 18px; font-size: 12.5px; font-weight: 700; opacity: .8; text-shadow: 0 1px 6px rgba(120, 70, 90, 0.6); }
+    @media (orientation: portrait) { #title { place-items: start center; padding-top: calc(env(safe-area-inset-top) + 13vh); } } /* leave the two travelers in view */
+    @media (orientation: landscape) and (max-height: 520px) { #title .btns { flex-direction: row; width: auto; margin-top: 18px; } #title .btns button { min-width: 170px; } #title .spark { display: none; } }
     body.shot.showui .ui, body.shot.showui #joy { display: grid; }
     body.shot.showui .pill, body.shot.showui #objectives { display: flex; }
     body.shot.showui #hint { display: none; }
@@ -137,12 +200,21 @@
   <div class="ui round" id="btogether" title="Play together"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="1.8" stroke-linecap="round"><circle cx="7.5" cy="7" r="2.6"/><circle cx="16.5" cy="7" r="2.6"/><path d="M3.5 20v-3.5a4 4 0 0 1 8 0V20M12.5 20v-3.5a4 4 0 0 1 8 0V20"/><path d="M12 12.6c-.9-1-2.3-.2-1.6.9L12 15l1.6-1.5c.7-1.1-.7-1.9-1.6-.9z" fill="#e98a8a" stroke="none"/></svg></div>
   <div class="ui round" id="bmap" title="Map (Tab)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="1.8" stroke-linejoin="round"><path d="M3 6.5l5.5-2.5 7 2.5 5.5-2.5v13.5l-5.5 2.5-7-2.5-5.5 2.5z" fill="#fff4de" fill-opacity=".5"/><path d="M8.5 4v13.5M15.5 6.5V20"/><circle cx="12" cy="11" r="1.6" fill="#f2a65a" stroke="none"/></svg></div>
   <div id="map" role="dialog" aria-label="World map"><div class="card"><canvas id="map-c"></canvas><div class="ttl">The islands</div><div class="cap" id="map-cap"></div></div></div>
-  <div id="joy" class="touch"><div id="knob"></div></div>
+  <div class="ui round" id="bbag" title="Satchel (B)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 7V5.8a3.5 3.5 0 0 1 7 0V7"/><path d="M5 9.5a2.5 2.5 0 0 1 2.5-2.5h9A2.5 2.5 0 0 1 19 9.5V18a3 3 0 0 1-3 3H8a3 3 0 0 1-3-3z" fill="#8a6670" fill-opacity=".14"/><path d="M5 12.5h14M10.5 12.5v2h3v-2"/></svg></div>
+  <div id="satchel" role="dialog" aria-label="Satchel"><div class="card"><button class="x" id="satchel-x" aria-label="Close">×</button><h2>Your satchel</h2><div id="satchel-body"></div></div></div>
+  <div id="joy" class="touch"><svg class="arrows" viewBox="0 0 128 128" fill="none" stroke="rgba(255,250,242,0.85)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M57 21l7-7 7 7M57 107l7 7 7-7M21 57l-7 7 7 7M107 57l7 7-7 7"/></svg><div id="knob"></div></div>
   <div class="ui round touch" id="bjump"><svg viewBox="0 0 24 24"><path d="M12 2 C13 9 15 11 22 12 C15 13 13 15 12 22 C11 15 9 13 2 12 C9 11 11 9 12 2Z" fill="#fff4d6"/></svg></div>
-  <div class="ui round touch" id="bhands"><svg viewBox="0 0 48 48" fill="#fff7ea"><circle cx="15" cy="10" r="5"/><circle cx="33" cy="10" r="5"/><path d="M9 18h12l3 8 3-8h12v4l-6 2v20h-5V31h-2v13h-2V31h-2v13h-5V24l-6-2z"/></svg></div>
-  <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · Tab map · M music · drag to look</div>
+  <div class="ui round touch" id="bhands"><svg viewBox="0 0 48 48" fill="#fffaf0" stroke="#fffaf0" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="11" r="5.2" stroke="none"/><circle cx="33" cy="11" r="5.2" stroke="none"/><rect x="9.5" y="18" width="11" height="13" rx="5" stroke="none"/><rect x="27.5" y="18" width="11" height="13" rx="5" stroke="none"/><path d="M12.5 30v10M17.5 30v10M30.5 30v10M35.5 30v10" stroke-width="3.6"/><path d="M10.5 21.5l-3 7M37.5 21.5l3 7M19.5 21.5L24 27l4.5-5.5" stroke-width="3.2" fill="none"/></svg><i class="tw">&#x2726;</i></div>
+  <div class="ui" id="hint">WASD to walk · Shift to run · Space to jump, hold to glide · E to hold hands · Tab map · B satchel · M music · drag to look</div>
   <div class="ui" id="toast"></div>
   <div class="ui" id="discover" aria-live="polite"><div class="k" id="disc-k"></div><div class="t" id="disc-t"></div><div class="l" id="disc-l"></div></div>
+  <div id="title" role="dialog" aria-label="DriftLight"><div class="wrap">
+    <svg class="spark" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg>
+    <div class="logo">Drift<span class="l">Light</span></div>
+    <div class="sub" id="title-sub">A little journey for two</div>
+    <div class="btns"><button class="main" id="title-play">Play</button><button class="soft" id="title-together">Play together</button></div>
+    <div class="foot" id="title-foot">Best with headphones ♡</div>
+  </div></div>
   <div id="fade"></div>
   <div id="ending" role="dialog" aria-label="The end"><div class="card">
     <!-- the locket: its two halves, found in the Cloud Kingdom, joined when the beacon lit (keepsakes.js) -->

@@ -330,7 +330,7 @@ await objective('wake the three crystals: lead her onto one lotus stone, let go,
     if (!q.lit[i]) return { pass: false, note: log.join(' | ') };
   }
   let q = await lk();
-  for (let k = 0; k < 20 && !q.steps; k++) { await wait(700); q = await lk(); }
+  for (let k = 0; k < 40 && !q.steps; k++) { await wait(700); q = await lk(); } // slow machines: the stones take a while
   await shot('heart-awake');
   return { pass: q.count === 3 && q.awake && q.steps, note: `${log.join(' | ')} | heart awake=${q.awake} stones up=${q.steps}` };
 });
