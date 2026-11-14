@@ -19,6 +19,9 @@ for (const [name, viewport] of Object.entries(VP)) {
   await page.waitForFunction(() => window.__game, null, { timeout: 120000 });
   await page.waitForTimeout(2500);
   await page.screenshot({ path: `${out}/${name}-title.png`, timeout: 180000 });
+  const shown = await page.evaluate(() => ['title-play', 'title-together', 'title-new'].filter((id) => getComputedStyle(document.getElementById(id)).display !== 'none'));
+  const want = process.argv.includes('--room') ? ['title-play'] : ['title-play', 'title-together'];
+  if (shown.join() !== want.join()) { bad++; console.log(`TITLE ${name}: buttons shown ${shown.join(',')} (want ${want.join(',')})`); }
   await page.tap('#title-play');
   await page.waitForTimeout(1600);
   // pretend a few things were found so the satchel has something in it

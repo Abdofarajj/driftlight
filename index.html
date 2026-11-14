@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#f2b9b4" />
-  <title>DriftLight</title>
+  <title>DriftLight · Roro &amp; Rewa's adventures</title>
   <style>
     :root { --glass: rgba(255, 240, 225, 0.28); --edge: rgba(255, 246, 232, 0.7); --ink: #6b4a55; --gold: #ffd98a; }
     html, body { margin: 0; height: 100%; overflow: hidden; background: #f2c3b0; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
@@ -181,7 +181,10 @@
     #title .logo { font-size: clamp(46px, 13vw, 84px); font-weight: 800; letter-spacing: .01em; line-height: 1; color: #fff6e4;
       text-shadow: 0 0 18px rgba(255, 200, 120, 0.95), 0 0 42px rgba(255, 170, 110, 0.6), 0 3px 10px rgba(130, 70, 100, 0.55); }
     #title .logo .l { color: #ffe7a6; }
-    #title .sub { margin-top: 10px; font-size: clamp(15px, 4vw, 19px); font-weight: 700; opacity: .95; text-shadow: 0 1px 8px rgba(120, 70, 90, 0.6); }
+    #title .names { margin-top: 12px; font-size: clamp(20px, 5.6vw, 27px); font-weight: 800; letter-spacing: .02em; color: #ffe7a6; text-shadow: 0 1px 10px rgba(150, 80, 70, 0.65), 0 0 18px rgba(255, 200, 120, 0.45); }
+    #title .sub:empty { display: none; }
+    #title [hidden] { display: none !important; } /* the buttons' all: unset would otherwise show hidden ones */
+    #title .sub { margin-top: 8px; font-size: clamp(15px, 4vw, 19px); font-weight: 700; opacity: .95; text-shadow: 0 1px 8px rgba(120, 70, 90, 0.6); }
     #title .spark { width: 34px; height: 34px; margin-bottom: 10px; filter: drop-shadow(0 0 8px #ffcf6e); animation: twinkle 3s ease-in-out infinite; }
     #title .btns { margin-top: 26px; display: flex; flex-direction: column; gap: 12px; width: min(260px, 70vw); }
     #title button { all: unset; box-sizing: border-box; padding: 13px 20px; border-radius: 20px; text-align: center; font-size: 18px; font-weight: 800; cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -216,7 +219,8 @@
   <div id="title" role="dialog" aria-label="DriftLight"><div class="wrap">
     <svg class="spark" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg>
     <div class="logo">Drift<span class="l">Light</span></div>
-    <div class="sub" id="title-sub">A little journey for two</div>
+    <div class="names">Roro &amp; Rewa's adventures</div>
+    <div class="sub" id="title-sub"></div>
     <div class="btns"><button class="main" id="title-play">Play</button><button class="soft" id="title-together">Play together</button></div>
     <div class="foot" id="title-foot">Best with headphones ♡</div>
     <button class="link" id="title-new" hidden>Start a new journey</button>
