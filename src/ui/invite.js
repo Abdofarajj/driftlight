@@ -63,7 +63,7 @@ export class Invite {
     if (net.online) msg = `You're playing together ✦<br>Hold hands to light the lanterns.`;
     else if (this.state === 'starting') msg = 'Making your invite link…';
     else if (this.state === 'failed' || (errorType && !net.online && net.role === 'host' && this.state !== 'hosting')) msg = 'Couldn\'t reach the online service. Check your connection and tap the button again.';
-    else if (net.role === 'host') { msg = `Send this link to ${partner}. When ${she} opens it, ${she} appears right beside you.`; showLink = true; wait = `Waiting for ${partner}…`; }
+    else if (net.role === 'host') { msg = `Send this link to ${partner}, then come back to this page. When ${she} opens it, ${she} appears right beside you.`; showLink = true; wait = `Waiting for ${partner}…`; }
     else if (net.role === 'guest') msg = `Connecting to ${this.partnerHer} world…`;
     else msg = '';
     this.msg.innerHTML = msg;

@@ -200,6 +200,7 @@ const She = partner === 'her' ? 'She' : 'He';
 const peerOpts = {};
 if (params.get('peerhost')) Object.assign(peerOpts, { host: params.get('peerhost'), port: Number(params.get('peerport')) || 9000, path: '/', secure: false });
 if (params.get('ice') === 'none') peerOpts.config = { iceServers: [] }; // local tests
+if (params.get('turn')) peerOpts.config = { iceServers: [{ urls: params.get('turn'), username: params.get('turnuser') || '', credential: params.get('turnpass') || '' }], iceTransportPolicy: 'relay' }; // tests: through a relay only
 const online = () => !!net && net.online;
 let warpToHost = false, joinedAt = 0; // joining: you appear beside your partner, wherever they are
 const net = shot ? null : new NetPlay({
@@ -221,17 +222,21 @@ const net = shot ? null : new NetPlay({
     hands(linked) { toast(linked ? `${She} took your hand ✦` : `${She} let go`); },
     error(e) {
       const why = e && e.type;
-      if (why === 'peer-unavailable') toast(net.role === 'guest' ? 'That game has ended. Ask for a new invite link' : `${She} lost connection`);
+      if (why === 'peer-unavailable' && net.role === 'host') toast(`${She} lost connection`);
       else if (['network', 'server-error', 'socket-error', 'socket-closed', 'browser-incompatible'].includes(why)) toast('Can\'t reach the online service right now');
       invite.refresh(why);
     },
+    // joining while your partner's game is asleep (they switched apps to send you the link): keep knocking
+    waiting(n) { if (n === 1 || n % 10 === 0) toast(`Waiting for ${partner} to come back to the game…`); },
+    trouble(n) { if (n === 1 || n % 5 === 0) toast(n === 1 ? 'Linking your two networks… this can take a moment' : `Still trying to reach ${partner}…`); },
+    gaveup() { toast(`Couldn't reach ${partner}. Ask for a new invite link`); },
   },
 });
 const linkFor = (code) => {
   const u = new URL(location.origin + location.pathname);
   u.searchParams.set('room', code);
   u.searchParams.set('as', partner);
-  for (const k of ['peerhost', 'peerport', 'ice', 'lag', 'jitter']) if (params.get(k)) u.searchParams.set(k, params.get(k)); // local tests
+  for (const k of ['peerhost', 'peerport', 'ice', 'turn', 'turnuser', 'turnpass', 'lag', 'jitter']) if (params.get(k)) u.searchParams.set(k, params.get(k)); // local tests
   return u.toString();
 };
 const invite = new Invite({ net, partner, partnerHer, linkFor, toast: (m) => toast(m) });
@@ -333,6 +338,9 @@ const worldMap = new WorldMap({
 if (net) {
   addEventListener('pagehide', () => net.bye()); // closing the tab: tell your partner now
   addEventListener('pageshow', (e) => { if (e.persisted) location.reload(); }); // back from the page cache: start fresh
+  // back from another app (sending the link, a message) or back online: rejoin the broker, and find each other again
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) net.session.wake(); });
+  addEventListener('online', () => net.session.wake());
 }
 if (room && net) {
   setTimeout(() => toast(`Joining ${partnerHer} world…`), 0); // toast() is set up further down
