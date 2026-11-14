@@ -223,7 +223,7 @@ with the new keepsake checks, nettest passes, and the shots show the keepsakes a
 (`playtest -- name --from-lake`, which runs on to the ending) and nettest pass, and the shots show everything grounded.
 
 ## Title screen and HUD polish (unparked 2026-11-14, Abdo: "continue with everything else that's missing… let's finish this")
-- **Title card** over the live world: DriftLight, "A little journey for two", Play and Play together (opens the invite
+- **Title card** over the live world: DriftLight, "Roro & Rewa's adventures" (Abdo's title), Play and Play together (opens the invite
   card). Opening an invite link shows "She's/He's waiting for you" with a Join button. Not shown in captures, bot runs
   (`?fast`), net tests (`?peerhost`) or with `?notitle`. Enter/Space also starts.
 - **HUD restyle** (from `parked/hud-restyle`): cream pills, a joystick ring with arrows, a glowing hands button with
