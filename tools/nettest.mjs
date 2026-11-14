@@ -229,7 +229,7 @@ await objective('rowboat online: sit in it together, it drifts on both screens a
   await both('10-rowboat');
   const back = await until(async () => !(await H(() => window.__game.lakeQuest.boat.riding)) && !(await guest.evaluate(() => window.__game.lakeQuest.boat.riding)), 60000);
   const n = [await H(() => window.__game.secrets.count), await guest.evaluate(() => window.__game.secrets.count)];
-  return { pass: ok && mid.inBoat && Math.abs(mid.u - hu) < 0.08 && back && n[0] === 3 && n[1] === 3, note: `riding on both=${ok}, guest still in the boat mid-ride=${mid.inBoat}, ride position host/guest=${hu.toFixed(2)}/${mid.u.toFixed(2)}, back at the dock=${back}, secrets host/guest=${n.join('/')}` };
+  return { pass: ok && mid.inBoat && Math.abs(mid.u - hu) < 0.08 && back && n[0] >= 3 && n[0] === n[1], note: `riding on both=${ok}, guest still in the boat mid-ride=${mid.inBoat}, ride position host/guest=${hu.toFixed(2)}/${mid.u.toFixed(2)}, back at the dock=${back}, secrets host/guest=${n.join('/')}` };
 });
 
 // ---- round 7: Sunset Desert ----

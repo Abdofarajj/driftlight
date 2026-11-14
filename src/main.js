@@ -24,6 +24,7 @@ import { cleanCode } from './net/session.js';
 import { Invite } from './ui/invite.js';
 import { WorldMap } from './ui/map.js';
 import { Satchel } from './ui/satchel.js';
+import { loadSave, writeSave, clearSave, progressOf } from './save.js';
 import { Secrets } from './world/secrets.js';
 import { Keepsakes } from './world/keepsakes.js';
 import { MoreSecrets } from './world/moresecrets.js';
@@ -58,8 +59,12 @@ scene.add(world.root);
 const sparkles = makeSparkles();
 scene.add(sparkles);
 
-// players: him = you (Abdo), her = your girlfriend. ?as=her swaps who you control.
-const playAs = params.get('as') === 'her' ? 'her' : 'him';
+// your journey is saved on this device (src/save.js); not in captures or test runs unless ?save
+const SAVE_ON = !shot && (params.has('save') || !(params.has('fast') || params.has('peerhost')));
+const saved = SAVE_ON && !params.get('room') ? loadSave() : null; // joining: you play in their world
+
+// players: him = you (Abdo), her = your girlfriend. ?as=her swaps who you control (and a save remembers it).
+const playAs = (params.get('as') ?? saved?.as) === 'her' ? 'her' : 'him';
 const meT = new Traveler(playAs);
 const friendT = new Traveler(playAs === 'him' ? 'her' : 'him');
 const me = meT, friend = friendT; // shots.js names
@@ -196,12 +201,14 @@ const peerOpts = {};
 if (params.get('peerhost')) Object.assign(peerOpts, { host: params.get('peerhost'), port: Number(params.get('peerport')) || 9000, path: '/', secure: false });
 if (params.get('ice') === 'none') peerOpts.config = { iceServers: [] }; // local tests
 const online = () => !!net && net.online;
+let warpToHost = false, joinedAt = 0; // joining: you appear beside your partner, wherever they are
 const net = shot ? null : new NetPlay({
   A, B, hands, quest, lake: lakeQuest, desert: desertQuest, hollow: hollowQuest, peak: peakQuest, tower: towerQuest, stars, secrets, keepsakes, playAs, peerOpts,
   lag: params.get('lag') ? { ms: Number(params.get('lag')), jitter: Number(params.get('jitter')) || 0 } : null, // tests: fake internet delay
   on: {
     connected(back) {
       quest.remote = keepsakes.remote = lakeQuest.remote = desertQuest.remote = hollowQuest.remote = peakQuest.remote = towerQuest.remote = net.role === 'guest';
+      if (net.role === 'guest' && !back) { warpToHost = true; joinedAt = performance.now(); }
       toast(back ? `${She}'s back ✦` : net.role === 'host' ? `${She} joined your world ✦` : `You're together ✦`);
       audio.play('checkpoint', { pos: A.pos });
       invite.refresh();
@@ -356,11 +363,25 @@ if (!shot && !params.has('fast') && !params.has('peerhost') && !params.has('noti
   const tEl = document.getElementById('title');
   document.body.classList.add('titled');
   const play = document.getElementById('title-play'), together = document.getElementById('title-together');
+  const tap = (el, fn) => {
+    el.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); fn(); });
+    el.addEventListener('touchend', (e) => { e.stopPropagation(); e.preventDefault(); fn(); });
+  };
   if (room) {
     document.getElementById('title-sub').textContent = `${She}'s waiting for you`;
     play.textContent = 'Join'; together.hidden = true;
   }
   if (!net) together.hidden = true;
+  if (saved) { // welcome back: carry on, or (two taps, so it can't happen by accident) start over
+    document.getElementById('title-sub').textContent = 'Welcome back ✦ Your journey is right where you left it';
+    play.textContent = 'Continue';
+    const fresh = document.getElementById('title-new');
+    fresh.hidden = false;
+    tap(fresh, () => {
+      if (!fresh.classList.contains('sure')) { fresh.classList.add('sure'); fresh.textContent = 'Tap again to start over'; return; }
+      saving = false; clearSave(); location.reload();
+    });
+  }
   let gone = false;
   const go = (then) => {
     if (gone) return; gone = true;
@@ -369,10 +390,6 @@ if (!shot && !params.has('fast') && !params.has('peerhost') && !params.has('noti
     document.body.classList.remove('titled');
     setTimeout(() => { tEl.style.display = ''; }, 1150);
     if (then) setTimeout(then, 350);
-  };
-  const tap = (el, fn) => {
-    el.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); fn(); });
-    el.addEventListener('touchend', (e) => { e.stopPropagation(); e.preventDefault(); fn(); });
   };
   tap(play, () => go());
   tap(together, () => go(() => invite.open()));
@@ -852,6 +869,7 @@ function step(dt) {
   if (!online()) secrets.lift(B, dt);
   if (online()) {
     net.updateRemote(dt); // your partner's traveler, from the network
+    if (warpToHost && net.buf.length) { warpToHost = false; warpBeside(net.buf[net.buf.length - 1].p); }
     if (hands.stepOnline(dt, world, carry) === 'broke') net.sendHands();
   } else hands.step(dt, world);
   if (hands.linked !== wasLinked) {
@@ -1091,6 +1109,69 @@ window.__game = {
   teleport(x, z, heading = Math.PI, y) { A.pos.set(x, world.floorAt(x, z, y) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
   pos() { return { lanterns: quest.count, stars: stars.count, secrets: secrets.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
 };
+
+// ---- the saved journey: restore it now, then keep it up to date ----
+function snapshot() {
+  const ls = lakeQuest.state();
+  return {
+    v: 1, at: Date.now(), as: playAs, cp: world.checkpoints.indexOf(checkpoint),
+    q: quest.state().l,
+    lk: lakeQuest.opened || lakeQuest.count ? { o: 1, l: ls.l } : 0, // any lake progress means its bridge is up
+    ds: desertQuest.done ? desertQuest.state() : desertQuest.opened ? { o: 1 } : 0,
+    hw: hollowQuest.opened ? { o: 1, l: hollowQuest.state().l, r: hollowQuest.rung ? 1 : 0, ls: hollowQuest.done ? 2 : 0 } : 0,
+    pk: peakQuest.opened ? peakQuest.state() : 0,
+    tw: towerQuest.opened ? towerQuest.state() : 0,
+    st: stars.mask(), sc: secrets.mask(), kp: keepsakes.mask(), kx: keepsakes.placedMask(),
+  };
+}
+function restore(s) {
+  for (const Q of [lakeQuest, desertQuest, hollowQuest, peakQuest, towerQuest]) Q.lastT ??= t;
+  keepsakes.items.forEach((_, i) => { if (s.kp & (1 << i)) keepsakes.take(i, true); });
+  keepsakes.applyPlaced(s.kx ?? 0, true);
+  stars.items.forEach((_, i) => { if (s.st & (1 << i)) stars.take(i, true); });
+  secrets.items.forEach((_, i) => { if (s.sc & (1 << i)) secrets.take(i, true); });
+  if (s.q) { quest.applyState({ c: [], l: s.q }, true); objectives.complete('hands'); }
+  if (quest.done && keepsakes.placed('forest')) { // the north bridge is already up
+    quest.rise = 1; world.northBridge.setRise(1); world.shrine.userData.setGlow(1);
+    if (!s.lk?.o) objectives.add('shrine', OBJ.shrine);
+  }
+  if (s.lk) lakeQuest.applyState({ o: s.lk.o, l: s.lk.l, c: [], br: -1 }, true);
+  if (s.ds?.d) desertQuest.applyState(s.ds, true); else if (s.ds?.o) desertQuest.open(true);
+  if (s.hw) hollowQuest.applyState(s.hw, true);
+  if (s.pk) peakQuest.applyState(s.pk, true);
+  if (s.tw) towerQuest.applyState(s.tw, true);
+  const c = world.checkpoints[s.cp];
+  if (c) {
+    c.activate(); checkpoint = c;
+    const p = c.pos;
+    A.pos.set(p.x, p.y + 0.1, p.z); A.vel.set(0, 0, 0); A.heading = Math.PI; cam.yaw = 0;
+    B.pos.set(p.x - 1.0, p.y + 0.1, p.z + 0.6); B.vel.set(0, 0, 0); B.heading = Math.PI;
+  }
+}
+/** joining: stand beside your partner, wherever in the world they are */
+function warpBeside(p) {
+  if (!p || Math.hypot(A.pos.x - p[0], A.pos.z - p[2]) < 25) return;
+  const y = world.floorAt(p[0] + 1, p[2], p[1] + 1);
+  A.pos.set(p[0] + 1, (y ?? p[1]) + 0.1, p[2]); A.vel.set(0, 0, 0); camPos.set(0, 0, 0);
+}
+let saving = SAVE_ON, lastSaved = '';
+function saveNow() {
+  if (!saving) return false;
+  if (room && (!joinedAt || performance.now() - joinedAt < 4000)) return false; // joining: wait for their world first
+  const s = snapshot(), key = JSON.stringify({ ...s, at: 0 });
+  if (key === lastSaved) return true;
+  if (!s.q && !s.st && !s.sc && !s.kp && s.cp <= 0 && !loadSave()) return false; // nothing done yet: no Continue
+  if (room && progressOf(s) < progressOf(loadSave())) return false; // never swap a longer journey for a shorter one
+  lastSaved = key;
+  return writeSave(s);
+}
+if (saved) { try { restore(saved); } catch (e) { console.error('save could not be restored', e); } }
+if (SAVE_ON) {
+  setInterval(saveNow, 4000);
+  addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+  addEventListener('pagehide', saveNow);
+}
+Object.assign(window.__game, { saveNow, snapshot, restoreFrom: restore, loadSave, clearSave, stopSaving() { saving = false; } });
 
 // tiny FPS readout with ?fps
 if (SHOW_FPS) {

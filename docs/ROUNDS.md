@@ -234,3 +234,9 @@ with the new keepsake checks, nettest passes, and the shots show the keepsakes a
 - Tool: `node tools/hudcheck.mjs` shoots the title, HUD, satchel and map in portrait and landscape at iPhone size into
   `captures/hud/` and fails if any two HUD controls overlap or one runs off screen.
 **Done when:** hudcheck passes in both orientations and the shots read cleanly.
+- **Your journey is saved** on the device (`src/save.js`, localStorage): islands done, keepsakes, stars, secrets,
+  last checkpoint and who you play. Only milestones are kept, never half a moment. A reload or a closed tab brings it
+  all back quietly at your checkpoint; the title card then says Continue, with "Start a new journey" (two taps).
+  Joining by link plays in your partner's world (your save isn't loaded) and you appear beside them; a guest only
+  saves the shared journey once connected, and never over a longer one of their own. Saves are off in captures and
+  bot runs unless `?save`. Tool: `node tools/savecheck.mjs`.
