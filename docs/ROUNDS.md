@@ -176,3 +176,12 @@ blocky edges, and Abdo has picked a cape.
 - Lantern Forest: oval paper lanterns, 1.6x bigger, warm amber glow that blooms, 5-7 per tree (was 3-5).
 **Done when:** the lake reads as water at a glance next to `other-zones.png`, and the forest's lanterns read as warm
 glowing paper lanterns next to `lantern-forest.png`.
+
+### Look round 3: trees + island edges (2026-11-14)
+- Canopies: scalloped leaf-clump outlines; trunks thicker, twisting and lighter.
+- Island edges (forest, lake, small isles, hollow, peak): a turf (or snow) lip rolling over the rim in soft tongues,
+  vines trailing down, cliffs as stacked rock layers with ledges. Desert cliffs get the layers too.
+- Fixed: the island cliffs faced inward, so we saw the far wall's inside; they now light properly.
+- New shot `edge` (the forest island from outside the rim).
+**Done when:** the `edge` and `lake-bridge` shots read like the islands in `lantern-forest.png` (grass over the rim,
+vines, layered rock), with no seams on the grass and under 20% more vertices.

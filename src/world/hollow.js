@@ -112,6 +112,8 @@ function hollowMats(M) {
     bark: makeWatercolorMaterial({ lit: PAL.bark, rim: 0.45, wash: 0.2 }),
     stone: makeWatercolorMaterial({ lit: PAL.mossPath, rim: 0.35, wash: 0.18 }),
     mossy: makeWatercolorMaterial({ lit: PAL.moor, rim: 0.3, wash: 0.2 }),
+    lip: makeWatercolorMaterial({ lit: PAL.moor, lit2: PAL.hollowMoss, mix: true, rim: 0.3, wash: 0.22 }),
+    vine: makeWatercolorMaterial({ lit: PAL.hollowMoss, rim: 0.5, wash: 0.22 }),
     roof: makeWatercolorMaterial({ lit: PAL.roof, rim: 0.4, wash: 0.2 }),
     brass: makeWatercolorMaterial({ lit: PAL.brass, rim: 0.6, wash: 0.1 }),
     shy: makeWatercolorMaterial({ lit: PAL.shy, rim: 0.7, wash: 0.1, lightRecv: 0.4, darkRecv: 0.3 }),
@@ -205,6 +207,7 @@ export function buildHollow(ctx, desert) {
   // ---- the island ----
   g.add(new Mesh(buildTop(), M.ground));
   g.add(new Mesh(ctx.buildCliff(edgeR, hollowGround, 22, 47), M.cliff));
+  g.add(ctx.buildEdge(edgeR, hollowGround, 22, 47, 160, 46, { lip: M.lip, vine: M.vine, vines: 90, vineLen: 1.3, leaf: 4 })); // long trailing moss
 
   // ---- the storm cloud overhead: a slow lid of dark puffs ----
   const cloud = new Group();

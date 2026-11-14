@@ -42,6 +42,15 @@ export const SHOTS = {
       cam(camera, [1.0, 3.2, 13.8], [-2.0, 2.4, -2], 62);
     },
   },
+  // ref: lantern-forest.png again, from outside the rim: the island's edge (turf lip, vines, rock) and the bridge
+  edge: {
+    viewport: 'landscape', ref: 'lantern-forest.png',
+    apply({ me, friend, camera, world }) {
+      place(me, world, 14.5, 7.2, Math.PI * 0.55);
+      place(friend, world, 14.8, 8.4, Math.PI * 0.55, { t: 3.1 });
+      cam(camera, [31, 12, 26], [12, -2.5, 6], 46);
+    },
+  },
   // top-down map of the main island, for planning where things go (not compared to a reference)
   map: {
     viewport: 'landscape',

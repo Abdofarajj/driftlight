@@ -95,25 +95,38 @@ function buildIslandTop() {
   return g;
 }
 
-function buildCliff(radiusFn, topY, depth, seed, segs = 96, rows = 22) {
+/** Radius of the cliff wall at angle th, a fraction f of the way down (shared by the cliff and its edge dressing).
+ *  layered: stacked rock slabs (look round 3, refs): each layer bulges out at its top and tucks in toward its base, so
+ *  every layer ends in a small overhanging ledge that catches a line of shade, and blocky facets break it up sideways. */
+function cliffR(er, th, f, seed, depth, layered) {
+  const shrink = 1 - Math.pow(f, 1.5) * 0.93;
+  let strata = 1 + 0.1 * (noise3(th * 4 + seed, f * 6, seed) - 0.5);
+  if (!layered) return er * shrink * (strata + 0.06 * Math.sin(f * 25 + th * 3));
+  const q = (f * depth) / 2.4 + 0.7 * noise3(th * 2.2 + seed, seed * 0.3, 4.4);
+  const fr = q - Math.floor(q);
+  strata += 0.045 * (1 - smoothstep(0, 0.92, fr)) - 0.02 + 0.03 * Math.sin(f * 9 + th * 3);
+  strata += 0.04 * (noise3(th * 11 + seed, Math.floor(q) * 1.7, 2) - 0.5);
+  return er * shrink * strata;
+}
+
+function buildCliff(radiusFn, topY, depth, seed, segs = 160, rows = 46, layered = true) {
   const pos = [], idx = [];
   for (let k = 0; k <= rows; k++) {
     const f = k / rows;
     for (let s = 0; s < segs; s++) {
       const th = (s / segs) * Math.PI * 2;
       const er = radiusFn(th);
-      const shrink = 1 - Math.pow(f, 1.5) * 0.93;
-      const strata = 1 + 0.1 * (noise3(th * 4 + seed, f * 6, seed) - 0.5) + 0.06 * Math.sin(f * 25 + th * 3);
-      const r = er * shrink * strata;
+      const r = cliffR(er, th, f, seed, depth, layered);
       const x = Math.cos(th) * r, z = Math.sin(th) * r;
-      const y = (k === 0 ? topY(x * 0.98, z * 0.98) : topY(Math.cos(th) * er * 0.97, Math.sin(th) * er * 0.97)) - f * depth - (k === 0 ? 0 : 0.5);
+      // the top ring tucks just under the ground (where it sits inside the ground's edge it must not poke through)
+      const y = (k === 0 ? Math.min(topY(x * 0.98, z * 0.98), topY(x, z)) - 0.12 : topY(Math.cos(th) * er * 0.97, Math.sin(th) * er * 0.97)) - f * depth - (k === 0 ? 0 : 0.5);
       pos.push(x, y, z);
     }
   }
   for (let k = 0; k < rows; k++) {
     for (let s = 0; s < segs; s++) {
       const a = k * segs + s, b = k * segs + ((s + 1) % segs), c = (k + 1) * segs + s, d = (k + 1) * segs + ((s + 1) % segs);
-      idx.push(a, c, b, b, c, d);
+      idx.push(a, b, c, b, d, c); // wound to face outward (it used to face in, so we saw the far wall's inside)
     }
   }
   const g = new BufferGeometry();
@@ -122,6 +135,139 @@ function buildCliff(radiusFn, topY, depth, seed, segs = 96, rows = 22) {
   g.computeVertexNormals();
   // moss at the top rows
   setMix(g, (x, y) => smoothstep(-3.5, -0.8, y));
+  return g;
+}
+
+/**
+ * Island edge dressing (look round 3, refs: soft turf rolling over every rim, vines trailing down the rock).
+ * A turf lip rolls over the rim and hangs down in soft rounded tongues, and vines with little leaves trail from the
+ * tongues down the cliff, hugging the wall. Takes the same shape arguments as the buildCliff call it dresses.
+ * look: { lip, vine (materials; vine may be null), vines (count), hang (tongue length scale), leaf (leaves per metre),
+ *   vineLen, rimR(th) / rimY(x, z) (the top surface's edge and height, when they differ from the cliff's) }
+ * Returns a Group of at most 2 meshes.
+ */
+function buildEdge(radiusFn, topY, depth, seed, segs, rows, look) {
+  const g = new Group();
+  const r = rng(seed * 31 + 7);
+  const meanR = (radiusFn(0) + radiusFn(2.1) + radiusFn(4.2)) / 3;
+  const S = Math.max(48, Math.ceil((Math.PI * 2 * meanR) / 0.3));
+  const hangK = look.hang ?? 1;
+  const rimR = look.rimR, rimY = look.rimY || topY; // the top surface's edge, when it isn't the cliff's own rim
+  const layered = look.layered ?? true;
+  const cR = (er, th, f) => cliffR(er, th, f, seed, depth, layered);
+  // the cliff mesh's radius at height y below the rim (its rows are straight between samples, so follow them exactly)
+  const wallR = (th, y) => {
+    const er = radiusFn(th), gy = topY(Math.cos(th) * er * 0.97, Math.sin(th) * er * 0.97);
+    const yk = (k) => gy - (k / rows) * depth - 0.5;
+    if (y >= yk(1)) return Math.max(cR(er, th, 0), cR(er, th, 1 / rows));
+    const k = Math.min(rows - 1, Math.floor(((gy - 0.5 - y) / depth) * rows));
+    const t = (yk(k) - y) / (yk(k) - yk(k + 1));
+    return cR(er, th, k / rows) * (1 - t) + cR(er, th, (k + 1) / rows) * t;
+  };
+  // round-bottomed tongues of turf about 2 m wide, each its own length, longer in clumps
+  const tongue = (th) => {
+    const u = th * meanR;
+    const phase = u / 1.9 + 1.2 * noise3(u * 0.11, seed, 0.5);
+    const x = (phase - Math.floor(phase)) * 2 - 1;
+    const lobe = Math.sqrt(Math.max(0, 1 - x * x));
+    const size = noise3(Math.floor(phase) * 1.37 + seed, 3.3, 1.7);
+    const clump = noise3(u * 0.05 + seed, 8.1, 2.2);
+    return (0.08 + lobe * (0.1 + 1.5 * size * size) * (0.4 + clump)) * hangK;
+  };
+  // ---- the lip: one strip, 8 points per profile, all the way round
+  const P = 8;
+  const pos = [], mix = [], idx = [];
+  const rim = [];
+  for (let s = 0; s < S; s++) {
+    const th = (s / S) * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th);
+    const er = radiusFn(th), eT = rimR ? rimR(th) : er;
+    const gy = rimY(c * eT * 0.97, sn * eT * 0.97);
+    const rc0 = cR(er, th, 0);
+    const gyOut = Math.min(gy, topY(c * rc0 * 0.98, sn * rc0 * 0.98), topY(c * rc0, sn * rc0));
+    const hang = tongue(th);
+    const yTip = gyOut - 0.42 - hang;
+    const rOut = Math.max(eT, rc0, wallR(th, yTip)) + 0.3;
+    const rIn = Math.min(eT, wallR(th, yTip - 0.05)) - 0.35;
+    const gIn = rimY(c * (eT - 1.2), sn * (eT - 1.2));
+    const g1 = rimY(c * (eT - 0.12), sn * (eT - 0.12));
+    const prof = [
+      // starts under the ground and comes out only past the ground's own edge (no seam line across the grass)
+      [eT - 1.2, gIn - 0.25, 0], [eT - 0.12, g1 - 0.03, 0], [rOut - 0.06, gyOut + 0.03, 0.05],
+      [rOut, gyOut - 0.2, 0.35], [rOut - 0.03, gyOut - 0.36 - hang * 0.5, 0.8], [rOut - 0.12, gyOut - 0.38 - hang * 0.85, 1],
+      [rOut - 0.3, yTip, 1], [rIn, yTip - 0.02, 1],
+    ];
+    for (const [rr, y, m] of prof) { pos.push(c * rr, y, sn * rr); mix.push(m); }
+    rim.push({ th, hang, rOut, yTip });
+  }
+  for (let s = 0; s < S; s++) {
+    const a = s * P, b = ((s + 1) % S) * P;
+    for (let k = 0; k < P - 1; k++) idx.push(a + k, b + k, a + k + 1, b + k, b + k + 1, a + k + 1);
+  }
+  const lg = new BufferGeometry();
+  lg.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  lg.setAttribute('aMix', new Float32BufferAttribute(mix, 1));
+  lg.setIndex(idx);
+  lg.computeVertexNormals();
+  g.add(new Mesh(lg, look.lip));
+
+  // ---- vines: from the longer tongues, down the wall (one merged mesh)
+  if (look.vine && look.vines) {
+    const parts = [];
+    // a small plump leaf: a diamond with a bulge front and back (6 vertices; vines carry thousands of them)
+    const leafGeo = new BufferGeometry();
+    leafGeo.setAttribute('position', new Float32BufferAttribute([0, 1, 0, 0.62, 0, 0, 0, -1, 0, -0.62, 0, 0, 0, 0, 0.45, 0, 0, -0.45], 3));
+    leafGeo.setIndex([4, 0, 3, 4, 3, 2, 4, 2, 1, 4, 1, 0, 5, 3, 0, 5, 2, 3, 5, 1, 2, 5, 0, 1]);
+    leafGeo.computeVertexNormals();
+    const o = new Object3D();
+    const byHang = rim.filter((q) => q.hang > 0.45 * hangK);
+    for (let i = 0; i < look.vines && byHang.length; i++) {
+      const q = byHang[Math.floor(r() * byHang.length)];
+      const L = 1.0 + Math.pow(r(), 1.6) * 5.5 * (look.vineLen ?? 1);
+      const pts = [];
+      const er = radiusFn(q.th);
+      const wig = r() * 6, wAmp = (0.12 + r() * 0.2) / er;
+      for (let d = 0; d <= L + 1e-6; d += 0.25) {
+        const y = q.yTip + 0.15 - d;
+        const th = q.th + Math.sin(d * 1.1 + wig) * wAmp;
+        const rr = d < 0.2 ? q.rOut - 0.25 : Math.max(wallR(th, y), wallR(th, y + 0.25), wallR(th, y - 0.25)) + 0.14;
+        pts.push(new Vector3(Math.cos(th) * rr, y, Math.sin(th) * rr));
+      }
+      if (pts.length < 3) continue;
+      const curve = new CatmullRomCurve3(pts);
+      const n = pts.length;
+      const tube = new TubeGeometry(curve, n, 1, 4, false);
+      const tp = tube.attributes.position, cc = new Vector3();
+      for (let a = 0; a <= n; a++) {
+        curve.getPointAt(a / n, cc);
+        const rad = 0.065 - 0.035 * (a / n);
+        for (let j = 0; j <= 4; j++) {
+          const k = a * 5 + j;
+          tp.setXYZ(k, cc.x + (tp.getX(k) - cc.x) * rad, cc.y + (tp.getY(k) - cc.y) * rad, cc.z + (tp.getZ(k) - cc.z) * rad);
+        }
+      }
+      tube.deleteAttribute('uv');
+      tube.computeVertexNormals();
+      parts.push(tube);
+      // leaves: little rounded leaves along it, facing out from the wall
+      const nLeaf = Math.round(L * (look.leaf ?? 6));
+      for (let k = 0; k < nLeaf; k++) {
+        const t = (k + r() * 0.8) / nLeaf;
+        curve.getPointAt(t, cc);
+        const out = new Vector3(cc.x, 0, cc.z).normalize();
+        const side = new Vector3(-out.z, 0, out.x).multiplyScalar((r() - 0.5) * 0.26);
+        o.position.copy(cc).addScaledVector(out, 0.06).add(side);
+        o.rotation.set((r() - 0.5) * 1.2, Math.atan2(out.x, out.z) + (r() - 0.5) * 1.4, (r() - 0.5) * 1.6);
+        const sz = (0.13 + r() * 0.09) * (1 - t * 0.35);
+        o.scale.set(sz * 1.1, sz * 1.3, sz);
+        o.updateMatrix();
+        parts.push(leafGeo.clone().applyMatrix4(o.matrix));
+      }
+    }
+    if (parts.length) {
+      const vg = mergeGeometries(parts);
+      if (vg) g.add(new Mesh(vg, look.vine));
+    }
+  }
   return g;
 }
 
@@ -136,6 +282,8 @@ function mats() {
   M.canopyAlt = makeWatercolorMaterial({ lit: PAL.canopyAlt, rim: 0.6, sway: 0.03, wash: 0.22, breakup: 0.85 });
   M.stone = makeWatercolorMaterial({ lit: PAL.stone, rim: 0.35, wash: 0.18 });
   M.moss = makeWatercolorMaterial({ lit: PAL.moss, rim: 0.3, sway: 0.02 });
+  M.lip = makeWatercolorMaterial({ lit: PAL.grass, lit2: PAL.moss, mix: true, rim: 0.3, wash: 0.2 }); // turf over the rims
+  M.vine = makeWatercolorMaterial({ lit: PAL.vine, rim: 0.45, wash: 0.2 });
   M.wood = makeWatercolorMaterial({ lit: PAL.wood, rim: 0.3 });
   M.mush = makeWatercolorMaterial({ lit: PAL.mushroom, rim: 0.4 });
   M.spot = makeWatercolorMaterial({ lit: PAL.spot, rim: 0.2 });
@@ -190,7 +338,7 @@ function hangLantern(parent, x, y, z, len, lights, swingers, ph) {
 }
 
 /** Tube along a curve whose radius tapers from r0 to r1. Ends are capped by sinking them into other shapes. */
-function taperTube(points, r0, r1, radial = 10, tubular = 16, seed = 0, amp = 0.06) {
+function taperTube(points, r0, r1, radial = 10, tubular = 16, seed = 0, amp = 0.06, ridges = 0) {
   const curve = new CatmullRomCurve3(points);
   const geo = new TubeGeometry(curve, tubular, 1, radial, false);
   const p = geo.attributes.position;
@@ -202,12 +350,29 @@ function taperTube(points, r0, r1, radial = 10, tubular = 16, seed = 0, amp = 0.
     for (let j = 0; j <= radial; j++) {
       const k = i * (radial + 1) + j;
       const x = p.getX(k) - c.x, y = p.getY(k) - c.y, z = p.getZ(k) - c.z;
-      const n = 1 + (noise3(p.getX(k) * 2 + seed, p.getY(k) * 2, p.getZ(k) * 2) - 0.5) * amp * 2;
+      let n = 1 + (noise3(p.getX(k) * 2 + seed, p.getY(k) * 2, p.getZ(k) * 2) - 0.5) * amp * 2;
+      // twisting bark ridges (look round 3: gnarled trunks), strongest low down
+      if (ridges) n *= 1 + 0.09 * (1 - t * 0.5) * Math.sin((j / radial) * Math.PI * 2 * ridges + t * 2.6 + seed);
       p.setXYZ(k, c.x + x * rad * n, c.y + y * rad * n, c.z + z * rad * n);
     }
   }
   geo.computeVertexNormals();
   return { geo, curve };
+}
+
+/** Leaf clumps (look round 3): "billow" bumps (rounded swells with creases between) push the blob's surface out, so
+ *  the canopy's outline is scalloped like bunches of leaves instead of a smooth ball. */
+function leafy(geo, seed) {
+  const p = geo.attributes.position, n = geo.attributes.normal;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+    const b1 = Math.abs(noise3(x * 3.1 + seed * 7.3, y * 3.1, z * 3.1) * 2 - 1);
+    const b2 = Math.abs(noise3(x * 6.4 + seed * 3.1 + 40, y * 6.4, z * 6.4) * 2 - 1);
+    const d = b1 * 0.16 + b2 * 0.045 - 0.08;
+    p.setXYZ(i, x + n.getX(i) * d, y + n.getY(i) * d, z + n.getZ(i) * d);
+  }
+  geo.computeVertexNormals();
+  return geo;
 }
 
 function makeTree(x, z, s, seed, lights, swingers, colliders, alt = false) {
@@ -221,7 +386,7 @@ function makeTree(x, z, s, seed, lights, swingers, colliders, alt = false) {
   const lean = (r() - 0.5) * 1.6 * s;
   // trunk spine: gentle S-curve with a lean; everything else attaches to points on this curve
   const spine = [0, 0.25, 0.5, 0.75, 1].map((t) => new Vector3(lean * t * t + Math.sin(t * 3.1) * 0.25 * s, t * H, Math.sin(t * 2.3 + seed) * 0.2 * s));
-  const { geo: trunkGeo, curve } = taperTube(spine, 0.95 * s, 0.5 * s, 12, 18, seed, 0.08);
+  const { geo: trunkGeo, curve } = taperTube(spine, 1.1 * s, 0.55 * s, 24, 20, seed, 0.08, 5);
   g.add(new Mesh(trunkGeo, M.trunk));
   const top = curve.getPointAt(1);
   // root flares, sunk into the trunk base and the ground
@@ -229,10 +394,10 @@ function makeTree(x, z, s, seed, lights, swingers, colliders, alt = false) {
     const a = (i / 5) * Math.PI * 2 + r() * 0.6;
     const dir = new Vector3(Math.cos(a), 0, Math.sin(a));
     const pts = [new Vector3(0, 1.0 * s, 0).addScaledVector(dir, 0.2 * s), new Vector3(0, 0.35 * s, 0).addScaledVector(dir, 0.9 * s), new Vector3(0, -0.1, 0).addScaledVector(dir, 1.6 * s)];
-    g.add(new Mesh(taperTube(pts, 0.42 * s, 0.1 * s, 7, 6, seed + i, 0.05).geo, M.trunk));
+    g.add(new Mesh(taperTube(pts, 0.5 * s, 0.12 * s, 9, 6, seed + i, 0.05).geo, M.trunk));
   }
   // canopy: overlapping blobs in a wide dome centred over the trunk top
-  const blobGeo = displace(displace(new IcosahedronGeometry(1, 4), 0.1, 1.8, seed), 0.07, 4.5, seed + 3);
+  const blobGeo = leafy(displace(new IcosahedronGeometry(1, 4), 0.1, 1.8, seed), seed + 3);
   const nb = 20;
   const mat = alt ? M.canopyAlt : M.canopy;
   const cy = top.y + 1.4 * s;
@@ -269,7 +434,7 @@ function makeTree(x, z, s, seed, lights, swingers, colliders, alt = false) {
     const hy = b.position.y - rad * 0.78 * Math.sqrt(1 - 0.45 * 0.45) + 0.15;
     hangLantern(g, hx, hy, hz, 0.5 + r() * 1.0, lights, swingers, r() * 6);
   }
-  colliders.push({ x, z, r: 1.0 * s });
+  colliders.push({ x, z, r: 1.15 * s });
   return g;
 }
 
@@ -502,7 +667,8 @@ function makeIsle(cx, cz, rad, topY, seed, depth = 12) {
   const top = new Mesh(displace(new CylinderGeometry(rad, rad, 0.6, 40, 1), 0.2, 0.5, seed), M.ground);
   top.position.y = -0.3;
   g.add(top);
-  g.add(new Mesh(buildCliff(er, () => -0.1, depth, seed, 48, 14), M.cliff));
+  g.add(new Mesh(buildCliff(er, () => -0.1, depth, seed, 64, 28), M.cliff));
+  g.add(buildEdge(er, () => -0.1, depth, seed, 64, 28, { lip: M.lip, vine: M.vine, vines: Math.round(rad * 2.5), hang: 0.7, vineLen: 0.7, rimR: () => rad + 0.15, rimY: () => 0.02 }));
   g.position.set(cx, topY, cz);
   return { group: g, floor: { x: cx, z: cz, r: rad * 0.88, y: topY } };
 }
@@ -570,6 +736,7 @@ export function buildLanternForest() {
   // island
   root.add(new Mesh(buildIslandTop(), M.ground));
   root.add(new Mesh(buildCliff(edgeRadius, groundHeight, 20, 1), M.cliff));
+  root.add(buildEdge(edgeRadius, groundHeight, 20, 1, 160, 46, { lip: M.lip, vine: M.vine, vines: 130 }));
 
   // trees (big shapes at the edges, path stays open)
   const trees = [
@@ -694,7 +861,7 @@ export function buildLanternForest() {
 
   // ---- Crystal Lake: the next island, across a crystal bridge from the shrine (lake.js) ----
   const zoneCtx = {
-    root, lights, swingers, colliders, bridges, M, makeBridge, makeTree, makeRock, makeMushroom, makeWaystone, buildCliff,
+    root, lights, swingers, colliders, bridges, M, makeBridge, makeTree, makeRock, makeMushroom, makeWaystone, buildCliff, buildEdge,
     scatter: (kind, count, place, seed, tints) => kind === 'tuft'
       ? scatterInstanced(tuftGeo, M.tuft, count, place, seed, tints || tuftTints)
       : scatterInstanced(flowerGeo, M.flower, count, place, seed, tints || PAL.flowers),

@@ -149,6 +149,7 @@ function peakMats(M) {
     ...M,
     snow: makeWatercolorMaterial({ lit: PAL.snow, lit2: PAL.snowPath, mix: true, rim: 0.0, wash: 0.14 }),
     snowPlain: makeWatercolorMaterial({ lit: PAL.snow, rim: 0.25, wash: 0.12 }),
+    cornice: makeWatercolorMaterial({ lit: PAL.snow, lit2: PAL.snowPath, mix: true, rim: 0.3, wash: 0.12 }),
     rock: makeWatercolorMaterial({ lit: PAL.rockCold, lit2: PAL.snow, mix: true, rim: 0.4, wash: 0.2 }),
     stone: makeWatercolorMaterial({ lit: PAL.rockCold, rim: 0.4, wash: 0.18 }),
     ice: makeWatercolorMaterial({ lit: PAL.ice, rim: 0.7, wash: 0.1 }),
@@ -376,6 +377,7 @@ export function buildPeak(ctx, hollow) {
   setMix(meadow, (x, y, z) => pathMask(x, z));
   g.add(new Mesh(meadow, M.snow));
   g.add(new Mesh(ctx.buildCliff(edgeR, meadowH, 24, 61), M.rock));
+  g.add(ctx.buildEdge(edgeR, meadowH, 24, 61, 160, 46, { lip: M.cornice, vine: null, hang: 0.8 })); // snow rolling over the rim
 
   // ---- the mountain: three terraces with rocky walls and snowy tops ----
   for (let k = 0; k < 3; k++) {

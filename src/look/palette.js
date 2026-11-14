@@ -13,13 +13,14 @@ export const PAL = {
   hazeLow: c('#d9b3c9'),
 
   cloud: [c('#fde6d8'), c('#c7a4c6')],
-  canopy: [c('#f8b8c6'), c('#c48cad')],
+  canopy: [c('#f8b8c6'), c('#c98aa8')],
   canopyAlt: [c('#f3c2d2'), c('#b591bd')],
-  trunk: [c('#c08a70'), c('#8a6272')],
+  trunk: [c('#d2a185'), c('#94708a')],
   grass: [c('#bfc27e'), c('#7e9878')],
   path: [c('#f2c899'), c('#b98c7c')],
   stone: [c('#e2c7b6'), c('#a08ca4')],
   moss: [c('#bcc272'), c('#728a6e')],
+  vine: [c('#b7cc7c'), c('#6f907e')],            // vines trailing down the island cliffs (look round 3)
   cliff: [c('#d0a48e'), c('#8f78a2')],
   wood: [c('#cd9468'), c('#8a6068')],
 
@@ -69,6 +70,7 @@ export const PAL = {
 
   // Whispering Hollow (round 8): a dark island under its own storm cloud. Dark means deep lavender-indigo, never black
   moor: [c('#a99cc4'), c('#625a8a')],         // mossy ground
+  hollowMoss: [c('#8f9cb8'), c('#4f5784')],   // moss trailing down the hollow's cliffs (look round 3)
   mossPath: [c('#cbbfdc'), c('#8a7fae')],     // pale old flagstones
   bark: [c('#a08cab'), c('#5c5280')],         // twisted bare trees, the crooked house, the bridge
   roof: [c('#b98ea8'), c('#6a5584')],         // the crooked house's roof

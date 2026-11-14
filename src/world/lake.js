@@ -155,6 +155,7 @@ export function buildCrystalLake(ctx) {
   // ---- island, beach and lake ----
   g.add(new Mesh(buildTop(), M.ground));
   g.add(new Mesh(ctx.buildCliff(edgeR, lakeGround, 22, 21), M.cliff));
+  g.add(ctx.buildEdge(edgeR, lakeGround, 22, 21, 160, 46, { lip: M.lip, vine: M.vine, vines: 110 }));
   const water = new Mesh(new CircleGeometry(LR + 0.4, 72).rotateX(-Math.PI / 2), M.water);
   water.position.set(LC.x, WATER_Y, LC.z); water.renderOrder = 1;
   g.add(water);

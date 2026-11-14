@@ -262,7 +262,7 @@ export function buildTower(ctx, peak, beamFrom) {
   const top = discGeo(P(0, 0), (th) => edgeR(th) + 0.06, () => YT + 0.02, 30, 110);
   setMix(top, (x, y, z) => pathMask(x, z));
   g.add(new Mesh(top, M.ground));
-  g.add(new Mesh(ctx.buildCliff(edgeR, () => YT, 14, 71, 72, 12), M.cliff));
+  g.add(new Mesh(ctx.buildCliff(edgeR, () => YT, 14, 71, 72, 12, false), M.cliff));
   // puffy clouds round the rim and under the island (one instanced draw; their tops stay below the ground)
   const puffGeo = displace(new IcosahedronGeometry(1, 2), 0.12, 1.4, 5);
   {
