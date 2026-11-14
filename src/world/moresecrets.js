@@ -97,7 +97,7 @@ export class MoreSecrets {
     for (const s of [-1, 1]) {
       for (const lean of [-1, 1]) {
         const post = new Mesh(new CylinderGeometry(0.07, 0.09, 2.7, 6), wood);
-        post.position.set(s * 1.25, 1.3, lean * 0.35); post.rotation.x = lean * 0.26; g.add(post);
+        post.position.set(s * 1.25, 1.3, lean * 0.35); post.rotation.x = -lean * 0.26; g.add(post); // an A: the two legs meet under the bar
       }
       this.world.colliders.push({ ...(() => { const c = Math.cos(g.rotation.y), sn = Math.sin(g.rotation.y); return { x: p.x + s * 1.25 * c, z: p.z - s * 1.25 * sn }; })(), r: 0.25 });
     }
