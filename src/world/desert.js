@@ -604,7 +604,9 @@ export function buildDesert(ctx) {
   // freestanding arches out on the dunes, off every path (one of them broken)
   {
     const ar = rng(621), placed = [];
-    const clearOf = (x, z, r) => onDesert(x * 1.15, z * 1.15) && flatMask(x, z) < 0.05 && Math.hypot(x - OASIS.x, z - OASIS.z) > OASIS_R + r + 2
+    const gateAt = P(ARRIVE.x + (BEND.x - ARRIVE.x) * 0.42, ARRIVE.z + (BEND.z - ARRIVE.z) * 0.42);
+    const clearOf = (x, z, r) => onDesert(x * 1.15, z * 1.15) && flatMask(x, z) < 0.05 && Math.hypot(x - gateAt.x, z - gateAt.z) > 10
+      && distSeg(x, z, ARRIVE, BEND) > 6 && distSeg(x, z, BEND, MOUTH_S) > 6 && Math.hypot(x - OASIS.x, z - OASIS.z) > OASIS_R + r + 2
       && Math.hypot(x + 13, z + 7.5) > 3.2 + r && cacti.every(([cx, cz]) => Math.hypot(cx - x, cz - z) > r + 1) && placed.every((q) => Math.hypot(q.x - x, q.z - z) > 9);
     for (let n = 0; n < 900 && placed.length < 3; n++) {
       const a = ar() * Math.PI * 2, d = 9 + ar() * 13, x = Math.cos(a) * d, z = Math.sin(a) * d;

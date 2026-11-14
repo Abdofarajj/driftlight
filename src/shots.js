@@ -68,6 +68,19 @@ export const SHOTS = {
       cam(o.camera, [1.6, y + 1.7, 4.6], [1.1, y + 1.05, 9], 32);
     },
   },
+  // the desert's welcome arch from the arrival path (look round 4)
+  'desert-gate': {
+    viewport: 'landscape', ref: 'other-zones.png',
+    apply({ me, friend, camera, world, desert: Q }) {
+      Q.open(true);
+      const D = world.desert, a = D.arrive, n = D.nestPos;
+      const dx = n.x - a.x, dz = n.z - a.z, L = Math.hypot(dx, dz), ux = dx / L, uz = dz / L, h = Math.atan2(ux, uz);
+      place(me, world, a.x + ux * 3 - uz * 0.6, a.z + uz * 3 + ux * 0.6, h, { t: 2 });
+      place(friend, world, a.x + ux * 3 + uz * 0.6, a.z + uz * 3 - ux * 0.6, h, { t: 3.1 });
+      const y = world.floorAt(a.x, a.z) ?? 3;
+      cam(camera, [a.x - ux * 4, y + 3.2, a.z - uz * 4], [a.x + ux * 10, y + 2.2, a.z + uz * 10], 55);
+    },
+  },
   // top-down map of the main island, for planning where things go (not compared to a reference)
   map: {
     viewport: 'landscape',
