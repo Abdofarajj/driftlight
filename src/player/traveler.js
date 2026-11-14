@@ -1,6 +1,6 @@
 // A small caped traveler built from primitives, with cheap procedural animation.
 // Two characters: 'him' (blue cape, short dark curls) and 'her' (red cape, long light hair, flower clip).
-import { Group, Mesh, SphereGeometry, CylinderGeometry, CapsuleGeometry, LatheGeometry, TorusGeometry, ConeGeometry, PlaneGeometry, Vector2, Vector3, IcosahedronGeometry, Color, Quaternion, Euler } from 'three';
+import { Group, Mesh, SphereGeometry, CylinderGeometry, CapsuleGeometry, LatheGeometry, TorusGeometry, ConeGeometry, PlaneGeometry, TubeGeometry, CatmullRomCurve3, BufferGeometry, Float32BufferAttribute, Vector2, Vector3, IcosahedronGeometry, Color, Quaternion, Euler } from 'three';
 import { PAL } from '../look/palette.js';
 import { makeWatercolorMaterial, makeGlowMaterial, makeOutlineMaterial, makeSoftMaterial } from '../look/material.js';
 import { displace } from '../world/shapes.js';
@@ -13,6 +13,8 @@ const VARIANTS = {
 
 // the cape is open at the front (this wide, in radians) so the chest and arms show; it covers the back and sides
 const CAPE_GAP = 2.0;
+// which cape (for Abdo to compare): 'open' (open at the front) or 'poncho' (as on the character sheet); ?cape=poncho
+const CAPE_STYLE = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('cape')) || 'open';
 const ARM_LEN = 0.27; // shoulder to the middle of the hand (model units, before the traveler's scale)
 
 export class Traveler {
@@ -63,43 +65,46 @@ export class Traveler {
     belt.rotation.x = Math.PI / 2; belt.position.y = 0.52;
     body.add(belt);
 
-    // cape: lathe profile, open at the front
-    const prof = [];
-    for (let i = 0; i <= 10; i++) {
-      const t = i / 10;
-      prof.push(new Vector2(v.capeTop + Math.pow(t, 1.15) * v.capeFlare, 0.76 - t * v.capeLen));
-    }
-    const capeGeo = new LatheGeometry(prof, 28, CAPE_GAP / 2, Math.PI * 2 - CAPE_GAP);
-    const cp = capeGeo.attributes.position;
-    for (let i = 0; i < cp.count; i++) { // wavy hem
-      const y = cp.getY(i);
-      if (y < 0.35) { const a = Math.atan2(cp.getX(i), cp.getZ(i)); cp.setY(i, y + Math.sin(a * 5) * 0.015); }
-    }
-    capeGeo.computeVertexNormals();
     const capePivot = new Group();
     capePivot.position.y = 0.74;
-    const cape = new Mesh(capeGeo, m.cape);
-    cape.position.y = -0.74;
-    capePivot.add(cape);
     body.add(capePivot);
     this.capePivot = capePivot;
-    const hemR = v.capeTop + v.capeFlare;
-    const hem = new Mesh(new TorusGeometry(hemR, 0.016, 5, 40, Math.PI * 2 - CAPE_GAP), m.trim);
-    hem.rotation.set(Math.PI / 2, 0, Math.PI / 2 + CAPE_GAP / 2);
-    hem.position.y = 0.76 - v.capeLen; // the cape mesh is already shifted down by 0.74 (it used to sit 0.74 too low, under the ground)
-    cape.add(hem);
-    const diamond = new Mesh(new ConeGeometry(0.05, 0.12, 4), m.trim);
-    diamond.scale.z = 0.25; diamond.position.set(0, 0.47 - 0.74, -0.25); diamond.rotation.x = -0.45;
-    capePivot.add(diamond);
-    const diamond2 = diamond.clone(); diamond2.rotation.z = Math.PI; diamond2.position.y -= 0.1; diamond2.position.z -= 0.04;
-    capePivot.add(diamond2);
-    // the cape's collar wraps the back of the neck, tied at the front with a little gold clasp on the chest
-    const collar = new Mesh(new TorusGeometry(0.13, 0.042, 8, 18, Math.PI * 2 - CAPE_GAP * 0.55), m.cape);
-    collar.rotation.set(Math.PI / 2, 0, Math.PI / 2 + CAPE_GAP * 0.275); collar.position.y = 0.735;
-    body.add(collar);
-    const clasp = new Mesh(new SphereGeometry(0.03, 8, 6), m.trim);
-    clasp.position.set(0, 0.69, 0.115);
-    body.add(clasp);
+    if (CAPE_STYLE === 'poncho') this.buildPoncho(v, m, capePivot, body);
+    else {
+      // cape: lathe profile, open at the front
+      const prof = [];
+      for (let i = 0; i <= 10; i++) {
+        const t = i / 10;
+        prof.push(new Vector2(v.capeTop + Math.pow(t, 1.15) * v.capeFlare, 0.76 - t * v.capeLen));
+      }
+      const capeGeo = new LatheGeometry(prof, 28, CAPE_GAP / 2, Math.PI * 2 - CAPE_GAP);
+      const cp = capeGeo.attributes.position;
+      for (let i = 0; i < cp.count; i++) { // wavy hem
+        const y = cp.getY(i);
+        if (y < 0.35) { const a = Math.atan2(cp.getX(i), cp.getZ(i)); cp.setY(i, y + Math.sin(a * 5) * 0.015); }
+      }
+      capeGeo.computeVertexNormals();
+      const cape = new Mesh(capeGeo, m.cape);
+      cape.position.y = -0.74;
+      capePivot.add(cape);
+      const hemR = v.capeTop + v.capeFlare;
+      const hem = new Mesh(new TorusGeometry(hemR, 0.016, 5, 40, Math.PI * 2 - CAPE_GAP), m.trim);
+      hem.rotation.set(Math.PI / 2, 0, Math.PI / 2 + CAPE_GAP / 2);
+      hem.position.y = 0.76 - v.capeLen; // the cape mesh is already shifted down by 0.74 (it used to sit 0.74 too low, under the ground)
+      cape.add(hem);
+      const diamond = new Mesh(new ConeGeometry(0.05, 0.12, 4), m.trim);
+      diamond.scale.z = 0.25; diamond.position.set(0, 0.47 - 0.74, -0.25); diamond.rotation.x = -0.45;
+      capePivot.add(diamond);
+      const diamond2 = diamond.clone(); diamond2.rotation.z = Math.PI; diamond2.position.y -= 0.1; diamond2.position.z -= 0.04;
+      capePivot.add(diamond2);
+      // the cape's collar wraps the back of the neck, tied at the front with a little gold clasp on the chest
+      const collar = new Mesh(new TorusGeometry(0.13, 0.042, 8, 18, Math.PI * 2 - CAPE_GAP * 0.55), m.cape);
+      collar.rotation.set(Math.PI / 2, 0, Math.PI / 2 + CAPE_GAP * 0.275); collar.position.y = 0.735;
+      body.add(collar);
+      const clasp = new Mesh(new SphereGeometry(0.03, 8, 6), m.trim);
+      clasp.position.set(0, 0.69, 0.115);
+      body.add(clasp);
+    }
 
     // arms: shoulder pivots so a hand can reach out to hold the other traveler's hand
     this.arms = [];
@@ -215,6 +220,80 @@ export class Traveler {
     this.holdAt = new Vector3(); // where the clasped hands meet (world), set by Hands each frame while holding
     this.holdAim = false;
     this.lanternSide = 1;
+  }
+
+  /**
+   * The cape as on the character sheet (docs/refs/traveler-turnaround.png): a poncho over rounded shoulders,
+   * tied at the neck with a gold clasp and opening at the front in a V that shows the tunic, gold trim along its
+   * edges, a gold diamond on the back and a soft hood bunched at the back of the neck. It ends at the hands, so
+   * they (and the lantern) show below it.
+   */
+  buildPoncho(v, m, pivot, body) {
+    const yTop = 0.775, rTop = 0.125, rSh = 0.245, yHem = 0.4, rHem = v === VARIANTS.her ? 0.375 : 0.365;
+    const radius = (y) => {
+      const sh = Math.sin(Math.min(1, Math.max(0, (yTop - y) / 0.1)) * Math.PI / 2);
+      return rTop + (rSh - rTop) * sh + (rHem - rSh) * Math.pow(Math.min(1, Math.max(0, (0.68 - y) / (0.68 - yHem))), 1.3);
+    };
+    const gap = (y) => 0.3 + 1.3 * Math.pow((yTop - y) / (yTop - yHem), 0.85); // the V at the front, radians (wide at the hem: the hands show)
+    const ROWS = 16, COLS = 44, pos = [], idx = [];
+    const at = (y, u, out) => { // u 0..1 around from the left front edge, over the back, to the right one
+      const g = gap(y), phi = g / 2 + u * (Math.PI * 2 - g), r = radius(y);
+      const wave = y < yHem + 0.01 ? Math.sin(phi * 6) * 0.012 : 0;
+      return out.set(r * Math.sin(phi), y + wave, r * Math.cos(phi));
+    };
+    const p = new Vector3();
+    for (let i = 0; i <= ROWS; i++) {
+      const y = yTop - (yTop - yHem) * (i / ROWS);
+      for (let j = 0; j <= COLS; j++) { at(y, j / COLS, p); pos.push(p.x, p.y - 0.74, p.z); }
+    }
+    for (let i = 0; i < ROWS; i++) for (let j = 0; j < COLS; j++) {
+      const a = i * (COLS + 1) + j, b = a + COLS + 1;
+      idx.push(a, b, a + 1, a + 1, b, b + 1);
+    }
+    const geo = new BufferGeometry();
+    geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+    geo.setIndex(idx);
+    geo.computeVertexNormals();
+    pivot.add(new Mesh(geo, m.cape));
+    // gold trim: down the left front edge, round the hem behind, up the right front edge
+    const pts = [];
+    for (let i = 0; i <= 12; i++) pts.push(at(yTop - (yTop - yHem) * (i / 12), 0, new Vector3()));
+    for (let j = 1; j < 40; j++) pts.push(at(yHem, j / 40, new Vector3()));
+    for (let i = 12; i >= 0; i--) pts.push(at(yTop - (yTop - yHem) * (i / 12), 1, new Vector3()));
+    for (const q of pts) q.y -= 0.74;
+    pivot.add(new Mesh(new TubeGeometry(new CatmullRomCurve3(pts), 220, 0.013, 5, false), m.trim));
+    // a gold diamond on the back (an outline of four bars and a dot), and a band of small diamonds near the hem
+    const yd = 0.56, rd = radius(yd) + 0.008;
+    const dia = new Group(), corners = [[0, 0.06], [0.042, 0], [0, -0.06], [-0.042, 0]];
+    for (let k = 0; k < 4; k++) {
+      const [x0, y0] = corners[k], [x1, y1] = corners[(k + 1) % 4];
+      const bar = new Mesh(new CapsuleGeometry(0.009, Math.hypot(x1 - x0, y1 - y0), 2, 4), m.trim);
+      bar.position.set((x0 + x1) / 2, (y0 + y1) / 2, 0);
+      bar.rotation.z = Math.atan2(y1 - y0, x1 - x0) - Math.PI / 2;
+      dia.add(bar);
+    }
+    const dot = new Mesh(new SphereGeometry(0.014, 6, 4), m.trim); dia.add(dot);
+    dia.position.set(0, yd - 0.74, -rd); dia.rotation.set(0.45, Math.PI, 0); // lies on the flaring back
+    pivot.add(dia);
+    for (let k = -3; k <= 3; k++) {
+      if (k === 0) continue;
+      const phi = Math.PI + k * 0.42, yb = yHem + 0.05, rb = radius(yb) + 0.004;
+      const d = new Mesh(new SphereGeometry(0.016, 4, 2), m.trim);
+      d.scale.set(1, 1.4, 0.4);
+      d.position.set(rb * Math.sin(phi), yb - 0.74, rb * Math.cos(phi)); d.rotation.y = phi;
+      pivot.add(d);
+    }
+    // the hood, bunched softly at the back of the neck, and the clasp at the front
+    const hood = new Mesh(new TorusGeometry(0.13, 0.05, 8, 20, Math.PI * 1.25), m.cape);
+    hood.rotation.set(Math.PI / 2, 0, Math.PI / 2 + Math.PI * 0.375); hood.position.y = 0.765;
+    body.add(hood);
+    const hoodBack = new Mesh(new SphereGeometry(1, 14, 10), m.cape);
+    hoodBack.scale.set(0.15, 0.085, 0.07); hoodBack.position.set(0, 0.76, -0.15); hoodBack.rotation.x = 0.35;
+    body.add(hoodBack);
+    const clasp = new Mesh(new ConeGeometry(0.03, 0.06, 4), m.trim);
+    clasp.scale.z = 0.5; clasp.position.set(0, 0.745, 0.125);
+    const clasp2 = clasp.clone(); clasp2.rotation.z = Math.PI; clasp2.position.y -= 0.05;
+    body.add(clasp, clasp2);
   }
 
   /**

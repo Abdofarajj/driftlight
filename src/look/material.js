@@ -1,5 +1,5 @@
 // The one shared watercolour shader. Every mesh in the game uses these two factories.
-import { ShaderMaterial, Vector3, Vector4, Color, DoubleSide, AdditiveBlending } from 'three';
+import { ShaderMaterial, Vector3, Vector4, Color, DoubleSide, AdditiveBlending, Matrix4 } from 'three';
 import { PAL } from './palette.js';
 
 // the two travelers' lanterns + the 14 lanterns nearest the view (main.js updateLights).
@@ -23,6 +23,13 @@ export const shared = {
   uDark: { value: new Vector4(0, 0, 0, 0) },
   uNightCol: { value: PAL.night.clone() },
   uNight: { value: 0 }, // the sky and the cloud sea darken while the camera is in the dark
+  // soft sun shadows, baked once from the still world (src/look/shadow.js); uShadowK 0 = off (night, or not baked)
+  uShadowMap: { value: null },
+  uShadowMat: { value: new Matrix4() },
+  uShadowTexel: { value: 1 / 2048 },
+  uShadowBias: { value: 0.001 },
+  uShadowOffset: { value: 0.17 },
+  uShadowK: { value: 0 },
 };
 
 const NOISE = /* glsl */ `
@@ -88,9 +95,26 @@ const FRAG = /* glsl */ `
   uniform vec3 uHaze; uniform vec3 uHazeLow; uniform float uHazeNear; uniform float uHazeFar;
   uniform vec3 uLightPos[${MAX_LIGHTS}]; uniform float uLightStr[${MAX_LIGHTS}]; uniform vec3 uGlow;
   uniform vec4 uDark; uniform vec3 uNightCol;
+  uniform sampler2DShadow uShadowMap; uniform mat4 uShadowMat; uniform float uShadowTexel, uShadowBias, uShadowOffset, uShadowK;
   uniform float uWash; uniform float uLightRecv; uniform float uDarkRecv; uniform float uTintMode; uniform float uBreak;
   varying vec3 vWorld; varying vec3 vNormal; varying float vMix; varying vec3 vTint;
   ${NOISE}
+  // 0 = in sunlight, 1 = in the shade of something between here and the sun. Soft, blotchy edges (a few taps on
+  // a ring that turns with world position), like a painted shadow rather than a crisp one.
+  float sunShadow(vec3 p, vec3 n, float ndl, float wash){
+    // off the surface along its normal, more where the sun grazes it (no speckled self-shadowing)
+    vec3 q = (uShadowMat * vec4(p + n * uShadowOffset * (1.0 + 1.5 * (1.0 - clamp(ndl, 0.0, 1.0))), 1.0)).xyz;
+    if (q.x <= 0.0 || q.x >= 1.0 || q.y <= 0.0 || q.y >= 1.0 || q.z >= 1.0) return 0.0;
+    float a = wash * 12.0;
+    float r = uShadowTexel * (1.6 + wash * 2.0);
+    float z = q.z - uShadowBias, lit = texture(uShadowMap, vec3(q.xy, z));
+    for (int i = 0; i < 4; i++) {
+      float t = a + float(i) * 1.5708;
+      lit += texture(uShadowMap, vec3(q.xy + vec2(cos(t), sin(t)) * r, z));
+    }
+    return 1.0 - lit / 5.0;
+  }
+
   void main(){
     vec3 n = normalize(vNormal);
     if (!gl_FrontFacing) n = -n;
@@ -106,8 +130,12 @@ const FRAG = /* glsl */ `
     w += (wash - 0.5) * 0.18;                // brush irregularity in the terminator
     // leafy / scalloped breakup (canopies): high-frequency cells shift the bands
     if (uBreak > 0.0) { float leaf = vnoise(vWorld*3.2) * 0.6 + vnoise(vWorld*7.0) * 0.4; w += (leaf - 0.5) * uBreak; }
+    // sun shadows: whatever is shaded by a canopy, a wall or a rock drops into the shade bands
+    float sh = uShadowK > 0.0 && ndl > -0.2 ? sunShadow(vWorld, n, ndl, wash) * uShadowK : 0.0;
+    w = mix(w, min(w, 0.3), sh * 0.85);
     float band = smoothstep(0.2, 0.36, w)*0.55 + smoothstep(0.5, 0.66, w)*0.45;
     vec3 col = mix(shade, lit, band);
+    col = mix(col, col * vec3(0.88, 0.84, 1.02), sh * 0.6); // shadows lean cool lavender
 
     // sky fill from above (lavender), bounce from below (warm)
     col += vec3(0.06,0.04,0.09) * clamp(n.y,0.0,1.0) * (1.0-band);
@@ -117,7 +145,7 @@ const FRAG = /* glsl */ `
     // warm rim from the low back sun
     float fres = pow(1.0 - clamp(dot(n, V), 0.0, 1.0), 3.0);
     float back = clamp(dot(-V, uSunDir) * 0.6 + 0.55, 0.0, 1.0);
-    col += uRim * fres * back * uRimStr;
+    col += uRim * fres * back * uRimStr * (1.0 - sh * 0.8);
 
     // lantern light pools
     float L = 0.0, pool = 0.0, dk = 0.0;

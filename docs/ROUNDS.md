@@ -147,3 +147,24 @@ Code: `src/world/tower.js` (the island, the cloud steps, the tower), `src/world/
 **Done when:** the full journey can be played start to finish: the bot climbs the clouds, the tower and lights the
 beacon solo (`playtest -- name --from-tower`) and online (`npm run nettest`).
 
+
+## Look pass (started 2026-11-14, Abdo: "Look pass")
+One small round at a time: capture everything next to the references, fix the two biggest gaps, capture again.
+Captures in `captures/look<N>/` (mirrored to `/mnt/project-files/driftlight-captures/`).
+
+Gaps found in the first full capture (biggest first):
+1. Nothing cast a shadow, so the ground read flat and objects seemed to float (refs: soft lavender shade under every tree).
+2. The travelers don't match the character sheet: the sheet's poncho has rounded shoulders, a V at the front, gold
+   trim and a diamond on the back; their hair is soft tousled locks (ours are round balls).
+3. Water (lake, oasis) reads as a grey disc; the refs have deep blue-violet water with sky reflections and glowing lotuses.
+4. The Lantern Forest has few, small, dim lanterns; the ref is full of big warm glowing ones.
+5. Canopies are smooth lilac blobs on thin trunks; the refs have leafy scalloped clumps on thick gnarled trunks.
+6. Island edges are smooth domes; the refs have grassy overhanging lips, vines, layered rock and waterfalls.
+7. Zone landmarks are plain next to `other-zones.png`: the tower is a bare cylinder (ref: spires, arches, banners),
+   the peak a stacked cake with cone trees (ref: a real mountain and snowy pines), desert walls lack arches and banners.
+
+### Look round 1: shadows + travelers (2026-11-14)
+- Soft sun shadows baked once from the still world (`src/look/shadow.js`); every watercolour surface looks them up.
+- The travelers' cape: two options for Abdo (A open at the front, live; B poncho like the character sheet, `?cape=poncho`).
+**Done when:** the forest shot shows soft lavender shade under the trees, lanterns, rocks and walls with no speckles or
+blocky edges, and Abdo has picked a cape.

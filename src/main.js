@@ -26,6 +26,7 @@ import { WorldMap } from './ui/map.js';
 import { Secrets } from './world/secrets.js';
 import { SECRET_HINTS } from './world/jokes.js';
 import { mergeStatic, mergeSiblings, Instancer } from './look/merge.js';
+import { bakeSunShadow } from './look/shadow.js';
 import { PAL } from './look/palette.js';
 
 ColorManagement.enabled = false; // palette colours are used as-is
@@ -96,6 +97,9 @@ if (!params.has('nomerge')) {
   instancer.add(world.swingParts);
   for (const model of [meT.root, friendT.root, secrets.roro, secrets.gardenGroup, world.lake.boat, world.desert.spirit.rays, ...world.hollow.shadows.map((c) => c.group), world.hollow.lonely.group, world.hollow.cloud, ...world.peak.braziers.map((Z) => Z.fire), world.peak.hearthFire, world.tower.beacon.flames]) mergeSiblings(model); // hair curls, eyes, stems + leaves
 }
+// soft sun shadows of the still world, baked once (?noshadow turns them off to compare)
+const sunShadow = params.has('noshadow') ? null : bakeSunShadow(renderer, scene, [world.root, secrets.grottoGroup, secrets.ringGroup, secrets.gardenGroup, baked]);
+window.__shadowInfo = sunShadow && { casters: sunShadow.casters, texel: sunShadow.texel }; // tests
 const hud = { stars: document.getElementById('stars'), secrets: document.getElementById('secrets'), secIcon: document.querySelector('.pill .sec') };
 
 // ---- objectives (tap a row to see more; finished ones fade away) ----
@@ -328,6 +332,7 @@ function darkness() {
   const T = world.tower, td = Math.hypot(camera.position.x - T.center.x, camera.position.z - T.center.z);
   const tw = smooth(T.radius + 50, T.radius + 8, td) * 0.6 * peakQuest.aur * dawn;
   shared.uNight.value = Math.max(c * 0.95, pk, tw);
+  shared.uShadowK.value = sunShadow ? 1 - shared.uNight.value : 0; // no sun, no sun shadows
 }
 
 function updateLights(focus) {
