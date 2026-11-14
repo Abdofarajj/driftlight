@@ -199,3 +199,17 @@ beacon lit together brings the sunrise and the closing card on both screens.
   the ramp or the top with the beacon lit (its still meshes are baked per material; the cloud steps are 2 instanced
   draws, the beams one).
 - `node tools/playtest.mjs <name> --from-tower` runs only the Cloud Kingdom checks (about 7 minutes).
+
+## 2026-11-14, the full journey with keepsakes (71/72, then fixed)
+`npm run playtest -- full3`, start to finish: forest, lake, desert, Hollow, peak, Cloud Kingdom, the closing card and
+the forest secrets, now with a keepsake check on every island (gather three, fill the stone together; the locket gates
+the beacon). Headless swiftshader ran about 1.5 frames a second here, so the run took about 75 minutes.
+
+Found and fixed:
+- A keepsake stone wouldn't fill when the partner stood a step behind you, just over 3 m out: the reach is now 3.6 m.
+- Long keepsake toasts ran under the counters on PC and off the sides of a portrait phone: they wrap now, stay clear
+  of the counters and buttons, and stay up longer when they're long (hudcheck covers the longest one).
+- Bot slips: a second `holdHands()` let go of her hand (it toggles), stone checks now wait on the game state, and the
+  last objectives check counts the twelve newer secrets that sit off the bot's route (keepcheck finds each one).
+Also new: `node tools/keepcheck.mjs` (every keepsake, stone and new secret), `node tools/savecheck.mjs` (progress
+survives a reload), `node tools/hudcheck.mjs` (title, HUD, satchel, map and toasts in both phone orientations).
