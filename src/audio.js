@@ -90,12 +90,25 @@ export class GameAudio {
     const pan = Math.max(-1, Math.min(1, rel.dot(this.listener.right) / (d + 2)));
     return { gain: 1 / (1 + Math.max(0, d - 1.5) * 0.15), pan };
   }
+  /** a little bus for one sound effect, placed where it happens. Freed once its last voice has finished. */
   out(pos, dest = this.sfx) {
     const ctx = this.ctx;
     const { gain, pan } = this.spatial(pos);
     const g = ctx.createGain(); g.gain.value = gain;
-    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p).connect(dest); } else g.connect(dest);
+    g.parts = [g]; g.live = 0;
+    if (ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = pan; g.connect(p).connect(dest); g.parts.push(p); } else g.connect(dest);
     return g;
+  }
+
+  /** Every voice is unplugged when it ends (and its bus with the last one). Finished nodes left plugged in still
+   *  cost the audio thread a little each, and over minutes of footsteps and chimes they piled up into thousands:
+   *  the sound crackled and dropped out, worst when a chord of chimes came on top. */
+  done(src, parts, bus) {
+    if (bus && bus.parts) bus.live++;
+    src.onended = () => {
+      for (const n of parts) n.disconnect();
+      if (bus && bus.parts && --bus.live === 0) for (const n of bus.parts) n.disconnect();
+    };
   }
 
   // ---------- voices ----------
@@ -107,6 +120,7 @@ export class GameAudio {
     g.gain.exponentialRampToValueAtTime(vol, t + attack);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g).connect(dest); o.start(t); o.stop(t + dur + 0.05);
+    this.done(o, [o, g], dest);
   }
   bell(freq, t, vol, dest = this.sfx, dur = 2.2) {
     this.tone(freq, t, dur, vol, 'sine', dest);
@@ -122,6 +136,7 @@ export class GameAudio {
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.02, dur / 3)); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(f).connect(g).connect(dest);
     src.start(t, Math.random() * 1.5); src.stop(t + dur + 0.05);
+    this.done(src, [src, f, g], dest);
   }
 
   /** one-shot sound effects */
@@ -234,6 +249,7 @@ export class GameAudio {
           o.frequency.setValueAtTime(f0 * p, s); o.frequency.exponentialRampToValueAtTime(f1 * p, s + 0.07); o.frequency.exponentialRampToValueAtTime(f0 * 1.1 * p, s + 0.12);
           g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(g0 * v, s + 0.015); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.13);
           o.connect(g).connect(dest); o.start(s); o.stop(s + 0.15);
+          this.done(o, [o, g], dest);
         }
         break;
       }
@@ -261,6 +277,7 @@ export class GameAudio {
         for (let i = 0; i < 7; i++) g.gain.linearRampToValueAtTime((i % 2 ? 0.006 : 0.03) * v, t + (i + 1) * dur / 8); // the stick-slip judder
         g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
         o.connect(f).connect(g).connect(dest); o.start(t); o.stop(t + dur + 0.05);
+        this.done(o, [o, f, g], dest);
         break;
       }
       case 'whisper': { // breathy, wordless, just out of sight: a few soft hissed syllables
@@ -350,11 +367,13 @@ export class GameAudio {
           o.frequency.setValueAtTime(base, s); o.frequency.exponentialRampToValueAtTime(base * (1.2 + Math.random() * 0.3), s + 0.08);
           g.gain.setValueAtTime(0.0001, s); g.gain.exponentialRampToValueAtTime(0.018, s + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, s + 0.1);
           o.connect(g).connect(dest); o.start(s); o.stop(s + 0.12);
+          this.done(o, [o, g], dest);
         }
         break;
       }
       default: break;
     }
+    if (dest.live === 0) for (const n of dest.parts) n.disconnect(); // nothing played on it
   }
 
   swell(amount, secs) {

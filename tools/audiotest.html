@@ -1,0 +1,55 @@
+<!doctype html><meta charset="utf-8"><title>audio test</title>
+<script type="module">
+// Renders the game's sound offline (no speakers needed) through a scripted session: music, footsteps and the
+// chimes that pile up when you light, find and finish things. tools/audiotest.mjs reads the result.
+import { Vector3 } from 'three';
+import { GameAudio } from '../src/audio.js';
+
+window.runAudio = async ({ secs = 75, events = [], rate = 48000 }) => {
+  const off = new OfflineAudioContext(2, Math.ceil(secs * rate), rate);
+  const Real = window.AudioContext;
+  window.AudioContext = function () { return off; };
+  const audio = new GameAudio();
+  audio.start();
+  window.AudioContext = Real;
+  const nodes = { made: 0 }; // count nodes made, to see how many voices a burst of chimes costs
+  for (const k of ['createGain', 'createOscillator', 'createBufferSource', 'createBiquadFilter', 'createStereoPanner']) {
+    const f = off[k].bind(off); off[k] = (...a) => { nodes.made++; return f(...a); };
+  }
+  const st = { camPos: new Vector3(), camRight: new Vector3(1, 0, 0), playerPos: new Vector3(0, 0, 0), distFromCenter: 5, airborne: false, onMain: true,
+    windDist: [], inWind: -1, waterDist: 99, hollow: 0, hollowCenter: new Vector3(), inHouse: false, peak: 0, peakHigh: 0, inCabin: false, fireDist: 99 };
+  const dt = 1 / 30, here = new Vector3(1, 0, 1);
+  let step = 0, ei = 0;
+  const sorted = [...events].sort((a, b) => a.t - b.t);
+  const madeAt = [], wall = [];
+  for (let t = dt; t < secs - 0.1; t += dt) {
+    off.suspend(t).then(() => {
+      wall.push([t, performance.now()]);
+      while (ei < sorted.length && sorted[ei].t <= t) { const e = sorted[ei++]; audio.play(e.name, { pos: here, ...(e.opts || {}) }); madeAt.push([e.name, +t.toFixed(2), nodes.made]); }
+      if (t - step > 0.36) { step = t; audio.play('step', { surface: ['grass', 'snow', 'path'][Math.floor(t / 10) % 3], pos: here, vol: 1 }); }
+      audio.update(dt, st);
+      off.resume();
+    });
+  }
+  const t0 = performance.now();
+  const buf = await off.startRendering();
+  const ms = performance.now() - t0;
+  // per 50 ms window: peak level, clipped samples, NaNs
+  const L = buf.getChannelData(0), R = buf.getChannelData(1), W = Math.round(rate * 0.05), wins = [];
+  let nan = 0, clip = 0, peak = 0;
+  for (let i = 0; i < L.length; i += W) {
+    let p = 0, c = 0;
+    for (let j = i; j < Math.min(L.length, i + W); j++) {
+      const a = L[j], b = R[j];
+      if (Number.isNaN(a) || Number.isNaN(b)) { nan++; continue; }
+      const m = Math.max(Math.abs(a), Math.abs(b)); if (m > p) p = m; if (m >= 0.999) c++;
+    }
+    clip += c; peak = Math.max(peak, p); wins.push([+(i / rate).toFixed(2), +p.toFixed(3), c]);
+  }
+  // how hard the sound is to make: wall time per half second of audio (offline: one thread, as fast as it can)
+  const cost = [];
+  for (let i = 15; i < wall.length; i += 15) cost.push([+wall[i][0].toFixed(1), +((wall[i][1] - wall[i - 15][1]) / ((wall[i][0] - wall[i - 15][0]) * 1000)).toFixed(3)]);
+  return { renderMs: Math.round(ms), secs, nan, clip, peak: +peak.toFixed(3), nodes: nodes.made, madeAt, wins, cost };
+};
+window.audioReady = true;
+</script>

@@ -72,6 +72,7 @@ export class PianoMusic {
     fund.connect(gf).connect(lp); body.connect(gb).connect(lp); lp.connect(g).connect(this.out);
     const stop = end + 1.8;
     fund.start(t); body.start(t); fund.stop(stop); body.stop(stop);
+    fund.onended = () => { for (const n of [fund, body, gf, gb, lp, g]) n.disconnect(); }; // unplug finished notes (see GameAudio.done)
   }
 }
 

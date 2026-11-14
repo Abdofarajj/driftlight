@@ -165,3 +165,15 @@ screens.
 - Draws: the peak adds 6 draws seen from the forest spawn, 15 from the Hollow's heart next door, and 7-12 while
   you're on it (its still meshes are baked into one piece per material; snow only falls while the camera is over it).
 - `node tools/playtest.mjs <name> --from-peak` runs only the peak checks (about 7 minutes).
+
+## 2026-11-14, audio crackles and drop-outs (Abdo: "static, then silent for a few seconds, mostly with chimes")
+`node tools/audiotest.mjs` renders a scripted minute of the game's sound offline (music, footsteps, a pile-up of
+chimes) and reports clipping, NaNs, silent drop-outs and how long the sound takes to make.
+- Cause: finished sounds were never unplugged. Every footstep and chime left a few nodes connected, and the audio
+  thread kept visiting them, so its load climbed the longer you played (0.05 → 0.36 s of work per second of sound
+  over 5 minutes here, falling back only when garbage collection caught up). A chord of chimes on top pushed it
+  over: crackle, then silence.
+- Fix: each voice unplugs itself when it ends, and its little bus with the last one (`GameAudio.done`, and the
+  piano's notes in music.js). Now flat at 0.05-0.07 over 5 minutes, about 0.18 at the worst pile-up of chimes. No
+  clipping (peak 0.72) and no NaNs before or after.
+- `--steps-only` leaves out the chimes, `--secs N` renders longer, `--cost` prints the load over time.
