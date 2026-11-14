@@ -58,6 +58,7 @@ export const PAL = {
   crystalStone: [c('#ece2fa'), c('#a796c9')], // pale lilac stone: crystal bridge planks, crystal bases
   lotus: [c('#fbc6d6'), c('#c48db2')],        // carved lotus petals on the lotus stones
   lily: [c('#bfd08a'), c('#7f9a7c')],         // lily pads
+  shell: [c('#fbd9d8'), c('#c49ec4')],        // keepsakes: the moon pearls' blush-pink clam shells
 
   // Sunset Desert (round 7)
   sand: [c('#f8d6a6'), c('#c69ba2')],         // dunes: warm peach sand, lavender-mauve in shade

@@ -108,6 +108,7 @@
       transform: translateY(12px) scale(0.97); transition: transform 1.6s; }
     #ending.on .card { transform: none; }
     #ending .star { width: 40px; height: 40px; }
+    #ending .locket { width: 46px; height: 50px; filter: drop-shadow(0 0 10px rgba(255, 200, 120, 0.9)); }
     #ending p { margin: 12px 0 0; font-size: 18px; font-weight: 700; line-height: 1.45; opacity: 0; transition: opacity 1.4s; }
     #ending p.last { color: #fff3c8; font-size: 21px; font-weight: 800; text-shadow: 0 0 14px rgba(255, 190, 110, 0.95), 0 1px 6px rgba(120, 70, 90, 0.5); }
     #ending.on p { opacity: 1; }
@@ -144,7 +145,10 @@
   <div class="ui" id="discover" aria-live="polite"><div class="k" id="disc-k"></div><div class="t" id="disc-t"></div><div class="l" id="disc-l"></div></div>
   <div id="fade"></div>
   <div id="ending" role="dialog" aria-label="The end"><div class="card">
-    <svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg>
+    <!-- the locket: its two halves, found in the Cloud Kingdom, joined when the beacon lit (keepsakes.js) -->
+    <svg class="star locket" viewBox="0 0 24 26" aria-label="The locket, whole again"><circle cx="12" cy="3" r="1.6" fill="none" stroke="#ffbf5e" stroke-width="1"/>
+      <path d="M12 23 C7 19 2.5 15.5 2.5 10.5 C2.5 7.5 4.8 5.5 7.4 5.5 C9.4 5.5 11 6.6 12 8.2 C13 6.6 14.6 5.5 16.6 5.5 C19.2 5.5 21.5 7.5 21.5 10.5 C21.5 15.5 17 19 12 23Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/>
+      <path d="M12 8.2 L12 23" stroke="#e9a85a" stroke-width="0.8"/><circle cx="8.3" cy="12" r="1.9" fill="#55a0bb"/><circle cx="15.7" cy="12" r="1.9" fill="#ef7050"/></svg>
     <p>Every bridge here only rose for two.</p>
     <p>Through the dark, the cold and the long way round, you held on to each other.</p>
     <p class="last">Nobody reaches the top alone. You got here together.</p>

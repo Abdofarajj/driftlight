@@ -22,6 +22,7 @@ export class LanternQuest {
     this.count = 0;
     this.done = false;
     this.rise = 0;
+    this.gate = () => true; // the forest's keepsakes must be placed too (keepsakes.js)
   }
 
   update(dt, t, a, b, linked) {
@@ -45,7 +46,7 @@ export class LanternQuest {
       ud.glowMat.uniforms.uStr.value = it.lit ? 1.45 + Math.sin(t * 2 + it.pos.x) * 0.08 : 0.65 + it.charge * 0.7;
       ud.light.str = it.lit ? 1.9 : 0.8 + it.charge;
     }
-    if (this.done && this.rise < 1) {
+    if (this.done && this.rise < 1 && this.gate()) {
       this.rise = Math.min(1, this.rise + dt / 4.5);
       this.world.northBridge.setRise(this.rise);
       this.world.shrine.userData.setGlow(this.rise);

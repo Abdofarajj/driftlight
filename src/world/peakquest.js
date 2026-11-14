@@ -29,6 +29,7 @@ export class PeakQuest {
     this.P = world.peak; this.events = events; this.secrets = secrets; this.hollowQuest = hollowQuest;
     this.remote = false;   // guest: the host keeps the score
     this.opened = false; this.wait = 0; this.rise = 0;
+    this.gate = () => true; // the Hollow's keepsakes must be placed too (keepsakes.js)
     this.braziers = this.P.braziers.map(() => ({ lit: false, k: 0, litT: -99 }));
     this.lastBrazier = -1;   // where you wake if the cold puts your lantern out
     this.rung = false; this.ringT = -99; this.aur = 0; this.melt = 0;
@@ -70,7 +71,7 @@ export class PeakQuest {
     const P = this.P;
     this.lastT = t;
     // ---- the stone bridge rises a little after the Hollow's fireflies ----
-    if (!this.opened && this.hollowQuest.done && !this.remote) { this.wait += dt; if (this.wait >= OPEN_DELAY) this.open(false); }
+    if (!this.opened && this.hollowQuest.done && this.gate() && !this.remote) { this.wait += dt; if (this.wait >= OPEN_DELAY) this.open(false); }
     if (this.opened && this.rise < 1) {
       this.rise = Math.min(1, this.rise + dt / RISE);
       P.bridge.setRise(this.rise);

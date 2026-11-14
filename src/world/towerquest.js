@@ -25,6 +25,9 @@ export class TowerQuest {
     this.T = world.tower; this.events = events; this.secrets = secrets; this.peakQuest = peakQuest;
     this.remote = false;     // guest: the host keeps the score
     this.opened = false; this.wait = 0; this.formT = 0;
+    this.gate = () => true;       // the peak's keepsakes must be placed too (keepsakes.js)
+    this.beaconGate = () => true; // and the beacon only lights once both halves of the locket are found
+    this.onLit = null;            // (quiet) => the locket joins
     this.bridge = 0; this.bridgeOn = false;
     this.arrived = false;
     this.k = 0; this.lit = false; this.litT = -99; this.sun = 0;
@@ -42,7 +45,7 @@ export class TowerQuest {
     this.lastT = t;
     T.setTime(t);
     // ---- the cloud steps form one after another, a little after the aurora bell (the host decides when) ----
-    if (!this.opened && this.peakQuest.rung && !this.remote) { this.wait += dt; if (this.wait >= OPEN_DELAY) this.open(false); }
+    if (!this.opened && this.peakQuest.rung && this.gate() && !this.remote) { this.wait += dt; if (this.wait >= OPEN_DELAY) this.open(false); }
     if (this.opened && this.formT < 60) {
       this.formT += dt;
       for (let i = 0; i < T.steps.length; i++) {
@@ -77,7 +80,9 @@ export class TowerQuest {
 
     // ---- the beacon (host): stand by it together, holding hands ----
     if (!this.lit) {
-      const charging = !this.remote && linked && T.atTop(a.pos, BEACON_R) && T.atTop(b.pos, BEACON_R);
+      const both = linked && T.atTop(a.pos, BEACON_R) && T.atTop(b.pos, BEACON_R), whole = this.beaconGate();
+      const charging = !this.remote && both && whole;
+      if (both && !whole && t - this.hinted.beacon > 9) { this.hinted.beacon = t; this.events.emit('tower-hint', { kind: 'locket' }); }
       this.k = charging ? Math.min(1, this.k + dt / BEACON_T) : Math.max(0, this.k - dt * 0.8);
       if (this.k >= 1) this.light(false, t);
       if (!linked && T.atTop(a.pos, BEACON_R) && t - this.hinted.beacon > 12) { this.hinted.beacon = t; this.events.emit('tower-hint', { kind: 'beacon' }); }
@@ -105,6 +110,7 @@ export class TowerQuest {
     if (this.lit) return;
     this.lit = true; this.k = 1; this.litT = quiet ? t - 999 : t;
     if (quiet) this.sun = 1;
+    this.onLit?.(quiet);
     this.events.emit('tower-beacon', { quiet, pos: this.T.beacon.head });
   }
 

@@ -193,3 +193,31 @@ vines, layered rock), with no seams on the grass and under 20% more vertices.
 - Desert: a welcome arch over the arrival path, ruined arches, a watchtower with arched windows, red banners.
 **Done when:** `tower-steps`, `peak` and `desert` read like the castle, the mountain and the sunset ruins in
 `other-zones.png`, and Abdo has picked a hair style.
+
+## Keepsakes and more secrets (started 2026-11-14, Abdo: "more to explore… collect items on each island to unlock the next")
+Abdo picked: keepsakes are **required, together with the island's quest**, to open the way on.
+- **Keepsakes** (`src/world/keepsakes.js`): three per island, hidden round it. Either of you picks one up by walking into
+  it (shared satchel, an objectives row "Find the …" with a hint per piece). They shimmer and chime softly within 8 m,
+  so it's a wander, not a hunt. A keepsake stone with three cups stands beside the bridge foot: stand at it together,
+  holding hands, and they float into the cups. The bridge rises once the quest is done AND the stone is filled.
+  Forest: firefly jars (north bridge). Lake: moon pearls, one floats on the rowboat's drift (desert bridge).
+  Desert: sun-glass, one in the oasis, one behind a pass shelter (Hollow bridge).
+  Online: whoever touches one gets it for both (mask like stars); the host fills stones (`kx` in the update).
+- **Six more secrets** (`src/world/moresecrets.js`, appended to the list in secrets.js, text in jokes.js): the painted
+  heart stone and the swing for two (forest, both of you), two paper boats and the tall little stone tower (lake),
+  the picnic for two at the end of two trails of footprints and two sandcastles, hers taller (desert).
+- Tools: `node tools/keepcheck.mjs` picks up every keepsake, fills each stone, finds each new secret (with shots);
+  `node tools/scan.mjs cx cz r` prints an ASCII map of free ground for placing things.
+**Done when (round 1, forest/lake/desert):** keepcheck passes, the zone playtests (`--from-lake`, `--from-desert`) pass
+with the new keepsake checks, nettest passes, and the shots show the keepsakes and secrets sitting on the ground.
+**Round 2 (Hollow, peak, tower), built 2026-11-14:**
+- Keepsakes: three lullaby notes in the Hollow (they hum in the dark; stone by the stone bridge out), three aurora
+  feathers on the peak (meadow, first and second terrace; stone on the summit by the bell, it opens the cloud steps),
+  and two halves of a locket in the Cloud Kingdom (one on the big resting cloud, one on the north rim). The locket has
+  no stone: the beacon only lights once both halves are found, and lighting it joins them. The closing card shows the
+  joined locket (blue and red stones) in place of the star.
+- Six more secrets: the owl in the dead tree (cold eyes from afar, warm and blinking up close), a letter for two in a
+  crooked letterbox (Hollow), two snowmen with a blue and a red scarf, two snow angels (peak), a message in a bottle in
+  a cloud tuft and a telescope you look through together (Cloud Kingdom). 21 secrets in all.
+**Done when (round 2):** keepcheck passes for all six islands and all 12 new secrets, the long playtest from the lake
+(`playtest -- name --from-lake`, which runs on to the ending) and nettest pass, and the shots show everything grounded.

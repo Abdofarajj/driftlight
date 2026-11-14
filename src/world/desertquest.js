@@ -31,6 +31,7 @@ export class DesertQuest {
     this.world = world; this.D = world.desert; this.events = events; this.secrets = secrets; this.lake = lakeQuest;
     this.remote = false;
     this.opened = false; this.rise = 0;
+    this.gate = () => true; // the lake's keepsakes must be placed too (keepsakes.js)
     this.sun = { state: SUN.SLEEP, pos: this.D.nestPos.clone(), from: new Vector3(), homeK: 0, hintT: -99, blink: 0, yaw: 0, netPos: null };
     this.done = false; this.gateK = 0; this.gateDone = false;
     this.g = 0; this.phase = 'calm';
@@ -50,7 +51,7 @@ export class DesertQuest {
     const D = this.D, S = this.sun;
     this.lastT = t;
     // ---- the sandstone bridge: rises once the crystal heart is awake and its stepping stones are up ----
-    if (!this.opened && !this.remote && this.lake.awake && this.lake.stepsDone) this.open(false);
+    if (!this.opened && !this.remote && this.lake.awake && this.lake.stepsDone && this.gate()) this.open(false);
     if (this.opened && this.rise < 1) {
       this.rise = Math.min(1, this.rise + dt / RISE);
       D.bridge.setRise(this.rise);
