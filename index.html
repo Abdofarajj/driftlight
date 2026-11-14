@@ -112,6 +112,7 @@
     #sheet .soft { background: #f8e3d4; color: var(--ink); }
     #sheet .x { position: absolute; top: 8px; right: 10px; flex: none; width: 34px; height: 34px; padding: 0; line-height: 34px; font-size: 22px; color: #b48a90; }
     #sheet .wait { margin-top: 12px; font-size: 13px; opacity: 0.8; font-weight: 700; }
+    #sheet .check { display: inline-block; margin-top: 10px; font-size: 12px; font-weight: 700; color: inherit; opacity: 0.75; }
     #sheet [hidden] { display: none !important; }
     /* touch controls (ref: phone-portrait.png): a ring with arrow marks, a cream knob, the star (jump) above a glowing hold-hands button */
     #joy { position: fixed; z-index: 2; left: calc(env(safe-area-inset-left) + 92px); bottom: calc(env(safe-area-inset-bottom) + 92px); top: auto; width: 128px; height: 128px; margin: -64px 0 0 -64px;
@@ -245,6 +246,7 @@
       <input id="sheet-link" readonly hidden />
       <div class="row" id="sheet-btns" hidden><button class="main" id="sheet-share">Share link</button><button class="soft" id="sheet-copy">Copy</button></div>
       <div class="wait" id="sheet-wait"></div>
+      <a class="check" href="./netcheck.html" target="_blank" rel="noopener">Trouble joining? Check your connection</a>
     </div>
   </div>
   <script type="module" src="./src/main.js"></script>

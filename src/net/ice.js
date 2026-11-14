@@ -4,10 +4,10 @@
 // through a TURN relay instead. PeerJS used to lend everyone a free relay but shut it down in 2024, so
 // without one of our own, two players on different networks often never connect.
 
-const STUN = { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] };
+export const STUN = { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] };
 
 // Our own relay account, tried first when filled in: { urls: ['turn:…:3478', …], username: '…', credential: '…' }.
-// A free plan is plenty: a game of DriftLight sends about 20 MB an hour when it has to go through the relay.
+// A free plan is plenty for the two of us: a game sends some tens of MB an hour when it has to go through a relay.
 export const OWN_TURN = null;
 
 // Open Relay (metered.ca): a free public relay that needs no account. It takes passwords that expire, made
@@ -29,10 +29,15 @@ export async function openRelay(now = Date.now()) {
   return { urls: [`turn:${h}:80`, `turn:${h}:80?transport=tcp`, `turn:${h}:443`, `turns:${h}:443?transport=tcp`], username, credential };
 }
 
+/** the relays to try, best first, each with a name for the connection check page */
+export async function relays() {
+  const list = [];
+  if (OWN_TURN) list.push({ name: 'our relay', ...OWN_TURN });
+  try { if (globalThis.crypto?.subtle) list.push({ name: 'Open Relay', ...(await openRelay()) }); } catch { /* no relay: direct links only */ }
+  return list;
+}
+
 /** the RTCPeerConnection config for a new connection */
 export async function iceConfig() {
-  const iceServers = [STUN];
-  if (OWN_TURN) iceServers.push(OWN_TURN);
-  try { if (globalThis.crypto?.subtle) iceServers.push(await openRelay()); } catch { /* no relay: direct links only */ }
-  return { iceServers };
+  return { iceServers: [STUN, ...(await relays()).map(({ name, ...server }) => server)] };
 }
