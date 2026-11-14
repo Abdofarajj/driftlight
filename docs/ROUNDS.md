@@ -185,3 +185,11 @@ glowing paper lanterns next to `lantern-forest.png`.
 - New shot `edge` (the forest island from outside the rim).
 **Done when:** the `edge` and `lake-bridge` shots read like the islands in `lantern-forest.png` (grass over the rim,
 vines, layered rock), with no seams on the grass and under 20% more vertices.
+
+### Look round 4: hair + landmarks (2026-11-14)
+- Hair: three options on a contact sheet; Abdo picked B, the tousled shag (now the default).
+- Cloud Kingdom: banners, golden pinnacles, turrets round the island, ribbons circling above the tower.
+- Snowy Peak: a big snowy massif behind the mountain, drooping snowy pines.
+- Desert: a welcome arch over the arrival path, ruined arches, a watchtower with arched windows, red banners.
+**Done when:** `tower-steps`, `peak` and `desert` read like the castle, the mountain and the sunset ruins in
+`other-zones.png`, and Abdo has picked a hair style.

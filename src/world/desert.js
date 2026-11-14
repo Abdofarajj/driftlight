@@ -16,7 +16,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { PAL } from '../look/palette.js';
 import { makeWatercolorMaterial, makeGlowMaterial, makeWaterMaterial, makeSoftMaterial } from '../look/material.js';
 import { rng, fbm2, noise3 } from './rng.js';
-import { displace, setMix } from './shapes.js';
+import { displace, setMix, bannerGeos } from './shapes.js';
 import { lakeDesertRim } from './lake.js';
 
 export const DESERT_C = new Vector3(25, 0, -135); // island centre (world)
@@ -145,6 +145,8 @@ function desertMats(M) {
     eye: makeWatercolorMaterial({ lit: PAL.eye, rim: 0.0, lightRecv: 0 }),
     rope: makeGlowMaterial(PAL.sunCore, PAL.sunHalo, 0.95),
     water: makeWaterMaterial({ mode: 1, flow: 0.25, opacity: 0.8 }),
+    banner: makeWatercolorMaterial({ lit: PAL.bannerRed, rim: 0.4, wash: 0.18, side: 2 }),
+    gold: makeWatercolorMaterial({ lit: PAL.trim, rim: 0.5, wash: 0.1 }),
   };
   return DM;
 }
@@ -547,6 +549,106 @@ export function buildDesert(ctx) {
     const x = OASIS.x + Math.cos(a) * d, z = OASIS.z + Math.sin(a) * d;
     return { x, y: gy(x, z) + 0.1 + r() * 0.15, z, s: 0.7 + r() * 0.6 };
   }, 523));
+
+  // ---- look round 4 (ref: other-zones.png, the sunset ruins): tall ruined arches, a ruined watchtower with arched
+  // windows, and red banners with a gold diamond ----
+  const banner = bannerGeos();
+  const hang = (x, y, z, faceTh, sc = 1) => {
+    for (const [geo, mat] of [[banner.cloth, M.banner], [banner.gold, M.gold]]) {
+      const b = new Mesh(geo, mat); b.position.set(x, y, z); b.rotation.y = faceTh; b.scale.setScalar(sc); g.add(b);
+    }
+  };
+  // a ruined arch: two pillars of stacked blocks and a round arch of wedge blocks (some fallen when `broken`)
+  const ruinArch = (c, yaw, span, ph, broken, seed) => {
+    const ar = rng(seed), grp = new Group();
+    const pw = 1.05, half = span / 2 + pw / 2;
+    for (const sx of [-1, 1]) {
+      let y = 0;
+      while (y < ph - 0.05) {
+        const h = Math.min(0.75 + ar() * 0.35, ph - y);
+        const b = new Mesh(blockGeo, M.sandstone);
+        b.scale.set(pw + (ar() - 0.5) * 0.08, h - 0.03, pw + (ar() - 0.5) * 0.08);
+        b.position.set(sx * half + (ar() - 0.5) * 0.05, y + h / 2, 0); b.rotation.y = (ar() - 0.5) * 0.06;
+        grp.add(b); y += h;
+      }
+      const cap = new Mesh(blockGeo, M.sandstone); cap.scale.set(pw + 0.3, 0.3, pw + 0.3); cap.position.set(sx * half, ph + 0.15, 0); grp.add(cap);
+    }
+    const n = 11, rA = span / 2 + pw / 2, top = ph + 0.3;
+    for (let i = 0; i < n; i++) {
+      if (broken && i >= 6 && i <= 8) continue; // fallen stones on one side
+      const a = Math.PI - (i + 0.5) / n * Math.PI;
+      const b = new Mesh(blockGeo, M.sandstone);
+      b.scale.set(pw * 0.95, (Math.PI * rA) / n - 0.05, pw * 0.95);
+      b.position.set(Math.cos(a) * rA, top + Math.sin(a) * rA, 0); b.rotation.z = a - Math.PI / 2;
+      grp.add(b);
+    }
+    grp.position.set(c.x, gy(c.x, c.z) - 0.25, c.z); grp.rotation.y = yaw;
+    g.add(grp);
+    const ax = Math.cos(yaw), az = -Math.sin(yaw);
+    for (const sx of [-1, 1]) addCol(c.x + ax * sx * half, c.z + az * sx * half, 0.75);
+    return { half, ax, az, y0: gy(c.x, c.z) - 0.25, top, inner: span / 2 };
+  };
+  {
+    // the welcome gate: a tall arch over the arrival path, a banner on each pillar's outer face
+    const t = 0.42, c = P(ARRIVE.x + (BEND.x - ARRIVE.x) * t, ARRIVE.z + (BEND.z - ARRIVE.z) * t);
+    const dir = Math.atan2(BEND.z - ARRIVE.z, BEND.x - ARRIVE.x);
+    const yaw = -dir - Math.PI / 2; // the arch's span runs across the path
+    const A = ruinArch(c, yaw, 5.0, 4.4, false, 611);
+    const fwd = { x: Math.cos(dir), z: Math.sin(dir) };
+    for (const sx of [-1, 1]) {
+      const px = c.x + A.ax * sx * A.half, pz = c.z + A.az * sx * A.half;
+      // on the side facing the arrival (towards Crystal Lake)
+      hang(px - fwd.x * 0.56, A.y0 + 4.0, pz - fwd.z * 0.56, Math.atan2(-fwd.x, -fwd.z), 1.05);
+    }
+  }
+  // freestanding arches out on the dunes, off every path (one of them broken)
+  {
+    const ar = rng(621), placed = [];
+    const clearOf = (x, z, r) => onDesert(x * 1.15, z * 1.15) && flatMask(x, z) < 0.05 && Math.hypot(x - OASIS.x, z - OASIS.z) > OASIS_R + r + 2
+      && Math.hypot(x + 13, z + 7.5) > 3.2 + r && cacti.every(([cx, cz]) => Math.hypot(cx - x, cz - z) > r + 1) && placed.every((q) => Math.hypot(q.x - x, q.z - z) > 9);
+    for (let n = 0; n < 900 && placed.length < 3; n++) {
+      const a = ar() * Math.PI * 2, d = 9 + ar() * 13, x = Math.cos(a) * d, z = Math.sin(a) * d;
+      if (!clearOf(x, z, 3.6)) continue;
+      const yaw = a + Math.PI / 2 + (ar() - 0.5) * 0.6; // roughly facing the middle of the island
+      const A = ruinArch(P(x, z), yaw, 3.4 + ar() * 0.8, 3.4 + ar() * 1.0, placed.length === 1, 630 + n);
+      if (placed.length === 0) hang(x, A.y0 + A.top + A.inner - 0.1, z, Math.atan2(A.az, -A.ax), 0.9); // hanging in the opening
+      placed.push({ x, z });
+    }
+    // the watchtower: a square ruin of stacked courses, two arched windows up top on each side, its crown broken
+    for (let n = 0; n < 900; n++) {
+      const a = ar() * Math.PI * 2, d = 12 + ar() * 9, x = Math.cos(a) * d, z = Math.sin(a) * d;
+      if (!clearOf(x, z, 3.2)) continue;
+      const grp = new Group(), S = 3.2, Hc = 0.85, courses = 9, win = [5, 6, 7];
+      for (let k = 0; k < courses; k++) {
+        for (let side = 0; side < 4; side++) {
+          const yaw = side * Math.PI / 2, nx = Math.sin(yaw), nz = Math.cos(yaw), tx = Math.cos(yaw), tz = -Math.sin(yaw);
+          if (k === courses - 1 && (side + k) % 2 === 0) continue; // broken crown
+          const pieces = win.includes(k) ? [[-1.25, 1.3], [1.25, 1.3]] : [[0, S + 0.6]];
+          for (const [off, len] of pieces) {
+            const b = new Mesh(blockGeo, M.sandstone);
+            b.scale.set(len, Hc - 0.04, 0.6);
+            b.position.set(nx * S / 2 + tx * off, k * Hc + Hc / 2, nz * S / 2 + tz * off); b.rotation.y = yaw + (ar() - 0.5) * 0.04;
+            grp.add(b);
+          }
+          if (k === win[win.length - 1]) { // the window's round top
+            const arch = new Mesh(new TorusGeometry(0.6, 0.22, 6, 12, Math.PI), M.sandstone);
+            arch.position.set(nx * S / 2, (k + 1) * Hc - 0.05, nz * S / 2); arch.rotation.y = yaw;
+            grp.add(arch);
+          }
+        }
+      }
+      grp.position.set(x, gy(x, z) - 0.3, z); grp.rotation.y = Math.PI / 2 - a; // one face looks out from the middle
+      g.add(grp);
+      addCol(x, z, S * 0.75);
+      hang(x + Math.cos(a) * (S / 2 + 0.33), gy(x, z) + 3.9, z + Math.sin(a) * (S / 2 + 0.33), Math.atan2(Math.cos(a), Math.sin(a)), 1.1);
+      break;
+    }
+  }
+  // banners along the city wall, facing south over the arrival side
+  for (const [x, z] of [[-17, 4.5], [-8, 4.15], [8, 4.15], [22, 5.3]]) {
+    if (!onDesert(x, z)) continue;
+    hang(x, gy(x, z) + 1.95, z + 0.62, 0, 0.75);
+  }
 
   // ---- shade in the lee of each shelter: soft lavender patches that say "stand here" ----
   const shadeGeo = mergeGeometries(STUBS.map((st) => {

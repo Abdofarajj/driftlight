@@ -1,6 +1,6 @@
 // A small caped traveler built from primitives, with cheap procedural animation.
 // Two characters: 'him' (blue cape, short dark curls) and 'her' (red cape, long light hair, flower clip).
-import { Group, Mesh, SphereGeometry, CylinderGeometry, CapsuleGeometry, TorusGeometry, ConeGeometry, PlaneGeometry, TubeGeometry, CatmullRomCurve3, BufferGeometry, Float32BufferAttribute, Vector3, IcosahedronGeometry, Color, Quaternion, Euler } from 'three';
+import { Group, Mesh, SphereGeometry, LatheGeometry, Vector2, CylinderGeometry, CapsuleGeometry, TorusGeometry, ConeGeometry, PlaneGeometry, TubeGeometry, CatmullRomCurve3, BufferGeometry, Float32BufferAttribute, Vector3, IcosahedronGeometry, Color, Quaternion, Euler } from 'three';
 import { PAL } from '../look/palette.js';
 import { makeWatercolorMaterial, makeGlowMaterial, makeOutlineMaterial, makeSoftMaterial } from '../look/material.js';
 import { displace } from '../world/shapes.js';
@@ -10,6 +10,25 @@ const VARIANTS = {
   him: { cape: PAL.capeBlue, hair: PAL.hairDark, scale: 1.45, tunicFlare: 0.2 },
   her: { cape: PAL.capeRed, hair: PAL.hairLight, scale: 1.36, tunicFlare: 0.25 },
 };
+
+const HAIR_STYLES = ['curls', 'shag', 'bob'];
+const HAIR_DEFAULT = 'shag'; // Abdo picked the tousled shag (2026-11-14)
+const HAIR_PARAM = typeof location !== 'undefined' ? new URLSearchParams(location.search).get('hair') : null;
+
+/** A tapered lock of hair hanging down from its root (y 0 to -len), flattened front to back, its tip curling out
+ *  toward +z by `flick` (a fraction of its length) and lifting a little. */
+function lockGeo(len, w, flick) {
+  const g = new CylinderGeometry(w, w * 0.28, len, 7, 5); // a soft blunt tip, not a spike
+  g.translate(0, -len / 2, 0);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const y = p.getY(i), t = Math.min(1, Math.max(0, -y / len));
+    const bulge = 1 + 0.25 * Math.sin(t * Math.PI); // fuller in the middle, like a soft lock
+    p.setXYZ(i, p.getX(i) * bulge, y + flick * len * 0.35 * t * t * t, p.getZ(i) * 0.7 * bulge + flick * len * t * t);
+  }
+  g.computeVertexNormals();
+  return g;
+}
 
 const ARM_LEN = 0.27; // shoulder to the middle of the hand (model units, before the traveler's scale)
 
@@ -106,34 +125,13 @@ export class Traveler {
       head.add(blush);
     }
 
-    // hair
+    // hair (look round 4: three styles to pick from, ?hair=curls|shag|bob)
     const hairGroup = new Group();
-    const hr = rng(kind === 'her' ? 3 : 8);
-    const hairGeo = displace(new IcosahedronGeometry(1, 2), 0.15, 2.4, kind === 'her' ? 2 : 5);
-    const blob = (x, y, z, sx, sy = sx, sz = sx) => {
-      const b = new Mesh(hairGeo, m.hair);
-      b.scale.set(sx, sy, sz); b.position.set(x, y, z);
-      hairGroup.add(b);
-      return b;
-    };
-    const n = kind === 'her' ? 20 : 24;
-    for (let i = 0; i < n; i++) {
-      const theta = hr() * Math.PI * 2, w = hr();
-      const back = Math.cos(theta) < 0;
-      const phi = Math.acos(Math.max(-1, 1 - w * (back ? 1.75 : 1.2)));
-      let x = Math.sin(phi) * Math.sin(theta), y = Math.cos(phi), z = Math.sin(phi) * Math.cos(theta);
-      if (z > 0.35 && y < 0.55) { z = 0.35; y = Math.max(y, 0.5); } // fringe, not a mask
-      blob(x * 0.235, y * 0.235 + 0.02, z * 0.235 - 0.01, 0.095 + hr() * 0.05);
-    }
-    for (let i = 0; i < 4; i++) blob(-0.13 + i * 0.087, 0.11 + (i % 2) * 0.02, 0.19, 0.085, 0.07, 0.06);
+    const style = HAIR_STYLES.includes(HAIR_PARAM) ? HAIR_PARAM : HAIR_DEFAULT;
+    if (style === 'curls') this.curlyHair(kind, m, hairGroup);
+    else if (style === 'shag') this.shagHair(kind, m, hairGroup);
+    else this.bobHair(kind, m, hairGroup);
     if (kind === 'her') {
-      // long hair falling down the back to the shoulders, and two locks framing the face
-      // smooth (not curly) long hair down the back, ending in a soft wave at the shoulders
-      const longGeo = new SphereGeometry(1, 20, 14);
-      const long = (x, y, z, sx, sy, sz) => { const b = new Mesh(longGeo, m.hair); b.scale.set(sx, sy, sz); b.position.set(x, y, z); hairGroup.add(b); };
-      long(0, -0.1, -0.12, 0.22, 0.3, 0.13);
-      long(0, -0.33, -0.15, 0.17, 0.1, 0.09);
-      for (const sx of [-1, 1]) long(sx * 0.2, -0.1, 0.04, 0.055, 0.17, 0.06); // locks framing the face
       // flower clip above the left ear
       const clip = new Group();
       for (let i = 0; i < 5; i++) {
@@ -145,12 +143,9 @@ export class Traveler {
       }
       const ctr = new Mesh(new SphereGeometry(0.02, 8, 6), m.trim);
       clip.add(ctr);
-      clip.position.set(-0.2, 0.12, 0.1); clip.rotation.y = -0.9;
+      clip.position.set(-0.21, 0.13, 0.1); clip.rotation.y = -0.9;
+      if (style !== 'curls') clip.position.set(-0.235, 0.12, 0.08);
       hairGroup.add(clip);
-    } else {
-      const sprout = new Mesh(new ConeGeometry(0.025, 0.14, 6).translate(0, 0.07, 0), m.hair);
-      sprout.position.set(0.02, 0.3, 0.0); sprout.rotation.z = -0.5; sprout.rotation.x = -0.2;
-      hairGroup.add(sprout);
     }
     head.add(hairGroup);
 
@@ -319,6 +314,117 @@ export class Traveler {
     this.lantern.rotation.x = -walk * 0.3;
     this.head.rotation.z = Math.sin(t * 1.1) * 0.03;
     this.head.position.y = 0.95 + Math.sin(ph * 2) * 0.01 * walk;
+  }
+
+  /** The original hair: a cap of round curls; hers falls smooth down the back. */
+  curlyHair(kind, m, hairGroup) {
+    const hr = rng(kind === 'her' ? 3 : 8);
+    const hairGeo = displace(new IcosahedronGeometry(1, 2), 0.15, 2.4, kind === 'her' ? 2 : 5);
+    const blob = (x, y, z, sx, sy = sx, sz = sx) => {
+      const b = new Mesh(hairGeo, m.hair);
+      b.scale.set(sx, sy, sz); b.position.set(x, y, z);
+      hairGroup.add(b);
+      return b;
+    };
+    const n = kind === 'her' ? 20 : 24;
+    for (let i = 0; i < n; i++) {
+      const theta = hr() * Math.PI * 2, w = hr();
+      const back = Math.cos(theta) < 0;
+      const phi = Math.acos(Math.max(-1, 1 - w * (back ? 1.75 : 1.2)));
+      let x = Math.sin(phi) * Math.sin(theta), y = Math.cos(phi), z = Math.sin(phi) * Math.cos(theta);
+      if (z > 0.35 && y < 0.55) { z = 0.35; y = Math.max(y, 0.5); } // fringe, not a mask
+      blob(x * 0.235, y * 0.235 + 0.02, z * 0.235 - 0.01, 0.095 + hr() * 0.05);
+    }
+    for (let i = 0; i < 4; i++) blob(-0.13 + i * 0.087, 0.11 + (i % 2) * 0.02, 0.19, 0.085, 0.07, 0.06);
+    if (kind === 'her') {
+      // long hair falling down the back to the shoulders, and two locks framing the face
+      // smooth (not curly) long hair down the back, ending in a soft wave at the shoulders
+      const longGeo = new SphereGeometry(1, 20, 14);
+      const long = (x, y, z, sx, sy, sz) => { const b = new Mesh(longGeo, m.hair); b.scale.set(sx, sy, sz); b.position.set(x, y, z); hairGroup.add(b); };
+      long(0, -0.1, -0.12, 0.22, 0.3, 0.13);
+      long(0, -0.33, -0.15, 0.17, 0.1, 0.09);
+      for (const sx of [-1, 1]) long(sx * 0.2, -0.1, 0.04, 0.055, 0.17, 0.06); // locks framing the face
+    } else {
+      const sprout = new Mesh(new ConeGeometry(0.025, 0.14, 6).translate(0, 0.07, 0), m.hair);
+      sprout.position.set(0.02, 0.3, 0.0); sprout.rotation.z = -0.5; sprout.rotation.x = -0.2;
+      hairGroup.add(sprout);
+    }
+  }
+
+  /** Tousled shag like the character sheet: a cap, a ring of tapered locks that flick out at the tips, a shorter
+   *  layer on top for volume, pointed bangs and one curl sticking up. Hers is longer at the back. */
+  shagHair(kind, m, hairGroup) {
+    const r = rng(kind === 'her' ? 13 : 17);
+    const her = kind === 'her';
+    const cap = new Mesh(displace(new SphereGeometry(0.272, 28, 18, 0, Math.PI * 2, 0, 1.5), 0.018, 5, her ? 4 : 9), m.hair);
+    cap.scale.set(1.06, 1.0, 1.04); cap.position.set(0, 0.02, -0.015);
+    hairGroup.add(cap);
+    const lock = (theta, y0, rad, len, w, splay, flick, twist = 0) => {
+      const mesh = new Mesh(lockGeo(len, w, flick), m.hair);
+      mesh.rotation.order = 'YXZ';
+      mesh.position.set(Math.sin(theta) * rad, y0, Math.cos(theta) * rad);
+      mesh.rotation.set(-splay, theta, twist);
+      hairGroup.add(mesh);
+    };
+    const ring = (n, from, y0, rad, len0, lenBack, w, splay, flick) => {
+      for (let i = 0; i < n; i++) {
+        const th = from + (i / (n - 1)) * (Math.PI * 2 - from * 2) + (r() - 0.5) * 0.15;
+        const back = (1 - Math.cos(th)) / 2;
+        lock(th, y0 + r() * 0.03, rad, len0 + back * lenBack + r() * 0.05, w * (0.9 + r() * 0.25), splay + r() * 0.15, flick + r() * 0.25, (r() - 0.5) * 0.45);
+      }
+    };
+    // three rings of soft, thick locks from the nape up to the crown, each flicking out at the tip
+    ring(16, 1.0, 0.07, 0.2, 0.22, her ? 0.2 : 0.07, 0.12, 0.28, 0.35);
+    ring(14, 0.85, 0.17, 0.19, 0.2, her ? 0.1 : 0.04, 0.12, 0.5, 0.45);
+    ring(10, 0.6, 0.26, 0.13, 0.15, 0, 0.11, 0.72, 0.45);
+    // bangs: thick, pointed and uneven, parting a little
+    const nb = 7;
+    for (let i = 0; i < nb; i++) {
+      const th = -0.7 + (i / (nb - 1)) * 1.4;
+      lock(th + (r() - 0.5) * 0.08, 0.17 + r() * 0.02, 0.2, 0.12 + r() * 0.05, 0.085, 0.35, 0.25, (i - (nb - 1) / 2) * 0.13);
+    }
+    // the one curl sticking up
+    const ah = new Mesh(lockGeo(0.17, 0.035, 0.8), m.hair);
+    ah.position.set(0.01, 0.27, -0.03); ah.rotation.set(Math.PI * 0.8, 0.3, 0);
+    hairGroup.add(ah);
+  }
+
+  /** Soft bob: one smooth rounded shape with a scalloped hem and a scalloped fringe, open at the face, one curl on
+   *  top. Reads cleanly from far away. Hers is longer at the back. */
+  bobHair(kind, m, hairGroup) {
+    const her = kind === 'her';
+    const open = 0.72; // half-angle of the opening for the face
+    // profile from the inner tuck up over the crown (bottom to top, so the faces point outward)
+    const prof = [[0.215, -0.11], [0.265, -0.175], [0.315, -0.16], [0.305, -0.08], [0.298, 0.02], [0.28, 0.14], [0.225, 0.24], [0.13, 0.3], [0.001, 0.31]]
+      .map(([x, y]) => new Vector2(x, y));
+    const shell = new LatheGeometry(prof, 40, open, Math.PI * 2 - open * 2);
+    const p = shell.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      if (y > -0.05) continue;
+      const phi = Math.atan2(x, z), back = (1 - Math.cos(phi)) / 2;
+      const lobe = Math.pow(Math.abs(Math.sin(phi * 4.5)), 0.7);
+      const k = Math.min(1, (-0.05 - y) / 0.1);
+      p.setY(i, y - k * (0.035 * lobe + back * (her ? 0.16 : 0.04)));
+    }
+    shell.computeVertexNormals();
+    hairGroup.add(new Mesh(shell, m.hair));
+    // fringe across the forehead, scalloped into 4 rounded points
+    const fprof = [[0.235, 0.04], [0.265, 0.03], [0.278, 0.09], [0.268, 0.17], [0.215, 0.26]].map(([x, y]) => new Vector2(x, y));
+    const fr = new LatheGeometry(fprof, 20, -open - 0.05, open * 2 + 0.1);
+    const q = fr.attributes.position;
+    for (let i = 0; i < q.count; i++) {
+      const y = q.getY(i);
+      if (y > 0.08) continue;
+      const phi = Math.atan2(q.getX(i), q.getZ(i));
+      const u = (phi + open + 0.05) / (open * 2 + 0.1);
+      q.setY(i, y - 0.035 * Math.pow(Math.abs(Math.sin(u * 4 * Math.PI)), 0.7));
+    }
+    fr.computeVertexNormals();
+    hairGroup.add(new Mesh(fr, m.hair));
+    const ah = new Mesh(lockGeo(0.16, 0.03, 0.8), m.hair);
+    ah.position.set(0.01, 0.295, -0.03); ah.rotation.set(Math.PI * 0.8, 0.3, 0);
+    hairGroup.add(ah);
   }
 
   /**

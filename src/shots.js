@@ -51,6 +51,23 @@ export const SHOTS = {
       cam(camera, [31, 12, 26], [12, -2.5, 6], 46);
     },
   },
+  // hair options (look round 4): the two of them close up from the side and from behind (`--q hair=shag` etc.)
+  hair: {
+    viewport: 'landscape', ref: 'traveler-turnaround.png',
+    apply(o) {
+      SHOTS.close.apply(o);
+      const y = o.world.floorAt(1.1, 9) ?? 0;
+      cam(o.camera, [-2.6, y + 1.45, 11.6], [1.1, y + 1.05, 9], 30);
+    },
+  },
+  'hair-back': {
+    viewport: 'landscape', ref: 'traveler-turnaround.png',
+    apply(o) {
+      SHOTS.close.apply(o);
+      const y = o.world.floorAt(1.1, 9) ?? 0;
+      cam(o.camera, [1.6, y + 1.7, 4.6], [1.1, y + 1.05, 9], 32);
+    },
+  },
   // top-down map of the main island, for planning where things go (not compared to a reference)
   map: {
     viewport: 'landscape',

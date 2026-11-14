@@ -151,6 +151,7 @@ function peakMats(M) {
     snowPlain: makeWatercolorMaterial({ lit: PAL.snow, rim: 0.25, wash: 0.12 }),
     cornice: makeWatercolorMaterial({ lit: PAL.snow, lit2: PAL.snowPath, mix: true, rim: 0.3, wash: 0.12 }),
     rock: makeWatercolorMaterial({ lit: PAL.rockCold, lit2: PAL.snow, mix: true, rim: 0.4, wash: 0.2 }),
+    massif: makeWatercolorMaterial({ lit: PAL.massif, lit2: PAL.snow, mix: true, rim: 0.5, wash: 0.22 }),
     stone: makeWatercolorMaterial({ lit: PAL.rockCold, rim: 0.4, wash: 0.18 }),
     ice: makeWatercolorMaterial({ lit: PAL.ice, rim: 0.7, wash: 0.1 }),
     pine: makeWatercolorMaterial({ lit: PAL.pine, rim: 0.5, wash: 0.2, breakup: 0.4 }),
@@ -267,24 +268,71 @@ function iceColumn(r, h, seed, taper = 0.9) {
   return flat;
 }
 /** a snowy pine: a short trunk and three stacked cones, each with a snow cap */
+/** A tier of pine branches: a cone whose skirt spreads into drooping branch tips (look round 4). */
+function pineTier(rad, h, seed) {
+  const g = new ConeGeometry(rad, h, 16, 3);
+  const p = g.attributes.position;
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i), r = Math.hypot(x, z);
+    if (r < 1e-4) continue;
+    const a = Math.atan2(z, x), f = (h / 2 - y) / h;
+    const lobe = Math.pow(0.5 + 0.5 * Math.sin(a * 8 + seed), 1.6);
+    const k = 1 + 0.24 * lobe * f * f;
+    p.setXYZ(i, x * k, y - 0.14 * h * lobe * f * f * f, z * k);
+  }
+  return displace(g, 0.03, 2, seed);
+}
 function snowPine(r, M, h) {
   const g = new Group();
-  const trunk = new Mesh(new CylinderGeometry(0.12, 0.18, h * 0.3, 6), M.trunk);
+  const trunk = new Mesh(new CylinderGeometry(0.12, 0.2, h * 0.3, 7), M.trunk);
   trunk.position.y = h * 0.15;
   g.add(trunk);
   const greens = [], snows = [];
-  const tiers = 3;
+  const tiers = 5;
   for (let i = 0; i < tiers; i++) {
-    const f = i / tiers, rad = (1.25 - f * 0.75) * (h / 4.2), th = h * 0.42;
-    const y = h * 0.22 + i * h * 0.24;
-    const cone = displace(new ConeGeometry(rad, th, 9, 2), 0.05, 2, Math.floor(r() * 99)).translate(0, y + th / 2, 0);
-    greens.push(cone);
-    const cap = displace(new ConeGeometry(rad * 0.72, th * 0.55, 9, 1), 0.03, 2, Math.floor(r() * 99)).translate(0, y + th * 0.72, 0);
-    snows.push(cap);
+    const f = i / (tiers - 1), rad = (1.15 - f * 0.8) * (h / 4.4), th = h * (0.3 - f * 0.06);
+    const y = h * 0.16 + f * h * 0.62;
+    greens.push(pineTier(rad, th, Math.floor(r() * 99)).translate(0, y + th / 2, 0));
+    // snow lies on top of each tier, following its branch tips
+    snows.push(pineTier(rad * 0.86, th * 0.5, Math.floor(r() * 99)).translate(0, y + th * 0.78, 0));
   }
   const clean = (geos) => geos.map((q) => { const b = new BufferGeometry(); b.setAttribute('position', q.getAttribute('position')); b.setAttribute('normal', q.getAttribute('normal')); if (q.index) b.setIndex(q.index); return b; });
   g.add(new Mesh(mergeGeometries(clean(greens)), M.pine));
   g.add(new Mesh(mergeGeometries(clean(snows)), M.snowPlain));
+  return g;
+}
+/** A snowy mountain (look round 4, ref: other-zones.png): ridged rocky slopes, snow on the upper half and on any
+ *  slope flat enough to hold it (aMix: 0 rock, 1 snow). Base at y 0, summit at h. */
+function mountainGeo(rad, h, seed) {
+  const segs = 72, rows = 34, pos = [], idx = [], ts = [];
+  for (let k = 0; k <= rows; k++) {
+    const t = k / rows;
+    for (let s = 0; s < segs; s++) {
+      const th = (s / segs) * Math.PI * 2, c = Math.cos(th), sn = Math.sin(th);
+      const ridge = 1 - Math.abs(noise3(c * 2.0 + seed, sn * 2.0, t * 1.4 + seed) * 2 - 1);
+      const spur = 1 - Math.abs(noise3(c * 4.5 + seed * 2, sn * 4.5, t * 2.5) * 2 - 1); // sharper ribs down the faces
+      const crag = noise3(c * 3 + seed, sn * 3, t * 7);                                   // jagged steps in the outline
+      const r = rad * Math.pow(1 - t, 1.3) * (0.5 + 0.45 * ridge * ridge + 0.25 * spur * spur + 0.3 * crag);
+      const lean = t * t * h * 0.12; // the summit leans a little, so it isn't a perfect cone
+      pos.push(c * r + lean, t * h, sn * r);
+      ts.push(t);
+    }
+  }
+  for (let k = 0; k < rows; k++) for (let s = 0; s < segs; s++) {
+    const a = k * segs + s, b = k * segs + ((s + 1) % segs), c = (k + 1) * segs + s, d = (k + 1) * segs + ((s + 1) % segs);
+    idx.push(a, c, b, b, c, d);
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  const n = g.attributes.normal, mix = new Float32Array(ts.length);
+  for (let i = 0; i < ts.length; i++) {
+    const x = pos[i * 3], z = pos[i * 3 + 2];
+    const line = 0.42 + 0.12 * (noise3(x * 0.15 + seed, 1.3, z * 0.15) - 0.5);
+    mix[i] = Math.min(1, sm(line, line + 0.08, ts[i]) + sm(0.55, 0.8, n.getY(i)) * 0.9);
+  }
+  g.setAttribute('aMix', new Float32BufferAttribute(mix, 1));
   return g;
 }
 function snowRock(s, seed, M) {
@@ -395,6 +443,21 @@ export function buildPeak(ctx, hollow) {
       const t0 = (i / N) * Math.PI * 2, t1 = ((i + 1) / N) * Math.PI * 2;
       if (RAMPS.some((rp) => rp.inner === k && rampT(rp, (t0 + t1) / 2) > LAND + 0.02 && rampT(rp, (t0 + t1) / 2) < 1)) continue;
       addSeg(polar(MC, rf(t0) + 0.1, t0), polar(MC, rf(t1) + 0.1, t1), 0.2, TIER_Y[k]);
+    }
+  }
+  // ---- the mountain behind it all (look round 4): a snowy massif rising past the island's south-east rim, so the
+  // island reads as the foot of a real mountain. Off every path; its foot is a wall.
+  {
+    const MASSIF_TH = 1.25; // straight behind the mountain as you arrive from the Hollow
+    for (const [dr, dth, rad, h, seed] of [[14, 0, 28, 60, 3], [9, -0.62, 17, 40, 8], [10, 0.66, 16, 33, 13]]) {
+      const er = edgeR(MASSIF_TH + dth), c = polar(P(0, 0), er + dr, MASSIF_TH + dth), base = Y0 - 14;
+      const m = new Mesh(mountainGeo(rad, h, seed), M.massif);
+      m.position.set(c.x, base, c.z); m.rotation.y = seed;
+      m.userData.noShadow = true; // too big for the baked sun shadow map (it would blur every other shadow)
+      g.add(m);
+      // its foot at meadow height, as a round wall
+      const footR = rad * Math.pow(1 - (Y0 + 0.5 - base) / h, 1.2) * 0.8;
+      if (footR > 0.5) addCol(c.x, c.z, footR);
     }
   }
   // ---- the two ramps ----
@@ -644,13 +707,13 @@ export function buildPeak(ctx, hollow) {
   // ---- snowy pines and rocks on the meadow, off the paths ----
   const tr = rng(907);
   const trees = [];
-  for (let n = 0; n < 500 && trees.length < 24; n++) {
+  for (let n = 0; n < 700 && trees.length < 32; n++) {
     const a = tr() * 6.283, d = 6 + Math.sqrt(tr()) * (R - 6);
     const x = Math.cos(a) * d, z = Math.sin(a) * d;
     if (!onPeakL(x, z) || d > edgeR(a) * 0.84 || flatMask(x, z) > 0.12) continue;
     if (fromMC(x, z)[0] < TIER[0] + 2.4) continue;
-    if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < 3.2)) continue;
-    const h = 3.2 + tr() * 2.6;
+    if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < 2.8)) continue;
+    const h = 3.6 + tr() * 3.4;
     const t = snowPine(tr, M, h);
     t.position.set(x, meadowH(x, z) - 0.1, z);
     t.rotation.y = tr() * 6.28;

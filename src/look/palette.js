@@ -63,6 +63,7 @@ export const PAL = {
   sand: [c('#f8d6a6'), c('#c69ba2')],         // dunes: warm peach sand, lavender-mauve in shade
   paving: [c('#f4d2ac'), c('#b8939f')],       // worn paving on the plaza, the paths and the terrace
   sandstone: [c('#efb98a'), c('#a98096')],    // ruins, walls, the bridge and the cliffs below
+  bannerRed: [c('#e8725e'), c('#a04462')],   // the desert's banners (look round 4): red with a gold diamond
   cactus: [c('#a9c48b'), c('#6d8c88')],
   palm: [c('#bccd72'), c('#6f8f6c')],         // oasis palm fronds
   dust: c('#f7dcb6'),                         // sand gusts
@@ -86,6 +87,7 @@ export const PAL = {
   snowPath: [c('#ebe1f2'), c('#a99ec8')],     // trodden snow on the paths and ramps
   ice: [c('#dcf2f8'), c('#94acd4')],          // frost steps, the frozen pillar, the bell's ice
   rockCold: [c('#b3aacb'), c('#665f8e')],     // the mountain's cliffs and boulders
+  massif: [c('#8b80b6'), c('#4a4479')],       // the big snowy mountain behind the peak (look round 4): rock a step darker so the snow reads
   pine: [c('#86b4a2'), c('#406b7c')],         // snowy pines: blue-green
   logs: [c('#d19f80'), c('#7d5b70')],         // the cabin
   cocoa: [c('#b07a6a'), c('#71505f')],        // two mugs of cocoa
@@ -95,6 +97,8 @@ export const PAL = {
   // Cloud Kingdom (round 10): pale cloud-stone, golden paving, the beacon's warm light
   cloudStone: [c('#f8e8e2'), c('#b6a4ca')],   // the island, the tower, the ramp
   cloudPave: [c('#fbdfb6'), c('#c4a2b4')],    // golden paving on the paths and up the middle of the ramp
+  banner: [c('#8a98e0'), c('#4b5394')],      // the Cloud Kingdom's banners (look round 4): blue-violet, gold diamond
+  ribbon: [c('#d3e2ff'), c('#9eaee6')],      // long ribbons drifting round the tower
 
   glowCore: c('#fff3c6'),
   glowHalo: c('#ffb45e'),

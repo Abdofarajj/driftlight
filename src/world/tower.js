@@ -9,14 +9,14 @@
 // beams of light live in world space.
 import {
   Group, Mesh, Object3D, BufferGeometry, Float32BufferAttribute, CylinderGeometry, IcosahedronGeometry, SphereGeometry,
-  ConeGeometry, BoxGeometry, TorusGeometry, Vector3, Vector2, InstancedMesh, LatheGeometry, Matrix4, Quaternion,
+  ConeGeometry, BoxGeometry, TorusGeometry, PlaneGeometry, Vector3, Vector2, InstancedMesh, LatheGeometry, Matrix4, Quaternion,
   ShaderMaterial, AdditiveBlending, DoubleSide,
 } from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PAL } from '../look/palette.js';
 import { makeWatercolorMaterial, makeGlowMaterial, shared } from '../look/material.js';
 import { rng, noise3 } from './rng.js';
-import { displace, setMix } from './shapes.js';
+import { displace, setMix, bannerGeos } from './shapes.js';
 import { discGeo } from './peak.js';
 
 export const TOWER_C = new Vector3(45, 0, -85); // island centre (world)
@@ -71,6 +71,8 @@ function towerMats() {
     wood: makeWatercolorMaterial({ lit: PAL.wood, rim: 0.3, wash: 0.16 }),
     window: makeGlowMaterial(PAL.glowCore, PAL.glowHalo, 0.7),
     lamp: makeGlowMaterial(PAL.glowCore, PAL.glowHalo, 1.2),
+    banner: makeWatercolorMaterial({ lit: PAL.banner, rim: 0.4, wash: 0.16, side: 2 }),
+    ribbon: makeWatercolorMaterial({ lit: PAL.ribbon, rim: 0.6, wash: 0.1, side: 2, sway: 0.12, lightRecv: 0.3 }),
   };
   return TM;
 }
@@ -359,6 +361,91 @@ export function buildTower(ctx, peak, beamFrom) {
         arch.rotation.set(0, -a, Math.PI / 2); arch.position.set(p.x, y + 0.5, p.z);
         g.add(win, sill, arch);
       }
+    }
+  }
+
+  // ---- look round 4 (ref: other-zones.png, the castle in the clouds): banners down the ramp, golden pinnacles on the
+  // crown, little turrets round the island, and two long ribbons drifting round the tower ----
+  const banner = bannerGeos();
+  const hang = (x, y, z, faceTh, s = 1) => {
+    for (const [geo, mat] of [[banner.cloth, M.banner], [banner.gold, M.brass]]) {
+      const b = new Mesh(geo, mat);
+      b.position.set(x, y, z); b.rotation.y = faceTh; b.scale.setScalar(s);
+      g.add(b);
+    }
+  };
+  {
+    // banners on the ramp's outer wall, facing out
+    for (let j = 0; j < 8; j++) {
+      const a = A0 + TAU * (j / 8 + 0.06);
+      for (let k = 0; k < 3; k++) {
+        const f = fOf(a) + k;
+        if (f < ENTRY + 0.2 || f > FTOP - 0.12 || gapOf(f) >= 0 || gapOf(f - 0.05) >= 0 || gapOf(f + 0.05) >= 0) continue;
+        const p = polar(P(0, 0), RO + 0.04, a);
+        hang(p.x, rampY(f) - 0.15, p.z, Math.PI / 2 - a, 1.3);
+      }
+    }
+    // golden pinnacles on the crown wall
+    const RCm = CR - 0.18, yw = YTOP + RAIL_H;
+    for (let i = 0; i < 4; i++) {
+      const a = OPEN1 + (OPEN0 + TAU - OPEN1) * (i + 0.15) / 4 + 0.35, p = polar(P(0, 0), RCm, a);
+      const shaft = new Mesh(new CylinderGeometry(0.24, 0.3, 1.2, 12), M.stone); shaft.position.set(p.x, yw + 0.6, p.z);
+      const roof = new Mesh(new ConeGeometry(0.36, 1.1, 12), M.brass); roof.position.set(p.x, yw + 1.75, p.z);
+      const tip = new Mesh(new SphereGeometry(0.08, 8, 6), M.lamp); tip.position.set(p.x, yw + 2.38, p.z);
+      g.add(shaft, roof, tip);
+    }
+  }
+  const turrets = [];
+  {
+    // little turrets round the island: a round stone drum, a gold band, a glowing arched window, a golden cone roof
+    const tr = rng(1301);
+    const keep = [ARRIVE, WAY, BENCH, LOOK, ...PUFFS, ...[0.08, 0.45, 0.7, 0.93].flatMap((t) => [along(t, 1.9), along(t, -1.9)])];
+    for (let n = 0; n < 800 && turrets.length < 5; n++) {
+      const a = tr() * TAU, d = 11 + tr() * 4;
+      const x = Math.cos(a) * d, z = Math.sin(a) * d;
+      if (d > edgeR(a) * 0.86 || pathMask(x, z) > 0.02) continue;
+      if (keep.some((q) => Math.hypot(q.x - x, q.z - z) < 4.0) || turrets.some((t) => Math.hypot(t.x - x, t.z - z) < 7.5)) continue;
+      const H = 3.6 + tr() * 2.4, grp = new Group();
+      const drum = new Mesh(displace(new CylinderGeometry(0.95, 1.08, H, 22, 4), 0.03, 1.5, n), M.stone); drum.position.y = H / 2;
+      const top = new Mesh(displace(new CylinderGeometry(1.2, 1.05, 0.5, 22, 1), 0.02, 2, n + 1), M.stone); top.position.y = H + 0.2;
+      const band = new Mesh(new TorusGeometry(1.0, 0.07, 6, 28), M.brass); band.rotation.x = Math.PI / 2; band.position.y = H - 0.45;
+      const roof = new Mesh(new ConeGeometry(1.32, 2.1 + tr() * 0.6, 22), M.brass); roof.position.y = H + 0.45 + 1.1;
+      const tip = new Mesh(new SphereGeometry(0.12, 8, 6), M.lamp); tip.position.y = H + 0.45 + 2.35;
+      grp.add(drum, top, band, roof, tip);
+      // a window facing the tower and a banner facing out
+      const inA = Math.atan2(-z, -x);
+      const win = new Mesh(new BoxGeometry(0.12, 0.8, 0.4), M.window);
+      win.position.set(Math.cos(inA) * 1.02, H * 0.62, Math.sin(inA) * 1.02); win.rotation.y = -inA;
+      const warch = new Mesh(new CylinderGeometry(0.2, 0.2, 0.12, 12, 1, false, 0, Math.PI), M.window);
+      warch.rotation.set(0, -inA, Math.PI / 2); warch.position.set(Math.cos(inA) * 1.02, H * 0.62 + 0.4, Math.sin(inA) * 1.02);
+      grp.add(win, warch);
+      grp.position.set(x, YT - 0.05, z);
+      g.add(grp);
+      const outA = inA + Math.PI;
+      hang(x + Math.cos(outA) * 1.1, YT + H - 0.75, z + Math.sin(outA) * 1.1, Math.PI / 2 - outA, 0.85);
+      addCol(x, z, 1.15);
+      lights.push({ obj: tip, str: 0.25 });
+      turrets.push({ x, z });
+    }
+  }
+  {
+    // two long ribbons drifting round the tower high up (they ripple with the material's sway)
+    for (const [k, ph] of [[0, 0], [1, 2.4]]) {
+      const N = 220, pos = [], idx = [];
+      for (let i = 0; i <= N; i++) {
+        const u = (i / N) * TAU * 1.35 + ph, rr = 9 + 2.5 * Math.sin(u * 2 + ph);
+        const y = 1.6 * Math.sin(u * 1.5 + ph) + (i / N) * 2.0;
+        const c = Math.cos(u), sn = Math.sin(u), tw = u * 1.6 + ph;
+        const wy = Math.cos(tw) * 0.24, wr = Math.sin(tw) * 0.24, taper = Math.min(1, i / 18, (N - i) / 18) * 0.85 + 0.15;
+        pos.push(c * (rr + wr * taper), y + wy * taper, sn * (rr + wr * taper), c * (rr - wr * taper), y - wy * taper, sn * (rr - wr * taper));
+        if (i < N) { const q = i * 2; idx.push(q, q + 1, q + 2, q + 1, q + 3, q + 2); }
+      }
+      const geo = new BufferGeometry();
+      geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
+      geo.setIndex(idx); geo.computeVertexNormals();
+      const rib = new Mesh(geo, M.ribbon);
+      rib.position.y = YTOP + 3.5 + k * 2.5; // above the top, so they never cut across the climb
+      g.add(rib);
     }
   }
 
