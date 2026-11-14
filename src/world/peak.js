@@ -172,7 +172,7 @@ function peakMats(M) {
 
 // ---- geometry helpers ----
 /** a flat-ish disc on the polar grid round c (local), radius rf(th), height hf(x,z) */
-function discGeo(c, rf, hf, rings = 18, segs = 96) {
+export function discGeo(c, rf, hf, rings = 18, segs = 96) {
   const pos = [], idx = [];
   pos.push(c.x, hf(c.x, c.z), c.z);
   for (let i = 1; i <= rings; i++) {

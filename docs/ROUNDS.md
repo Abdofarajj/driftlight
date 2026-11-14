@@ -127,3 +127,23 @@ Code: `src/world/peak.js` (the island), `src/world/peakquest.js` (the quest, the
 **Done when:** both bots reach the top and ring the bell solo (`playtest -- name --from-peak`) and online
 (`npm run nettest`), and the cold putting a lantern out sends you back to the last lit brazier.
 
+## Round 10: the Cloud Kingdom, the finale (built 2026-11-14)
+Code: `src/world/tower.js` (the island, the cloud steps, the tower), `src/world/towerquest.js` (the quest, online sync).
+- About ten seconds after the aurora bell rings, the aurora lifts a **stair of 11 cloud steps** from the summit, one
+  cloud after another, bowing gently north as it rises west to the Cloud Kingdom (island top y = 28). Each cloud is
+  a jump up (1.2 m): you can't walk onto one, and a walking jump or a running jump from its middle both land. The 6th
+  is a big resting cloud with a waystone. Slip off and fall 6 m and you wake by the last checkpoint. Holding hands you
+  jump together (no peak boost on the clouds).
+- **The tower:** a round core with a ramp winding 2.5 times round it to the top (y = 43.6), broken in three places.
+  Over each gap a **bridge of light** only holds while you hold hands (a dotted line of sparks shows where it'll be).
+  Let go on one and you drop to the turn below.
+- **Light the beacon:** stand by it at the top together, holding hands, for 3 seconds. Its beam rises, the sun comes
+  up over the cloud sea (the aurora fades), every island sends up a beam of light one after another, and the
+  **closing card** appears (the HUD steps back; "Keep exploring" closes it).
+- **Star 8** over three little cloud puffs, each a hop higher. **Secret 9, the lookout bench** on the rim, looking
+  back towards the Lantern Forest: found when you both stand at it ("The view from the top").
+- Online: the host keeps the score (the steps, the beacon); the bridges of light follow your joined hands, which both
+  screens already share.
+**Done when:** the full journey can be played start to finish: the bot climbs the clouds, the tower and lights the
+beacon solo (`playtest -- name --from-tower`) and online (`npm run nettest`).
+

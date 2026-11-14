@@ -2,7 +2,7 @@
 // viewport: 'portrait' = iPhone 15 Pro 393x852 @3x, 'landscape' = 852x393 @3x.
 
 function place(t, world, x, z, heading, opts = {}) {
-  const y = world.floorAt(x, z) ?? 0;
+  const y = (opts.y !== undefined ? world.floorAt(x, z, opts.y) : world.floorAt(x, z)) ?? 0; // opts.y: on overlapping floors, the one at this height
   t.root.position.set(x, y + (opts.lift || 0), z);
   t.root.rotation.y = heading;
   t.animate(0.016, opts.t ?? 2, opts.speed ?? 0, !!opts.air, !!opts.glide);
@@ -389,6 +389,85 @@ export const SHOTS = {
       Q.shotInside = true; Q.heartK = 1;
       // from the corner by the hearth: your faces, the little table, the mugs and their steam
       cam(camera, K.cabinAt(-1.75, 1.3, 2.0).toArray(), K.cabinAt(0.25, -0.35, 0.75).toArray(), 72);
+    },
+  },
+  // ---- the Cloud Kingdom (round 10) ----
+  // from the summit of the Snowy Peak: a stair of clouds rises west to the cloud tower, under the aurora
+  'tower-steps': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q, tower: TQ }) {
+      D.completeNow(); HQ.completeNow(); Q.completeNow(); TQ.open(true);
+      const T = world.tower, s0 = T.stepsFrom, s1 = T.stepAt(1), h = Math.atan2(s1.x - s0.x, s1.z - s0.z);
+      const bx = s0.x - Math.sin(h) * 1.0, bz = s0.z - Math.cos(h) * 1.0;
+      place(me, world, bx + Math.cos(h) * 0.45, bz - Math.sin(h) * 0.45, h, { t: 2, y: s0.y });
+      place(friend, world, bx - Math.cos(h) * 0.45, bz + Math.sin(h) * 0.45, h, { t: 3.1, y: s0.y });
+      me.holdSide = -1; friend.holdSide = 1;
+      // from behind you on the summit, a little to the south of the bell's arch: the clouds climbing away to the tower
+      const sx = Math.cos(h), sz = -Math.sin(h), mid = T.stepAt(3); // (sx, sz): sideways, away from the arch
+      cam(camera, [bx - Math.sin(h) * 4 + sx * 1.5, s0.y + 2.6, bz - Math.cos(h) * 4 + sz * 1.5], [mid.x, mid.y - 1.2, mid.z], 60);
+    },
+  },
+  // jumping across the last cloud steps: the island and its tower ahead (phone, portrait)
+  tower: {
+    viewport: 'portrait',
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q, tower: TQ }) {
+      D.completeNow(); HQ.completeNow(); Q.completeNow(); TQ.open(true);
+      const T = world.tower, n = T.steps.length, a = T.stepAt(n - 3), b = T.stepAt(n - 2), h = Math.atan2(b.x - a.x, b.z - a.z);
+      place(me, world, a.x + Math.cos(h) * 0.45 + Math.sin(h) * 0.6, a.z - Math.sin(h) * 0.45 + Math.cos(h) * 0.6, h, { t: 2, y: a.y + 0.7, lift: 0.7, air: true, glide: true });
+      place(friend, world, a.x - Math.cos(h) * 0.45 + Math.sin(h) * 0.6, a.z + Math.sin(h) * 0.45 + Math.cos(h) * 0.6, h, { t: 3.1, y: a.y + 0.7, lift: 0.65, air: true, glide: true });
+      me.holdSide = -1; friend.holdSide = 1;
+      cam(camera, [a.x - Math.sin(h) * 5.2, a.y + 2.8, a.z - Math.cos(h) * 5.2], [T.center.x, a.y + 6.5, T.center.z], 66);
+    },
+  },
+  // up the tower's ramp, holding hands: the bridge of light across the first gap holds for two
+  'tower-bridge': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q, tower: TQ }) {
+      D.completeNow(); HQ.completeNow(); Q.completeNow(); TQ.open(true); TQ.bridge = 1;
+      const T = world.tower, f = (T.gaps[0][0] + T.gaps[0][1]) / 2, p = T.rampAt(f), q = T.rampAt(f + 0.02), h = Math.atan2(q.x - p.x, q.z - p.z);
+      const a = T.rampAt(f, -0.45), b = T.rampAt(f, 0.45);
+      place(me, world, a.x, a.z, h, { t: 2, y: a.y, speed: 0.6 });
+      place(friend, world, b.x, b.z, h, { t: 3.1, y: b.y, speed: 0.6 });
+      me.holdSide = 1; friend.holdSide = -1;
+      // from out in the air beside the tower: the two of you crossing the gap on the light
+      const out = T.rampAt(f - 0.06, 9);
+      cam(camera, [out.x, p.y + 4.5, out.z], [p.x, p.y + 0.6, p.z], 50);
+    },
+  },
+  // the beacon lit at the top of the tower: the sun comes up, and every island sends up a beam of light
+  'tower-beacon': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q, tower: TQ }) {
+      D.completeNow(); HQ.completeNow(); Q.completeNow(); TQ.completeNow(); TQ.litT = -14;
+      const T = world.tower, c = T.beacon.pos, h = Math.atan2(c.x - (c.x + 1), c.z - (c.z + 2.2));
+      place(me, world, c.x + 1.0 + Math.cos(h) * 0.45, c.z + 1.9 - Math.sin(h) * 0.45, h, { t: 2, y: c.y });
+      place(friend, world, c.x + 1.0 - Math.cos(h) * 0.45, c.z + 1.9 + Math.sin(h) * 0.45, h, { t: 3.1, y: c.y });
+      me.holdSide = 1; friend.holdSide = -1;
+      cam(camera, [c.x + 5.5, c.y + 3.2, c.z + 8.5], [c.x - 1.5, c.y + 4.5, c.z - 3], 58);
+    },
+  },
+  // the lookout bench (secret 9): the two of you looking back over everywhere you've been
+  lookout: {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q, tower: TQ }) {
+      D.completeNow(); HQ.completeNow(); Q.completeNow(); TQ.completeNow(); TQ.litT = -30;
+      const T = world.tower, L = T.lookout, B = T.bench, h = Math.atan2(L.x - B.x, L.z - B.z);
+      place(me, world, L.x + Math.cos(h) * 0.45, L.z - Math.sin(h) * 0.45, h, { t: 2 });
+      place(friend, world, L.x - Math.cos(h) * 0.45, L.z + Math.sin(h) * 0.45, h, { t: 3.1 });
+      me.holdSide = 1; friend.holdSide = -1;
+      cam(camera, [B.x - Math.sin(h) * 3.2, B.y + 2.4, B.z - Math.cos(h) * 3.2], [L.x + Math.sin(h) * 30, L.y - 10, L.z + Math.cos(h) * 30], 54);
+    },
+  },
+  // the closing card over the sunrise (with the HUD)
+  ending: {
+    viewport: 'portrait', ui: true,
+    apply({ me, friend, camera, world, desert: D, hollow: HQ, peak: Q, tower: TQ, ending }) {
+      D.completeNow(); HQ.completeNow(); Q.completeNow(); TQ.completeNow(); TQ.litT = -14;
+      const T = world.tower, c = T.beacon.pos;
+      place(me, world, c.x + 1.2, c.z + 1.6, Math.PI * 0.8, { t: 2, y: c.y });
+      place(friend, world, c.x + 2.0, c.z + 1.1, Math.PI * 0.8, { t: 3.1, y: c.y });
+      cam(camera, [c.x + 7, c.y + 4, c.z + 7.5], [c.x, c.y + 4, c.z], 66);
+      ending();
     },
   },
   // the hidden sunflower garden on the meadow island

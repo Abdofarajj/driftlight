@@ -52,6 +52,7 @@
     @media (orientation: landscape) and (max-height: 520px) { #discover { padding: 10px 18px 12px; } #discover .t { font-size: 21px; } }
     body.discovering #objectives, body.discovering .pill, body.discovering #bset, body.discovering #btogether, body.discovering #bmap { opacity: 0.12; }
     #objectives, .pill, #bset, #btogether, #bmap { transition: opacity .6s; }
+    body.ending .ui:not(#toast), body.ending #joy { opacity: 0 !important; pointer-events: none; transition: opacity .8s; }
     #discover .k { font-size: 12px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; opacity: .9; }
     #discover .t { margin-top: 4px; font-size: 23px; font-weight: 800; color: #fff3c8; text-shadow: 0 0 12px rgba(255, 190, 110, 0.9), 0 1px 6px rgba(120, 70, 90, 0.5); }
     #discover .l { margin-top: 6px; font-size: 15px; font-weight: 650; line-height: 1.4; }
@@ -98,6 +99,24 @@
       border: 1.5px solid var(--edge); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); font-size: 16px; font-weight: 700; opacity: 0; transition: opacity .4s, transform .4s;
       text-shadow: 0 1px 6px rgba(120, 70, 90, 0.5); pointer-events: none; white-space: nowrap; }
     #toast.on { opacity: 1; transform: translate(-50%, 0); }
+    #ending { position: fixed; inset: 0; z-index: 4; display: grid; place-items: center; padding: 20px; box-sizing: border-box; pointer-events: none; opacity: 0; transition: opacity 1.6s;
+      background: radial-gradient(circle at 50% 45%, rgba(255, 222, 190, 0.12), rgba(120, 84, 136, 0.42)); font-family: ui-rounded, "SF Pro Rounded", "Nunito", system-ui, sans-serif; }
+    #ending.on { opacity: 1; pointer-events: auto; }
+    #ending .card { width: min(420px, 100%); box-sizing: border-box; padding: 28px 26px 22px; border-radius: 28px; text-align: center; color: #fff7ea;
+      background: linear-gradient(rgba(146, 104, 158, 0.58), rgba(176, 112, 142, 0.58)); border: 1.5px solid rgba(255, 238, 220, 0.85); backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 0 50px rgba(255, 214, 150, 0.85), 0 10px 40px rgba(150, 90, 110, 0.3); text-shadow: 0 1px 6px rgba(120, 70, 90, 0.55);
+      transform: translateY(12px) scale(0.97); transition: transform 1.6s; }
+    #ending.on .card { transform: none; }
+    #ending .star { width: 40px; height: 40px; }
+    #ending p { margin: 12px 0 0; font-size: 18px; font-weight: 700; line-height: 1.45; opacity: 0; transition: opacity 1.4s; }
+    #ending p.last { color: #fff3c8; font-size: 21px; font-weight: 800; text-shadow: 0 0 14px rgba(255, 190, 110, 0.95), 0 1px 6px rgba(120, 70, 90, 0.5); }
+    #ending.on p { opacity: 1; }
+    #ending.on p:nth-of-type(2) { transition-delay: 1.4s; } #ending.on p:nth-of-type(3) { transition-delay: 2.8s; }
+    #ending .tally { margin-top: 14px; font-size: 13px; font-weight: 800; letter-spacing: .08em; opacity: .85; }
+    #ending button { all: unset; margin-top: 16px; padding: 11px 26px; border-radius: 18px; font-size: 16px; font-weight: 800; cursor: pointer; color: #fff;
+      background: linear-gradient(#ffcf7f, #f6a865); text-shadow: 0 1px 4px rgba(160, 80, 50, 0.5); box-shadow: 0 4px 14px rgba(240, 150, 90, 0.45); -webkit-tap-highlight-color: transparent; }
+    @media (orientation: landscape) and (max-height: 520px) { #ending .card { padding: 16px 22px 14px; } #ending p { margin-top: 7px; font-size: 15px; } #ending p.last { font-size: 17px; } #ending .star { width: 30px; height: 30px; } #ending button { margin-top: 10px; padding: 8px 22px; } }
+    body.shot #ending, body.shot #ending * { transition: none !important; transition-delay: 0s !important; }
     #fade { position: fixed; inset: 0; z-index: 3; background: #fbe6d8; opacity: 0; pointer-events: none; transition: opacity .35s; }
     #fade.on { opacity: 1; }
     #bhands.on { box-shadow: 0 0 34px rgba(255, 210, 120, 0.95); background: radial-gradient(circle, rgba(255, 228, 160, 0.85), rgba(255, 196, 110, 0.55)); }
@@ -111,7 +130,7 @@
 </head>
 <body>
   <canvas id="c"></canvas>
-  <div class="ui pill"><svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg><span id="stars">0</span><svg class="sec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fbe3f6" stroke="#e7a6e2" stroke-width="1.6"/><circle cx="12" cy="10" r="3" fill="#a77aa8"/><path d="M10.6 11.5h2.8l.9 6h-4.6z" fill="#a77aa8"/></svg><span id="secrets">0/8</span></div>
+  <div class="ui pill"><svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg><span id="stars">0</span><svg class="sec" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fbe3f6" stroke="#e7a6e2" stroke-width="1.6"/><circle cx="12" cy="10" r="3" fill="#a77aa8"/><path d="M10.6 11.5h2.8l.9 6h-4.6z" fill="#a77aa8"/></svg><span id="secrets">0/9</span></div>
   <div class="ui" id="objectives" aria-label="Objectives"></div>
   <div class="ui round" id="bset" title="Music (M)"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="2" stroke-linecap="round"><path d="M9 17V5l10-2v12"/><circle cx="6.5" cy="17" r="2.5" fill="#8a6670" fill-opacity=".3"/><circle cx="16.5" cy="15" r="2.5" fill="#8a6670" fill-opacity=".3"/><path class="slash" d="M3 3l18 18"/></svg></div>
   <div class="ui round" id="btogether" title="Play together"><svg viewBox="0 0 24 24" fill="none" stroke="#8a6670" stroke-width="1.8" stroke-linecap="round"><circle cx="7.5" cy="7" r="2.6"/><circle cx="16.5" cy="7" r="2.6"/><path d="M3.5 20v-3.5a4 4 0 0 1 8 0V20M12.5 20v-3.5a4 4 0 0 1 8 0V20"/><path d="M12 12.6c-.9-1-2.3-.2-1.6.9L12 15l1.6-1.5c.7-1.1-.7-1.9-1.6-.9z" fill="#e98a8a" stroke="none"/></svg></div>
@@ -124,6 +143,14 @@
   <div class="ui" id="toast"></div>
   <div class="ui" id="discover" aria-live="polite"><div class="k" id="disc-k"></div><div class="t" id="disc-t"></div><div class="l" id="disc-l"></div></div>
   <div id="fade"></div>
+  <div id="ending" role="dialog" aria-label="The end"><div class="card">
+    <svg class="star" viewBox="0 0 24 24"><path d="M12 1 C13 9 15 11 23 12 C15 13 13 15 12 23 C11 15 9 13 1 12 C9 11 11 9 12 1Z" fill="#ffe7a6" stroke="#ffbf5e" stroke-width="1"/></svg>
+    <p>Every bridge here only rose for two.</p>
+    <p>Through the dark, the cold and the long way round, you held on to each other.</p>
+    <p class="last">Nobody reaches the top alone. You got here together.</p>
+    <div class="tally" id="end-tally"></div>
+    <button id="end-go">Keep exploring</button>
+  </div></div>
   <div id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-h">
     <div class="card">
       <button class="x" id="sheet-x" aria-label="Close">×</button>

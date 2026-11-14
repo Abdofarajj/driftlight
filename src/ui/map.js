@@ -87,6 +87,7 @@ export class WorldMap {
       const [ax, ay] = P(...l.a), [bx, by] = P(...l.b);
       ctx.beginPath();
       if (l.kind === 'wind') { ctx.setLineDash([3, 7]); ctx.strokeStyle = 'rgba(255,170,190,0.9)'; ctx.lineWidth = 2.5; ctx.moveTo(ax, ay); ctx.quadraticCurveTo((ax + bx) / 2, (ay + by) / 2 - 20, bx, by); }
+      else if (l.kind === 'clouds') { ctx.setLineDash([2, 6]); ctx.strokeStyle = css(PAL.cloud[1], 0.95); ctx.lineWidth = 5; ctx.moveTo(ax, ay); ctx.lineTo(bx, by); }
       else { ctx.setLineDash([]); ctx.strokeStyle = css(PAL.glowHalo, 0.9); ctx.lineWidth = 4; ctx.moveTo(ax, ay); ctx.lineTo(bx, by); }
       ctx.stroke();
     }
@@ -113,8 +114,12 @@ export class WorldMap {
       for (const d of L.dots || []) { const [dx, dy] = P(d[0], d[1]); ctx.beginPath(); ctx.arc(dx, dy, Math.max(2, d[2] * s), 0, Math.PI * 2); ctx.fillStyle = d[3]; ctx.fill(); }
       if (isl.name) {
         ctx.font = `800 ${r > 30 ? 14 : 12}px ui-rounded, "SF Pro Rounded", Nunito, system-ui, sans-serif`;
-        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(251,238,221,0.9)'; ctx.strokeText(isl.name, x, y + r + 16);
-        ctx.fillStyle = INK; ctx.fillText(isl.name, x, y + r + 16);
+        // under the island, or beside it on the left where something else sits below (labelLeft)
+        const [lx, ly] = isl.labelLeft ? [x - r - 6, y + 5] : [x, y + r + 16];
+        ctx.textAlign = isl.labelLeft ? 'right' : 'center';
+        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(251,238,221,0.9)'; ctx.strokeText(isl.name, lx, ly);
+        ctx.fillStyle = INK; ctx.fillText(isl.name, lx, ly);
+        ctx.textAlign = 'center';
       }
     });
 

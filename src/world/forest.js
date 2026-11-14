@@ -12,6 +12,7 @@ import { buildCrystalLake } from './lake.js';
 import { buildDesert } from './desert.js';
 import { buildHollow } from './hollow.js';
 import { buildPeak } from './peak.js';
+import { buildTower } from './tower.js';
 import { mergeSiblings } from '../look/merge.js';
 
 const R = 24; // main island radius
@@ -56,6 +57,10 @@ export function groundHeight(x, z) {
   h -= smoothstep(er * 0.86, er * 1.0, r) * 1.0; // rounded lip
   return h;
 }
+
+// floor candidates (see floorAt)
+const FL = { best: null, top: null, lim: Infinity };
+function flc(v) { if (v === null) return; if (FL.top === null || v > FL.top) FL.top = v; if (v <= FL.lim && (FL.best === null || v > FL.best)) FL.best = v; }
 
 export function onIsland(x, z) {
   return Math.hypot(x, z) < edgeRadius(Math.atan2(z, x)) * 0.97;
@@ -699,34 +704,32 @@ export function buildLanternForest() {
   const hollow = buildHollow(zoneCtx, desert);
   // ---- Snowy Aurora Peak: over a stone bridge from the Hollow's south-east edge (peak.js) ----
   const peak = buildPeak(zoneCtx, hollow);
+  // ---- the Cloud Kingdom: up a stair of cloud steps from the peak's summit (tower.js). When its beacon is lit,
+  // every island sends up a beam of light ----
+  const tower = buildTower(zoneCtx, peak, [new Vector3(0, -1, 0), new Vector3(4, 0, -49), lake.center, desert.center, hollow.center, peak.mc]);
 
   const update = (t) => {
     for (const p of swingers) p.rotation.z = Math.sin(t * 1.3 + p.userData.ph) * 0.07, p.rotation.x = Math.cos(t * 1.1 + p.userData.ph) * 0.05;
   };
 
-  // walkable floor: main island, isles, enabled bridges. Returns null over the void.
-  const floorAt = (x, z) => {
-    let best = null;
-    if (onIsland(x, z)) best = groundHeight(x, z);
-    for (const i of isles) if (Math.hypot(x - i.x, z - i.z) < i.r) best = Math.max(best ?? -1e9, i.y);
+  // walkable floor: main island, isles, enabled bridges. Returns null over the void. With y (your feet), the
+  // highest floor at most 1.2 m above it (where floors overlap: the cloud steps over the peak, the tower's ramp),
+  // else the highest
+  const floorAt = (x, z, y) => {
+    FL.lim = y === undefined ? Infinity : y + 1.2; FL.best = null; FL.top = null;
+    if (onIsland(x, z)) flc(groundHeight(x, z));
+    for (const i of isles) if (Math.hypot(x - i.x, z - i.z) < i.r) flc(i.y);
     for (const br of bridges) {
       if (!br.enabled) continue;
       const t = ((x - br.from.x) * br.dir.x + (z - br.from.z) * br.dir.z) / br.len;
       const lat = Math.abs((x - br.from.x) * -br.dir.z + (z - br.from.z) * br.dir.x);
       if (t >= -0.05 && t <= 1.05 && lat < 1.25) {
         const tt = Math.max(0, Math.min(1, t));
-        best = Math.max(best ?? -1e9, br.from.y + (br.to.y - br.from.y) * tt - Math.sin(tt * Math.PI) * br.sag + 0.06);
+        flc(br.from.y + (br.to.y - br.from.y) * tt - Math.sin(tt * Math.PI) * br.sag + 0.06);
       }
     }
-    const l = lake.floor(x, z);
-    if (l !== null) best = Math.max(best ?? -1e9, l);
-    const d = desert.floor(x, z);
-    if (d !== null) best = Math.max(best ?? -1e9, d);
-    const h = hollow.floor(x, z);
-    if (h !== null) best = Math.max(best ?? -1e9, h);
-    const pk = peak.floor(x, z);
-    if (pk !== null) best = Math.max(best ?? -1e9, pk);
-    return best;
+    flc(lake.floor(x, z)); flc(desert.floor(x, z)); flc(hollow.floor(x, z)); flc(peak.floor(x, z)); flc(tower.floor(x, z, y));
+    return FL.best ?? FL.top;
   };
 
   // checkpoints: start, before the arch, and on the far side of the bridge
@@ -749,6 +752,7 @@ export function buildLanternForest() {
     checkpoints.push(L.checkpoint);
   }
   checkpoints.push(peak.cairn); // Snowy Aurora Peak: just past the stone bridge
+  checkpoints.push(tower.rest, tower.way); // the Cloud Kingdom: the resting cloud halfway up the cloud steps, and past the steps
   // ...and each brazier you light (you wake by the last one, in its warm circle)
   for (const Bz of peak.braziers) {
     // on the meadow: towards the mountain; on a terrace: along the ring, the way you're going (it's narrow)
@@ -764,5 +768,5 @@ export function buildLanternForest() {
 
   const swingParts = [];
   for (const p of swingers) p.traverse((o) => { if (o.isMesh) swingParts.push(o); });
-  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, lake, desert, hollow, peak, deep: lake.deep, waterAt: lake.waterAt, spawn: new Vector3(1.2, 0, 11.5) };
+  return { root, lights, colliders, stoneLanterns, checkpoints, update: update2, floorAt, isles, swingParts, occluders: (() => { const o = []; root.traverse((c) => { if (c.userData.occluder) o.push(c); }); return o; })(), northBridge: north, shrine, lake, desert, hollow, peak, tower, deep: lake.deep, waterAt: lake.waterAt, spawn: new Vector3(1.2, 0, 11.5) };
 }

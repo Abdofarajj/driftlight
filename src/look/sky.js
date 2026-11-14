@@ -82,7 +82,7 @@ export function makeSky() {
 
 // the play space: islands (x, z, radius) and bridge corridors (ax, az, bx, bz, half width) that cloud tops stay out of
 // (a 4th number k also keeps big puffs' bodies out: their size times k counts as extra distance)
-const CLEAR = [[0, 0, 30], [50, 8, 14], [4, -49, 13], [-50, -7, 13], [-30, -88, 28], [25, -135, 31, 1], [85, -150, 27], [100, -85, 27]];
+const CLEAR = [[0, 0, 30], [50, 8, 14], [4, -49, 13], [-50, -7, 13], [-30, -88, 28], [25, -135, 31, 1], [85, -150, 27], [100, -85, 27], [45, -85, 21]];
 const CORRIDORS = [[18, 7.5, 60, 7.5, 9], [2, -22, 4, -41, 7], [-1.3, -55, -16.7, -72.7, 8], [-18, -3, -42, -7, 8], [-15, -100, 8, -120, 8], [47.9, -140.7, 66.5, -145.4, 8], [89, -132.8, 96.1, -102, 8]];
 function clearance(x, z, s = 0) {
   let d = Infinity;

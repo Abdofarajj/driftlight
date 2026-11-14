@@ -139,7 +139,7 @@ export class Hands {
     let ty = null;
     if (leader.grounded) {
       const lp = leader.pos, sh = Math.sin(leader.heading), ch = Math.cos(leader.heading);
-      const room = (x, z) => { if (world.deep && world.deep(x, z)) return null; const fy = world.floorAt(x, z); return fy !== null && Math.abs(fy - lp.y) < 0.8 ? fy : null; };
+      const room = (x, z) => { if (world.deep && world.deep(x, z)) return null; const fy = world.floorAt(x, z, lp.y); return fy !== null && Math.abs(fy - lp.y) < 0.8 ? fy : null; };
       const spots = [[tx, tz], [lp.x - sh * SPACING, lp.z - ch * SPACING], [lp.x - this._x.x * side * SPACING, lp.z - this._x.z * side * SPACING], [lp.x - sh * 0.45, lp.z - ch * 0.45]];
       for (const [x, z] of spots) { ty = room(x, z); if (ty !== null) { tx = x; tz = z; break; } }
       if (ty === null) { tx = spots[1][0]; tz = spots[1][1]; }
@@ -152,7 +152,7 @@ export class Hands {
     const [tx, tz, ty] = at || this.spot(leader, side, world);
     const dy = leader.pos.y - f.pos.y, lp = leader.pos, it = leader.intent;
     if (!leader.grounded || !f.grounded || ty === null || dy <= 1.0 || dy >= 3.2 || Math.hypot(tx - f.pos.x, tz - f.pos.z) >= reach) return;
-    const ahead = world.floorAt(lp.x + it.x * 1.2, lp.z + it.z * 1.2); // a step ahead of where you're heading
+    const ahead = world.floorAt(lp.x + it.x * 1.2, lp.z + it.z * 1.2, lp.y); // a step ahead of where you're heading
     if (ahead === null || ahead < lp.y - 1.0) return; // you're walking off the edge: they'll come down with you
     f.pos.set(tx, ty, tz); f.vel.set(0, 0, 0);
   }

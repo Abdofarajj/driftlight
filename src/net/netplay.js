@@ -17,7 +17,7 @@ const v3 = (v) => [r2(v.x), r2(v.y), r2(v.z)];
 
 export class NetPlay {
   /**
-   * ctx: { A (you), B (partner), hands, quest, lake, desert, hollow, peak, stars, secrets, playAs, peerOpts, lag,
+   * ctx: { A (you), B (partner), hands, quest, lake, desert, hollow, peak, tower, stars, secrets, playAs, peerOpts, lag,
    *        on: { connected(back), left(reason), hello(kind), hands(linked), error(e) } }
    */
   constructor(ctx) {
@@ -112,6 +112,7 @@ export class NetPlay {
     if (m.ds && this.desert && this.role === 'guest') this.desert.applyState(m.ds, this.first); // and the Sunset Desert's
     if (m.hw && this.hollow && this.role === 'guest') this.hollow.applyState(m.hw, this.first); // and Whispering Hollow's (with its shy shadows)
     if (m.pk && this.peak && this.role === 'guest') this.peak.applyState(m.pk, this.first); // and the Snowy Peak's
+    if (m.tw && this.tower && this.role === 'guest') this.tower.applyState(m.tw, this.first); // and the Cloud Kingdom's
     if (m.ll !== undefined && this.hollow) this.hollow.lv[1] = m.ll; // how bright your partner's lantern is
     this.first = false;
   }
@@ -134,7 +135,7 @@ export class NetPlay {
     if (hands.carrying) { // you're walking them: say where they are on your screen
       Object.assign(m, { fp: v3(B.pos), fv: v3(B.vel), fh: Math.round(B.heading * 1000) / 1000, fg: B.grounded ? 1 : 0, fgl: B.glide ? 1 : 0 });
     }
-    if (this.role === 'host') { m.q = this.quest.state(); if (this.lake) m.lk = this.lake.state(); if (this.desert) m.ds = this.desert.state(); if (this.hollow) m.hw = this.hollow.state(); if (this.peak) m.pk = this.peak.state(); }
+    if (this.role === 'host') { m.q = this.quest.state(); if (this.lake) m.lk = this.lake.state(); if (this.desert) m.ds = this.desert.state(); if (this.hollow) m.hw = this.hollow.state(); if (this.peak) m.pk = this.peak.state(); if (this.tower) m.tw = this.tower.state(); }
     this.session.send(m);
   }
 

@@ -7,6 +7,7 @@
 //   oasis   - a hidden oasis in the Sunset Desert, in through a broken arch (desertquest.js)
 //   musicbox - the crooked house in Whispering Hollow: its music box plays only for two (hollowquest.js)
 //   cocoa    - the log cabin on the Snowy Peak: two mugs of cocoa by the fire, found together (peakquest.js)
+//   lookout  - the bench on the Cloud Kingdom's rim, looking back over the whole journey, found together (towerquest.js)
 // Each has a small discovery moment (events: 'secret'), and the found set is shared online like stars.
 import { Group, Mesh, IcosahedronGeometry, PlaneGeometry, CircleGeometry, ConeGeometry, CylinderGeometry, SphereGeometry, Vector3 } from 'three';
 import { makeWatercolorMaterial, makeGlowMaterial, makeSoftMaterial, makeWaterMaterial } from '../look/material.js';
@@ -32,7 +33,7 @@ export class Secrets {
     this.world = world;
     this.events = events;
     this.motes = new Motes(scene, 220);
-    this.items = ['grotto', 'fox', 'ring', 'garden', 'boat', 'oasis', 'musicbox', 'cocoa'].map((id) => ({ id, found: false, pos: new Vector3() }));
+    this.items = ['grotto', 'fox', 'ring', 'garden', 'boat', 'oasis', 'musicbox', 'cocoa', 'lookout'].map((id) => ({ id, found: false, pos: new Vector3() }));
     this.count = 0;
     this.buildGrotto(scene);
     this.fox = new LightFox(scene, FOX_NEST[0], FOX_NEST[1], -2.2, world.colliders, this.motes);
@@ -40,6 +41,7 @@ export class Secrets {
     if (world.desert) this.items[5].pos.copy(world.desert.oasisWorld);
     if (world.hollow) this.items[6].pos.copy(world.hollow.houseWorld).setY(world.hollow.houseWorld.y + 1);
     if (world.peak) this.items[7].pos.copy(world.peak.cabinWorld).setY(world.peak.cabinWorld.y + 1);
+    if (world.tower) this.items[8].pos.copy(world.tower.bench).setY(world.tower.bench.y + 1);
     this.buildRing(scene);
     this.buildGarden(scene);
   }

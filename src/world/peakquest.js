@@ -39,6 +39,7 @@ export class PeakQuest {
     this.hinted = { cold: -99, coldFriend: -99, frost: -99, frostGo: false, bell: -99, brazier: -99 };
     this.cabinIn = false; this.cocoaT = -99; this.heartK = 0;
     this.lastT = 0;
+    this.dawn = 0;             // the sunrise at the Cloud Kingdom's beacon (towerquest.js): the aurora fades
     this._m = new Matrix4(); this._q = new Quaternion(); this._s = new Vector3(); this._p = new Vector3(); this._r = new Vector3(); this._u = new Vector3();
     // the mugs and the chimney top, for the steam (peak-local: the island's group only moves, never turns)
     const P = this.P;
@@ -188,7 +189,7 @@ export class PeakQuest {
     if (P.flakes.visible) this.snow(t, camera);
     // from far away the little moving things are too small to see: skip their draws
     const near = camera.position.distanceTo(P.center) < 110;
-    P.aurora.setK(this.aur);
+    P.aurora.setK(this.aur * (1 - 0.85 * this.dawn));
     if (!near) {
       for (const Z of P.braziers) { Z.fire.visible = false; Z.ring.visible = false; }
       P.steam.visible = false; P.stepHint.visible = false; P.hearthFire.visible = false; P.bell.ring.visible = false;

@@ -64,6 +64,7 @@ export class GameAudio {
     this.peakWind = this.loopNoise(520, 0.5, 0.0, this.amb);   // Snowy Peak: a cold wind, gustier the higher you climb
     this.peakHowl = this.loopNoise(1500, 6, 0.0, this.amb);    // and a thin whistle over the ridge
     this.fire = this.loopNoise(2600, 0.7, 0.0, this.amb);      // a lit brazier or the cabin's hearth: soft crackling hiss
+    this.towerAir = this.loopNoise(1700, 0.6, 0.0, this.amb);  // the Cloud Kingdom: high, soft open air
     this.lastCrackle = 0;
   }
 
@@ -165,6 +166,15 @@ export class GameAudio {
           this.burst(t, 0.12, 0.17 * v, 'bandpass', 1800 * p, 1.1, dest, 900);
           this.burst(t + 0.035, 0.08, 0.09 * v, 'bandpass', 3600 * p, 2.2, dest, 2400);
           this.tone(110 * p, t, 0.07, 0.05 * v, 'sine', dest);
+        } else if (s === 'cloud') { // a cloud: a soft muffled puff
+          this.burst(t, 0.16, 0.12 * v, 'lowpass', 520 * p, 0.6, dest, 260);
+          this.tone(70 * p, t, 0.08, 0.04 * v, 'sine', dest);
+        } else if (s === 'stone') { // smooth cloud-stone: a clean soft tap
+          this.tone(170 * p, t, 0.1, 0.12 * v, 'sine', dest);
+          this.burst(t, 0.05, 0.1 * v, 'bandpass', 2300 * p, 1.4, dest);
+        } else if (s === 'light') { // a bridge of light: a tiny glassy chime under your feet
+          this.tone(NOTE(86 + Math.floor(Math.random() * 3) * 2) * p, t, 0.35, 0.025 * v, 'sine', dest, 0.003);
+          this.burst(t, 0.06, 0.04 * v, 'highpass', 4200, 0.7, dest);
         } else if (s === 'path') { // dirt crunch: two quick gritty bursts
           this.burst(t, 0.08, 0.2 * v, 'bandpass', 1500 * p, 0.9, dest);
           this.burst(t + 0.025, 0.06, 0.12 * v, 'highpass', 3200 * p, 0.7, dest);
@@ -350,6 +360,38 @@ export class GameAudio {
         [67, 71, 74, 79].forEach((n, i) => this.bell(NOTE(n), t + 0.4 + i * 0.16, 0.04, dest, 2.4));
         break;
       }
+      case 'cloudstep': { // a cloud step forms: a soft rising puff and one harp note, climbing as the stair grows
+        const k = opts.k ?? 0;
+        this.burst(t, 0.5, 0.06, 'lowpass', 500, 0.7, dest, 1400);
+        this.bell(NOTE(67 + [0, 2, 4, 7, 9, 12, 14, 16, 19, 21, 24, 26, 28, 31][Math.min(13, Math.round(k * 13))]), t + 0.05, 0.035, dest, 1.8);
+        break;
+      }
+      case 'cloudsteps': // the aurora lifts the stair: a slow shimmer and the music swells
+        [62, 66, 69, 73, 76].forEach((n, i) => this.tone(NOTE(n), t + i * 0.3, 4, 0.02, 'sine', dest, 0.6));
+        this.swell(0.5, 8);
+        break;
+      case 'lightbridge': // the bridges of light hold: a rising glassy shimmer
+        [79, 83, 86, 91].forEach((n, i) => this.bell(NOTE(n), t + i * 0.07, 0.035, dest, 1.6));
+        this.burst(t, 0.6, 0.03, 'highpass', 3000, 0.6, dest);
+        break;
+      case 'lightfade': // ...and fade when you let go: two soft falling notes
+        this.bell(NOTE(84), t, 0.03, dest, 1.0); this.bell(NOTE(79), t + 0.14, 0.025, dest, 1.2);
+        break;
+      case 'beacon': // the beacon catches: a deep warm whoosh, a rising golden chord, the music swells
+        this.burst(t, 1.4, 0.12, 'lowpass', 260, 0.7, dest, 2600);
+        this.tone(NOTE(38), t, 5, 0.07, 'sine', dest, 0.05);
+        [50, 57, 62, 66, 69, 74, 78].forEach((n, i) => this.bell(NOTE(n), t + 0.2 + i * 0.12, 0.05, dest, 4.5));
+        this.swell(0.8, 10);
+        break;
+      case 'sunrise': { // the sun comes up: a slow, wide major chord that swells, with high bells like birdsong at dawn
+        [43, 50, 55, 59, 62, 66, 71].forEach((n, i) => this.tone(NOTE(n), t + i * 0.45, 9, 0.02, 'sine', dest, 2.2));
+        for (let i = 0; i < 14; i++) this.bell(NOTE(86 + [0, 2, 4, 7, 9][i % 5] + (i % 3 === 0 ? 12 : 0)), t + 2.5 + i * 0.32 + Math.random() * 0.08, 0.016, dest, 2.2);
+        this.swell(1.0, 16);
+        break;
+      }
+      case 'ending': // the closing card: a soft little phrase of bells
+        [74, 78, 81, 86, 85, 81, 83].forEach((n, i) => this.bell(NOTE(n), t + i * 0.42, 0.04, dest, 3));
+        break;
       case 'musicbox': { // a little tune of our own, twice over, slowing at the end
         const tune = [79, 83, 86, 84, 83, 79, 81, 83, 81, 78, 79, 0, 79, 83, 86, 88, 86, 83, 84, 83, 81, 79];
         let s0 = t;
@@ -428,6 +470,9 @@ export class GameAudio {
     this.peakWind.f.frequency.value = 450 + hi * 200 + Math.sin(now * 0.29) * 120;
     this.peakHowl.g.gain.value += ((0.004 + 0.01 * hi) * (0.6 + Math.sin(now * 0.21) * 0.4) * pk * warm - this.peakHowl.g.gain.value) * k;
     this.peakHowl.f.frequency.value = 1300 + Math.sin(now * 0.13) * 350;
+    // the Cloud Kingdom: open air up high, softer once the sun is up
+    this.towerAir.g.gain.value += ((0.035 + Math.sin(now * 0.27) * 0.012) * (s.tower || 0) - this.towerAir.g.gain.value) * k;
+    this.towerAir.f.frequency.value = 1500 + Math.sin(now * 0.11) * 300;
     const fd = s.fireDist ?? 99, fire = 1 / (1 + Math.max(0, fd - 1) * 0.5) ** 2;
     this.fire.g.gain.value += (0.03 * fire - this.fire.g.gain.value) * k;
     if (fire > 0.08 && now - this.lastCrackle > 0.15 + Math.random() * 0.5) { this.lastCrackle = now; this.play('crackle', { vol: Math.min(1, fire * 1.5) }); }

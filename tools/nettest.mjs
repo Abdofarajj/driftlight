@@ -389,6 +389,46 @@ await objective('the aurora bell online: holding hands you both jump higher, and
   return { pass: ready && linked && rung && top > 2.0 && aurora, note: `braziers on both=${ready}, linked=${linked}, rung on both=${rung}, she jumped ${top.toFixed(2)} m on her screen (alone it's 1.47), aurora on both=${aurora}` };
 });
 
+// ---- round 10: the Cloud Kingdom ----
+await objective('Cloud Kingdom online: the cloud steps form on both screens, and hand in hand a bridge of light holds you both', async () => {
+  await letGo();
+  const formed = await until(() => onBoth(() => window.__game.towerQuest.formed), 45000);
+  const g0 = await H(() => window.__game.world.tower.gaps[0][0]);
+  const at = (f, dr) => H(([f, dr]) => window.__game.world.tower.rampAt(f, dr).toArray(), [f, dr]);
+  const a = await at(g0 - 0.03, -0.45), b = await at(g0 - 0.03, 0.45), h = await H(([f]) => { const T = window.__game.world.tower, p = T.rampAt(f), q = T.rampAt(f + 0.02); return Math.atan2(q.x - p.x, q.z - p.z); }, [g0]);
+  await H(([x, z, h, y]) => window.__game.teleport(x, z, h, y), [a[0], a[2], h, a[1]]);
+  await guest.evaluate(([x, z, h, y]) => window.__game.teleport(x, z, h, y), [b[0], b[2], h, b[1]]);
+  await wait(1500);
+  const off = await onBoth(() => !window.__game.towerQuest.bridgeOn);
+  await H(() => window.__game.holdHands());
+  const linked = await until(() => onBoth(() => window.__game.hands.linked), 8000);
+  const on = await until(() => onBoth(() => window.__game.towerQuest.bridgeOn), 6000);
+  const c = await at(g0 + 0.12, 0);
+  await H(([x, z]) => window.__game.goTo(x, z, { tol: 0.6, timeout: 15 }), [c[0], c[2]]);
+  await wait(1200);
+  const yH = (await H(() => window.__game.pos())).me[1], yG = (await guest.evaluate(() => window.__game.pos())).me[1];
+  await both('18-tower-bridge');
+  return { pass: formed && off && linked && on && Math.abs(yH - c[1]) < 0.4 && Math.abs(yG - c[1]) < 0.6,
+    note: `steps formed on both=${formed}, bridge off apart=${off}, linked=${linked}, bridge on for both=${on}, out on the bridge: his y=${yH.toFixed(2)} hers=${yG.toFixed(2)} (bridge ${c[1].toFixed(2)})` };
+});
+
+await objective('the beacon online: lit together, the sun rises and the closing card shows on both screens', async () => {
+  const T = await H(() => { const T = window.__game.world.tower; return { top: T.top, ftop: T.ftop }; });
+  const at = (f, dr) => H(([f, dr]) => window.__game.world.tower.rampAt(f, dr).toArray(), [f, dr]);
+  const a = await at(T.ftop - 0.07, -3.7), b = await at(T.ftop - 0.03, -3.9);
+  await letGo();
+  await H(([x, z, y]) => window.__game.teleport(x, z, Math.PI, y), [a[0], a[2], T.top]);
+  await guest.evaluate(([x, z, y]) => window.__game.teleport(x, z, Math.PI, y), [b[0], b[2], T.top]);
+  await wait(1500);
+  await H(() => window.__game.holdHands());
+  const linked = await until(() => onBoth(() => window.__game.hands.linked), 8000);
+  const lit = await until(() => onBoth(() => window.__game.towerQuest.lit), 15000);
+  const sun = await until(() => onBoth(() => window.__game.towerQuest.sun > 0.5), 20000);
+  const card = await until(() => onBoth(() => window.__game.ending()), 15000);
+  await both('19-tower-ending');
+  return { pass: linked && lit && sun && card, note: `linked=${linked}, beacon lit on both=${lit}, sunrise on both=${sun}, closing card on both=${card}` };
+});
+
 await objective('guest leaves: the host is told and keeps playing', async () => {
   await guest.close({ runBeforeUnload: true }); guest = null; // like closing the tab
   const ok = await until(async () => !(await H(() => window.__game.net.online)), 20000);

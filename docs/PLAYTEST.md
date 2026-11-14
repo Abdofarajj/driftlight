@@ -177,3 +177,25 @@ chimes) and reports clipping, NaNs, silent drop-outs and how long the sound take
   piano's notes in music.js). Now flat at 0.05-0.07 over 5 minutes, about 0.18 at the worst pile-up of chimes. No
   clipping (peak 0.72) and no NaNs before or after.
 - `--steps-only` leaves out the chimes, `--secs N` renders longer, `--cost` prints the load over time.
+
+## 2026-11-14, round 10 the Cloud Kingdom (`playtest --from-tower` 10/10, `npm run nettest` 25/25)
+New solo checks: the aurora lifts the stair of clouds from the summit (the "Climb the cloud steps" goal replaces
+"Look up"); hand in hand you hop cloud to cloud to the big resting cloud and its waystone becomes your checkpoint;
+walk off the side of a cloud and you wake by that waystone; on up the clouds to the island (arrival message, the
+"Light the beacon" goal, the island's waystone); alone, the ramp's first break has no bridge and you drop to the turn
+below; hand in hand the bridges of light hold all the way to the top (no drop on the way); the beacon won't light
+alone, together it lights, the sun rises, every island's beam goes up and the closing card shows (HUD hidden,
+"Keep exploring" closes it); star 8 over the three cloud puffs; the lookout bench (secret 9) stays quiet alone and
+is found with both; the map shows the Cloud Kingdom and its cloud steps.
+New online checks: the cloud steps form on both screens, and hand in hand a bridge of light holds you both; the
+beacon lit together brings the sunrise and the closing card on both screens.
+- First design: the clouds rose 1 m with 0.6 m gaps, and the game lets you step up anything 1.2 m high, so running
+  across the gaps climbed the whole stair without a jump. Clouds now only catch you once your feet are within
+  0.8 m of their top, so each one is a real hop. They're deeper too (2.7 m), so a walking jump and a running jump
+  from the middle both land, and the peak's higher jump together is off by the clouds (it overshot).
+- First run: walking off the side of a cloud fell all the way to the bottom of the sky (the fall check only looked
+  near the clouds). A long fall now counts from wherever you left a cloud or the island.
+- Draws (landscape, measured by hiding the tower): it adds 7 draws seen from the forest spawn and 12-14 on the island,
+  the ramp or the top with the beacon lit (its still meshes are baked per material; the cloud steps are 2 instanced
+  draws, the beams one).
+- `node tools/playtest.mjs <name> --from-tower` runs only the Cloud Kingdom checks (about 7 minutes).

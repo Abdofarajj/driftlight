@@ -54,7 +54,7 @@ export class Actor {
     const px = p.x, pz = p.z;
     p.addScaledVector(this.vel, dt);
     if (collide) { this.collide(world); this.keepDry(world, px, pz); }
-    const f = world.floorAt(p.x, p.z);
+    const f = world.floorAt(p.x, p.z, p.y); // the floor under you (not one high above: the turns of a spiral ramp)
     if (f !== null && p.y <= f + 0.02 && this.vel.y <= 0 && p.y > f - 1.2) {
       if (!this.grounded) this.t.land(Math.min(1, -this.vel.y / 14));
       p.y = f; this.vel.y = 0; this.grounded = true;
@@ -73,6 +73,7 @@ export class Actor {
       let cx, cz;
       if (c.off) continue;
       if (c.top !== undefined && p.y > c.top - 0.2) continue; // standing on (or jumping onto) a low rock
+      if (c.bottom !== undefined && p.y < c.bottom) continue; // a wall up on a ramp: walk under it
       if (c.ax !== undefined) { // segment (fences, bridge rails)
         const abx = c.bx - c.ax, abz = c.bz - c.az;
         const t = Math.max(0, Math.min(1, ((p.x - c.ax) * abx + (p.z - c.az) * abz) / (abx * abx + abz * abz)));

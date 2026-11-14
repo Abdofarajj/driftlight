@@ -87,6 +87,10 @@ export const PAL = {
   emberCore: c('#fff2c8'), emberHalo: c('#ff8f58'), // brazier and fireplace flames
   auroraA: c('#8ff2c6'), auroraB: c('#d6a2ff'), auroraC: c('#a2d6ff'), // the aurora's curtains
 
+  // Cloud Kingdom (round 10): pale cloud-stone, golden paving, the beacon's warm light
+  cloudStone: [c('#f8e8e2'), c('#b6a4ca')],   // the island, the tower, the ramp
+  cloudPave: [c('#fbdfb6'), c('#c4a2b4')],    // golden paving on the paths and up the middle of the ramp
+
   glowCore: c('#fff3c6'),
   glowHalo: c('#ffb45e'),
   rim: c('#ffd08a'),

@@ -29,10 +29,15 @@ const results = [];
 // --from-desert: skip to the Sunset Desert checks (the crystal heart already awake)
 // --from-hollow: skip to the Whispering Hollow checks (the little sun already home)
 // --from-peak: skip to the Snowy Aurora Peak checks (the Lonely Shadow already comforted)
-const FROM = ['peak', 'hollow', 'desert', 'lake'].find((z) => process.argv.includes(`--from-${z}`)) ?? null;
+// --from-tower: skip to the Cloud Kingdom checks (the aurora bell already rung)
+const FROM = ['tower', 'peak', 'hollow', 'desert', 'lake'].find((z) => process.argv.includes(`--from-${z}`)) ?? null;
 let skipping = FROM;
 async function objective(name, fn) {
-  if (skipping === 'peak') {
+  if (skipping === 'tower') {
+    if (!name.startsWith('the aurora lifts a stair of cloud steps')) return;
+    skipping = null;
+    await G(() => { const g = window.__game; g.lightAll(); g.lakeAll(); g.desertAll(); g.hollowAll(); g.peakAll(); });
+  } else if (skipping === 'peak') {
     if (!name.startsWith('the fireflies raise a stone bridge')) return;
     skipping = null;
     await G(() => { const g = window.__game; g.lightAll(); g.lakeAll(); g.desertAll(); g.hollowAll(); });
@@ -221,7 +226,7 @@ await objective('bridge of light rises and leads to the shrine star', async () =
 
 // ---- round 4: secrets ----
 // card: the discovery card has shown this secret's title (it fades after a few seconds, which can pass quickly here)
-const sec = () => G(() => { const S = window.__game.secrets; return { n: S.count, found: S.items.map((i) => i.found), card: document.getElementById('disc-t').textContent === 'Roro Jr', counter: document.getElementById('secrets').textContent }; });
+const sec = () => G(() => { const S = window.__game.secrets; return { n: S.count, total: S.items.length, found: S.items.map((i) => i.found), card: document.getElementById('disc-t').textContent === 'Roro Jr', counter: document.getElementById('secrets').textContent }; });
 /** press "hold hands" once and wait until the game has taken the press (frames can be slow on a headless GPU:
  *  pressing again before then could undo it) */
 const pressHands = async () => {
@@ -465,7 +470,7 @@ await objective('secret: the hidden oasis behind a broken arch', async () => {
   if (r.ok) r = await legs([[DS.arch[0], DS.arch[2]], dl(12, 11.6)], { tol: 0.4 });
   await wait(900);
   const s1 = await sec(); await shot('oasis');
-  return { pass: r.ok && s1.n === s0.n + 1 && s1.found[5] && s1.counter === `${s0.n + 1}/7`, note: `walk=${JSON.stringify(r)} secrets ${s0.n} -> ${s1.n} counter=${s1.counter}` };
+  return { pass: r.ok && s1.n === s0.n + 1 && s1.found[5] && s1.counter === `${s0.n + 1}/${s1.total}`, note: `walk=${JSON.stringify(r)} secrets ${s0.n} -> ${s1.n} counter=${s1.counter}` };
 });
 
 await objective('the old city wall holds: no way north except through the pass', async () => {
@@ -708,7 +713,7 @@ await objective('secret: the crooked house\'s music box only plays when you\'re 
   await wait(1500);
   const q = await hq(), s1 = await sec(), inside = await G(() => { const g = window.__game, H = g.world.hollow; return [H.inHouse(g.A.pos), H.inHouse(g.B.pos)]; });
   await shot('music-box');
-  return { pass: r.ok && r1.ok && !alone && r2.ok && q.box && s1.found[6] && s1.n === s0.n + 1 && s1.counter === `${s0.n + 1}/8`,
+  return { pass: r.ok && r1.ok && !alone && r2.ok && q.box && s1.found[6] && s1.n === s0.n + 1 && s1.counter === `${s0.n + 1}/${s1.total}`,
     note: `to the door=${r.reason} in alone=${r1.reason} played alone=${alone} | in together=${r2.reason} inside=${inside} playing=${q.box} secrets ${s0.n} -> ${s1.n} counter=${s1.counter}` };
 });
 
@@ -998,8 +1003,223 @@ await objective('secret: the log cabin\'s two mugs of cocoa, found when you both
   const q = await pq(), s1 = await sec(), inside = await G(() => { const g = window.__game, K = g.world.peak; return [K.inCabin(g.A.pos), K.inCabin(g.B.pos)]; });
   const card = await page.$eval('#disc-t', (e) => e.textContent);
   await shot('cocoa');
-  return { pass: r.ok && r1.ok && !alone && r2.ok && s1.found[7] && s1.n === s0.n + 1 && s1.counter === `${s0.n + 1}/8` && /cocoa/.test(card) && q.heart > 0.5,
+  return { pass: r.ok && r1.ok && !alone && r2.ok && s1.found[7] && s1.n === s0.n + 1 && s1.counter === `${s0.n + 1}/${s1.total}` && /cocoa/.test(card) && q.heart > 0.5,
     note: `to the door=${r.reason} in alone=${r1.reason} found alone=${alone} | in together=${r2.reason} inside=${inside} heart=${q.heart.toFixed(2)} secrets ${s0.n} -> ${s1.n} counter=${s1.counter} "${card}"` };
+});
+
+// ---- round 10: the Cloud Kingdom ----
+const tq = () => G(() => { const q = window.__game.towerQuest; return { opened: q.opened, formed: q.formed, arrived: q.arrived, bridge: q.bridge, bridgeOn: q.bridgeOn, k: q.k, lit: q.lit, sun: q.sun }; });
+const TW = await G(() => { const g = window.__game, T = g.world.tower, a = (v) => v.toArray();
+  return { steps: T.steps.map((S) => ({ p: [S.x, S.top, S.z], ax: S.ax, az: S.az, hd: S.hd, hw: S.hw })), rest: T.restIndex, from: a(T.stepsFrom), arrive: a(T.arrive),
+    cpRest: g.world.checkpoints.indexOf(T.rest), cpWay: g.world.checkpoints.indexOf(T.way), restPos: a(T.rest.pos), way: a(T.way.pos), entry: a(T.entry), gaps: T.gaps, ftop: T.ftop, top: T.top, yt: T.levelY,
+    lookout: a(T.lookout), bench: a(T.bench), puffs: T.puffs.map(a), star: a(T.starPos), center: a(T.center) }; });
+const rampAt = (f, dr = 0) => G(([f, dr]) => window.__game.world.tower.rampAt(f, dr).toArray(), [f, dr]);
+const rampF = () => G(() => window.__game.world.tower.rampF(window.__game.A.pos));
+/** waypoints along the ramp from turn f0 to f1 (every 0.04 turns) */
+const rampPts = (f0, f1, dr = 0) => G(([f0, f1, dr]) => { const T = window.__game.world.tower, out = [], n = Math.max(1, Math.ceil(Math.abs(f1 - f0) / 0.04));
+  for (let i = 1; i <= n; i++) { const p = T.rampAt(f0 + (f1 - f0) * i / n, dr); out.push([p.x, p.z]); } return out; }, [f0, f1, dr]);
+const bothDown = () => page.waitForFunction(() => { const g = window.__game; return g.A.grounded && (!g.hands.linked || g.B.grounded); }, null, { timeout: 20000 }).catch(() => {});
+/** a hop to a cloud: walk at it and jump the moment you're J metres short of its middle (so you land near it) */
+async function cloudHop(to, J = 2.4) {
+  const p = await pos();
+  const dx = to[0] - p.me[0], dz = to[2] - p.me[2], d = Math.hypot(dx, dz);
+  await G(([x, z, dx, dz, at]) => window.__game.jumpWhen(x, z, dx, dz, at), [to[0], to[2], dx / d, dz / d, -J]);
+  const r = await goTo(to[0], to[2], { tol: 0.5, timeout: 10 });
+  await bothDown(); await wait(300);
+  return { r, q: await pos() };
+}
+/** hop up the cloud steps from step i0 to i1 (inclusive); stops at the first miss */
+async function climbSteps(i0, i1, log) {
+  for (let i = i0; i <= i1; i++) {
+    // take off about a metre past the middle of the cloud you're on (a big cloud: further, but short of its edge)
+    const S = TW.steps[i], prev = TW.steps[i - 1];
+    const J = prev ? dist2(prev.p, S.p) - Math.min(1.0, prev.hd - 0.35) : 2.4;
+    const { r, q } = await cloudHop(S.p, J);
+    const ok = Math.abs(q.me[1] - S.p[1]) < 0.2 && dist2(q.me, S.p) < S.hd + 0.2;
+    log.push(`${i}:${ok ? 'ok' : `MISS (${r.reason}) at ${q.me.map((v) => v.toFixed(1))}`}${q.linked && Math.abs(q.friend[1] - S.p[1]) > 0.2 ? ` her y=${q.friend[1]}` : ''}`);
+    if (!ok) return false;
+  }
+  return true;
+}
+async function fetchHerT() {
+  for (let k = 0; k < 3; k++) {
+    const p = await pos();
+    if (p.linked) return true;
+    if (dist2(p.me, p.friend) > 1.6) await goTo(p.friend[0], p.friend[2], { tol: 1.1, timeout: 20 });
+    await pressHands();
+  }
+  return (await pos()).linked;
+}
+
+await objective('the aurora lifts a stair of cloud steps from the summit', async () => {
+  let q = await tq();
+  if (!q.formed) { await G(() => window.__game.setRender(false)); await page.waitForFunction(() => window.__game.towerQuest.formed, null, { timeout: 240000 }).catch(() => {}); await G(() => window.__game.setRender(true)); }
+  q = await tq();
+  const msg = await toast(), rows = await objIds();
+  // the two of you on the summit, a little back from its edge, facing the first cloud
+  const s0 = TW.steps[0].p, dx = s0[0] - TW.from[0], dz = s0[2] - TW.from[2], d = Math.hypot(dx, dz), ux = dx / d, uz = dz / d;
+  await unlink();
+  await G(([x, z, h, fx, fz, y]) => { const g = window.__game; g.teleport(x, z, h, y); g.B.pos.set(fx, g.world.floorAt(fx, fz, y), fz); g.B.vel.set(0, 0, 0); },
+    [TW.from[0] - ux * 1.6, TW.from[2] - uz * 1.6, Math.atan2(ux, uz), TW.from[0] - ux * 1.6 + uz * 0.9, TW.from[2] - uz * 1.6 - ux * 0.9, TW.from[1]]);
+  await wait(600); await pressHands(); await wait(600);
+  const p = await pos(); await shot('cloud-steps');
+  return { pass: q.opened && q.formed && rows.includes('steps') && !rows.includes('clouds') && p.linked && Math.abs(p.me[1] - TW.from[1]) < 0.2,
+    note: `formed=${q.formed} "${msg}" objectives=${rows} on the summit at y=${p.me[1]} linked=${p.linked}` };
+});
+
+await objective('hand in hand, hop from cloud to cloud up to the big resting cloud, where you wake now', async () => {
+  // alone, a cloud is too high to just walk onto: you have to jump
+  const s0 = TW.steps[0].p;
+  const log = [];
+  const ok = await climbSteps(0, TW.rest, log);
+  await wait(800);
+  const p = await pos(); await shot('resting-cloud');
+  return { pass: ok && p.cp === TW.cpRest && p.linked, note: `hops ${log.join(' ')} checkpoint=${p.cp} (rest ${TW.cpRest}) linked=${p.linked}` };
+});
+
+await objective('slip off the side of a cloud and you wake by the resting cloud\'s waystone', async () => {
+  await unlink();
+  const S = TW.steps[TW.rest], nx = S.az, nz = -S.ax; // away from the waystone's side
+  await G(() => { window.__fall = { minY: 1e9 }; const tick = () => { const g = window.__game; window.__fall.minY = Math.min(window.__fall.minY, g.A.pos.y); if (!window.__fall.stop) requestAnimationFrame(tick); }; tick(); });
+  await goTo(S.p[0] + nx * 6, S.p[2] + nz * 6, { tol: 0.5, timeout: 8 });
+  await page.waitForFunction(() => /slipped off the clouds/.test(document.querySelector('#toast').textContent), null, { timeout: 30000 }).catch(() => {});
+  const msg = await toast();
+  await wait(1500); await bothDown();
+  const f = await G(() => { window.__fall.stop = true; return window.__fall; });
+  const p = await pos(), st = await G(() => window.__game.stats);
+  return { pass: /slipped off the clouds/.test(msg) && f.minY < S.p[1] - 5.5 && dist2(p.me, TW.restPos) < 2.2 && Math.abs(p.me[1] - S.p[1]) < 0.3 && p.cp === TW.cpRest,
+    note: `"${msg}" fell to y=${f.minY.toFixed(1)} woke at ${p.me} (waystone ${TW.restPos.map((v) => v.toFixed(1))}) checkpoint=${p.cp} respawns=${st.respawns}` };
+});
+
+await objective('hop on up the clouds together to the Cloud Kingdom; its waystone becomes where you wake', async () => {
+  if (!(await fetchHerT())) return { pass: false, note: 'could not take her hand' };
+  // back to the middle of the resting cloud, then on up
+  await goTo(TW.steps[TW.rest].p[0], TW.steps[TW.rest].p[2], { tol: 0.4, timeout: 8 });
+  const log = [];
+  const ok = await climbSteps(TW.rest + 1, TW.steps.length - 1, log);
+  // and the last hop, up onto the island
+  const L = TW.steps[TW.steps.length - 1].p, dx = TW.arrive[0] - L[0], dz = TW.arrive[2] - L[2], d = Math.hypot(dx, dz);
+  const land = [L[0] + dx / d * 3.6, TW.yt, L[2] + dz / d * 3.6];
+  const hop = ok ? await cloudHop(land, 2.7) : null;
+  await wait(1200);
+  const q = await tq(), rows = await objIds(), msg = await toast(); await shot('cloud-kingdom');
+  const r = await goTo(TW.way[0], TW.way[2], { tol: 0.6, timeout: 15 });
+  await wait(800);
+  const p = await pos();
+  return { pass: ok && hop && Math.abs(hop.q.me[1] - TW.yt) < 0.2 && q.arrived && rows.includes('beacon') && !rows.includes('steps') && /Cloud Kingdom/.test(msg) && r.ok && p.cp === TW.cpWay,
+    note: `hops ${log.join(' ')} island: ${hop ? `${hop.r.reason} y=${hop.q.me[1]}` : '-'} arrived=${q.arrived} "${msg}" objectives=${rows} waystone=${r.reason} checkpoint=${p.cp} (way ${TW.cpWay})` };
+});
+
+await objective('alone, the ramp\'s first break has no bridge: you drop to the turn below', async () => {
+  await unlink();
+  let r = await goTo(TW.entry[0], TW.entry[2], { tol: 0.6, timeout: 15 });
+  if (r.ok) r = await legs(await rampPts(0.02, TW.gaps[0][0] - 0.02), { tol: 0.5, timeout: 10 });
+  await wait(1500);
+  const hint = await toast(), p0 = await pos(), q0 = await tq();
+  await shot('gap-alone');
+  const g1 = await rampAt(TW.gaps[0][0] + 0.08);
+  await goTo(g1[0], g1[2], { tol: 0.5, timeout: 6 });
+  await wait(1500); await bothDown();
+  const p = await pos();
+  return { pass: r.ok && /only holds while you hold/.test(hint) && !q0.bridgeOn && p0.me[1] > TW.yt + 6 && p.me[1] < p0.me[1] - 4 && p.grounded,
+    note: `up the ramp=${r.reason || 'ok'} "${hint}" bridge on=${q0.bridgeOn} at the gap y=${p0.me[1]} then landed at y=${p.me[1]}` };
+});
+
+await objective('hand in hand the bridges of light hold: up the ramp to the top of the tower', async () => {
+  // back down to her at the foot of the tower
+  let r = await legs(await rampPts(await rampF(), 0.03), { tol: 0.5, timeout: 10 });
+  if (!(await fetchHerT())) return { pass: false, note: `could not take her hand (down the ramp: ${r.reason || 'ok'})` };
+  await G(() => { const g = window.__game, T = g.world.tower; window.__climb = { maxY: -1e9, drop: 0, gapOn: true, inGap: 0, stop: false };
+    const tick = () => { const w = window.__climb, y = g.A.pos.y; w.maxY = Math.max(w.maxY, y); w.drop = Math.max(w.drop, w.maxY - y);
+      const f = T.rampF(g.A.pos); if (T.gaps.some(([a, b]) => f > a + 0.01 && f < b - 0.01)) { w.inGap++; if (!g.towerQuest.bridgeOn) w.gapOn = false; }
+      if (!w.stop) requestAnimationFrame(tick); }; tick(); });
+  r = await goTo(TW.entry[0], TW.entry[2], { tol: 0.6, timeout: 15 });
+  const pts = await rampPts(0.02, TW.ftop - 0.03);
+  let shotDone = false;
+  for (let i = 0; i < pts.length && r.ok; i++) {
+    r = await goTo(pts[i][0], pts[i][1], { tol: 0.5, timeout: 10 });
+    if (!shotDone && (await rampF()) > TW.gaps[0][0] + 0.1) { await shot('bridge-of-light'); shotDone = true; }
+  }
+  if (r.ok) r = await legs([await rampAt(TW.ftop - 0.07, -2.1)].map((v) => [v[0], v[2]]), { tol: 0.4, timeout: 10 }); // in over the top, short of the beacon
+  await wait(800);
+  const w = await G(() => { window.__climb.stop = true; return window.__climb; });
+  const p = await pos(); await shot('tower-top');
+  return { pass: r.ok && p.linked && Math.abs(p.me[1] - TW.top) < 0.1 && Math.abs(p.friend[1] - TW.top) < 0.3 && w.drop < 1.5 && w.gapOn && w.inGap > 0,
+    note: `walk=${JSON.stringify(r)} top: me y=${p.me[1]} her y=${p.friend[1]} (top ${TW.top}) linked=${p.linked} biggest drop on the way ${w.drop.toFixed(2)} m, frames in a gap ${w.inGap}, bridge held=${w.gapOn}` };
+});
+
+await objective('the beacon won\'t light alone; holding hands beside it, it lights: sunrise, every island\'s beam, and the closing card', async () => {
+  // alone by the beacon (she waits a few steps back)
+  await unlink();
+  const bc = await rampAt(TW.ftop - 0.07, -3.7);
+  await goTo(bc[0], bc[2], { tol: 0.3, timeout: 10 });
+  await wait(2500);
+  const alone = await tq(), hint = await toast();
+  // back for her hand, and to the beacon together
+  if (!(await fetchHerT())) return { pass: false, note: 'could not take her hand' };
+  await goTo(bc[0], bc[2], { tol: 0.3, timeout: 10 });
+  await page.waitForFunction(() => window.__game.towerQuest.lit, null, { timeout: 60000 }).catch(() => {});
+  const lit = await tq(), msg = await toast(), rows = await objIds();
+  await G(() => window.__game.setRender(false));
+  await page.waitForFunction(() => window.__game.towerQuest.sun >= 1 && window.__game.ending(), null, { timeout: 240000 }).catch(() => {});
+  await G(() => window.__game.setRender(true)); await wait(2500);
+  const q = await tq(), card = await G(() => ({ on: window.__game.ending(), last: document.querySelector('#ending p.last').textContent, tally: document.getElementById('end-tally').textContent,
+    beams: window.__game.world.tower.beams.visible, beamK: window.__game.world.tower.beamK.slice(0, 3).map((v) => +v.toFixed(2)), hudHidden: document.body.classList.contains('ending') }));
+  await shot('the-ending');
+  await page.click('#end-go'); await wait(2000);
+  const closed = !(await G(() => window.__game.ending()));
+  await shot('sunrise-after');
+  return { pass: alone.k === 0 && !alone.lit && /beacon/.test(hint) && lit.lit && /beacon is lit|sun is rising/.test(msg) && !rows.includes('beacon') && q.sun >= 1 && card.on && /Nobody reaches the top alone/.test(card.last) && /secrets/.test(card.tally) && card.beams && card.beamK[0] > 0.9 && card.hudHidden && closed,
+    note: `alone: charge=${alone.k} "${hint}" | together: lit=${lit.lit} "${msg}" objectives=${rows} sun=${q.sun.toFixed(2)} card=${card.on} "${card.tally}" beams=${card.beams} ${card.beamK} hud hidden=${card.hudHidden} closed=${closed}` };
+});
+
+await objective('star 8: down the tower together, then hop up the three cloud puffs', async () => {
+  const s0 = (await pos()).stars;
+  // out of the top and back down the ramp, hand in hand (the bridges hold)
+  let r = await legs([await rampAt(TW.ftop - 0.07, -2.6), await rampAt(TW.ftop - 0.05)].map((v) => [v[0], v[2]]), { tol: 0.5, timeout: 10 });
+  if (r.ok) r = await legs(await rampPts(TW.ftop - 0.05, 0.03), { tol: 0.5, timeout: 10 });
+  const down = await pos();
+  // round the paved ring at the tower's foot to the puffs, still hand in hand
+  const P = TW.puffs, ux = P[1][0] - P[0][0], uz = P[1][2] - P[0][2], d = Math.hypot(ux, uz);
+  const C = TW.center, ang = (v) => Math.atan2(v[2] - C[2], v[0] - C[0]), a0 = ang(down.me);
+  let a1 = ang(P[0]); while (a1 < a0) a1 += Math.PI * 2;
+  if (a1 - a0 > Math.PI) a1 -= Math.PI * 2; // the short way round
+  const ring = []; for (let k = 1; k <= 6; k++) { const a = a0 + (a1 - a0) * k / 6; ring.push([C[0] + Math.cos(a) * 8.6, C[2] + Math.sin(a) * 8.6]); }
+  if (r.ok) r = await legs(ring, { tol: 0.8, timeout: 15 });
+  if (r.ok) r = await goTo(P[0][0] - ux / d * 1.4, P[0][2] - uz / d * 1.4, { tol: 0.3, timeout: 20 });
+  await unlink();
+  // up the puffs, one hop at a time
+  const tops = [];
+  for (const q of P) { const h = await hopTo(q, { tol: 0.3 }); await bothDown(); tops.push((await pos()).me[1]); }
+  await wait(1200);
+  const p = await pos(); await shot('cloud-puff-star');
+  return { pass: r.ok && Math.abs(down.me[1] - TW.yt) < 0.4 && tops.every((y, i) => Math.abs(y - P[i][1]) < 0.15) && p.stars === s0 + 1,
+    note: `down=${JSON.stringify(r)} at y=${down.me[1]} linked=${down.linked} puffs stood at ${tops.map((v) => v.toFixed(2))} (tops ${P.map((v) => v[1])}) stars ${s0} -> ${p.stars}` };
+});
+
+await objective('secret: the lookout bench on the rim, found when you both stand at it', async () => {
+  const s0 = await sec();
+  const B = TW.bench, L = TW.lookout, ux = L[0] - B[0], uz = L[2] - B[2], d = Math.hypot(ux, uz), u = [ux / d, uz / d], n = [-u[1], u[0]];
+  const way = [[B[0] - u[0] * 1.4 + n[0] * 1.9, B[2] - u[1] * 1.4 + n[1] * 1.9], [B[0] + u[0] * 0.6 + n[0] * 1.9, B[2] + u[1] * 0.6 + n[1] * 1.9], [L[0], L[2]]];
+  let r = await legs(way, { tol: 0.4, timeout: 20 });
+  await wait(2000);
+  const alone = (await sec()).found[8];
+  if (!(await fetchHerT())) return { pass: false, note: 'could not take her hand' };
+  const r2 = await legs(way, { tol: 0.35, timeout: 20 });
+  await wait(2500);
+  const s1 = await sec(), card = await page.$eval('#disc-t', (e) => e.textContent), p = await pos();
+  await shot('lookout');
+  return { pass: r.ok && !alone && r2.ok && s1.found[8] && s1.counter === `${s0.n + 1}/${s1.total}` && /view from the top/i.test(card),
+    note: `alone=${r.reason || 'ok'} found=${alone} | together=${r2.reason || 'ok'} linked=${p.linked} found=${s1.found[8]} counter=${s1.counter} "${card}"` };
+});
+
+await objective('the map shows the Cloud Kingdom and the cloud steps', async () => {
+  const m = await G(() => { const g = window.__game, st = g.worldMap.state(); return { known: st.islands.find((i) => i.id === 'tower')?.known, clouds: st.links.some((l) => l.kind === 'clouds') }; });
+  await G(() => window.__game.worldMap.open()); await wait(1500);
+  const cap = await page.$eval('#map-cap', (e) => e.textContent);
+  await shot('map-cloud-kingdom');
+  await G(() => window.__game.worldMap.close()); await wait(600);
+  return { pass: m.known && m.clouds && /every island is lit/i.test(cap), note: `known=${m.known} cloud link=${m.clouds} caption "${cap}"` };
 });
 
 await objective('secret: walk through the waterfall and find Roro Jr', async () => {
@@ -1013,7 +1233,7 @@ await objective('secret: walk through the waterfall and find Roro Jr', async () 
   await wait(700);
   const s1 = await sec(); await shot('grotto-roro');
   const waving = await G(() => window.__game.secrets.waveT > 0);
-  return { pass: !s0.found[0] && s1.found[0] && s1.card && s1.counter === `${s0.n + 1}/8` && waving, note: `walk=${r.reason} found=${s1.found[0]} card=${s1.card} counter=${s1.counter} waving=${waving}` };
+  return { pass: !s0.found[0] && s1.found[0] && s1.card && s1.counter === `${s0.n + 1}/${s1.total}` && waving, note: `walk=${r.reason} found=${s1.found[0]} card=${s1.card} counter=${s1.counter} waving=${waving}` };
 });
 
 await objective('Roro\'s grotto: walls hold, and you can walk back out', async () => {
@@ -1125,12 +1345,11 @@ await objective('collect the star on the east island', async () => {
 
 await objective('objectives panel: every finished goal has been removed', async () => {
   await wait(2600);
-  // "look up" stays until the cloud tower is built (round 10)
-  const left = (await G(() => window.__game.objectives.list())).filter((o) => o.id !== 'clouds');
+  const left = await G(() => window.__game.objectives.list());
   const rows = await page.$$eval('.obj', (els) => els.length);
   const s = await sec();
   await shot('objectives-cleared');
-  return { pass: left.length === 0 && rows <= 1 && s.counter === '8/8', note: `left=${JSON.stringify(left)} rows=${rows} secrets=${s.counter}` };
+  return { pass: left.length === 0 && rows <= 1 && s.counter === `${s.total}/${s.total}`, note: `left=${JSON.stringify(left)} rows=${rows} secrets=${s.counter}` };
 });
 
 writeFileSync(`${out}/results.json`, JSON.stringify({ results, errors }, null, 2));
