@@ -10,7 +10,7 @@ const server = await createServer({ server: { port: 5195, host: '127.0.0.1', hmr
 await server.listen();
 const browser = await chromium.launch({ args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
 const VP = { portrait: { width: 393, height: 852 }, landscape: { width: 852, height: 393 } };
-const IDS = ['joy', 'bjump', 'bhands', 'bset', 'btogether', 'bmap', 'bbag', 'objectives', 'hud'];
+const IDS = ['joy', 'bjump', 'bhands', 'bset', 'btogether', 'bmap', 'bbag', 'objectives', 'pill'];
 let bad = 0;
 for (const [name, viewport] of Object.entries(VP)) {
   const page = await browser.newPage({ viewport, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
@@ -37,6 +37,15 @@ for (const [name, viewport] of Object.entries(VP)) {
     if (ox > 1 && oy > 1) { bad++; console.log(`OVERLAP ${name}: ${a.id} and ${b.id} (${ox.toFixed(0)}x${oy.toFixed(0)} px)`); }
   }
   for (const b of boxes) if (b.x < 0 || b.y < 0 || b.x + b.w > viewport.width + 0.5 || b.y + b.h > viewport.height + 0.5) { bad++; console.log(`OFFSCREEN ${name}: ${b.id}`, b); }
+  // the longest toast: it wraps, stays on screen and keeps clear of the counters and the buttons
+  await page.evaluate(() => window.__game.toast('All 3 pieces of sun-glass! Place them together at the stone on the sun terrace, by the old rope bridge ✦'));
+  await page.waitForTimeout(700);
+  const tb = await page.evaluate(() => { const r = document.getElementById('toast').getBoundingClientRect(), p = document.getElementById('pill').getBoundingClientRect(), b = document.getElementById('bset').getBoundingClientRect();
+    return { x: r.left, y: r.top, w: r.width, h: r.height, pillR: p.right, pillB: p.bottom, btnL: b.left }; });
+  const clear = tb.x >= 0 && tb.x + tb.w <= viewport.width && (name === 'portrait' ? tb.y >= tb.pillB : tb.x >= tb.pillR) && tb.x + tb.w <= tb.btnL;
+  if (!clear) { bad++; console.log(`TOAST ${name}: overlaps or runs off`, tb); }
+  await page.screenshot({ path: `${out}/${name}-toast.png`, timeout: 180000 });
+  await page.evaluate(() => document.getElementById('toast').classList.remove('on'));
   await page.tap('#bbag');
   await page.waitForTimeout(500);
   await page.screenshot({ path: `${out}/${name}-satchel.png`, timeout: 180000 });

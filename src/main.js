@@ -411,7 +411,7 @@ const toastEl = document.getElementById('toast');
 let toastTimer = 0;
 function toast(msg) {
   toastEl.textContent = msg; toastEl.classList.add('on');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 1800);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), Math.max(1800, msg.length * 55)); // long ones stay long enough to read
 }
 
 // ---- lights: the two player lanterns + the lanterns nearest to what you are looking at ----
@@ -1171,7 +1171,7 @@ if (SAVE_ON) {
   addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
   addEventListener('pagehide', saveNow);
 }
-Object.assign(window.__game, { saveNow, snapshot, restoreFrom: restore, loadSave, clearSave, stopSaving() { saving = false; } });
+Object.assign(window.__game, { toast, saveNow, snapshot, restoreFrom: restore, loadSave, clearSave, stopSaving() { saving = false; } });
 
 // tiny FPS readout with ?fps
 if (SHOW_FPS) {
