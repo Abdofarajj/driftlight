@@ -68,7 +68,7 @@ export function makeSky() {
       vertexShader: /* glsl */ `varying vec2 vUv; void main(){ vUv=uv;
         vec4 mv = modelViewMatrix * vec4(0.0, position.y, 0.0, 1.0); mv.x += position.x; gl_Position = projectionMatrix * mv; }`,
       fragmentShader: /* glsl */ `uniform vec3 uC; uniform float uTime; varying vec2 vUv;
-        void main(){ float x = abs(vUv.x - 0.5) * 2.0; float a = pow(1.0 - x, 3.0) * smoothstep(1.0, 0.1, vUv.y) * smoothstep(0.0, 0.02, vUv.y);
+        void main(){ float w = 1.0 - clamp(abs(vUv.x - 0.5) * 2.0, 0.0, 1.0); float a = w * w * w * (1.0 - smoothstep(0.1, 1.0, vUv.y)) * smoothstep(0.0, 0.02, vUv.y);
           a *= 0.85 + 0.15 * sin(uTime * 2.0 + vUv.y * 30.0); gl_FragColor = vec4(uC * a * 0.9, 1.0); }`,
     }),
   );

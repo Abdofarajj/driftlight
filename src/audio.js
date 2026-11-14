@@ -1,6 +1,6 @@
 // Sound as a system, all synthesized with Web Audio (no audio files):
 // - music: original dreamy solo piano pieces with quiet pauses between them (src/music.js)
-// - ambience: wind bed, birdsong over the forest, airy hum near the cloud edge, wind-current whoosh
+// - ambience: gusty wind (a steady band of noise reads as water), birdsong over the forest, airy hum near the cloud edge, wind-current whoosh
 // - ambience: also the waterfall by the grotto, louder as you get close
 // - one-shots: footsteps by surface, jump, land, hands, lantern, checkpoint, star, quest complete,
 //   and for the secrets: discovery harp, fox yip, fairy-ring notes and a fairy shimmer
@@ -53,7 +53,8 @@ export class GameAudio {
     const nd = nb.getChannelData(0); for (let i = 0; i < nd.length; i++) nd[i] = Math.random() * 2 - 1;
     this.noise = nb;
     // wind bed + airy layer + one whoosh per wind current
-    this.windBed = this.loopNoise(380, 0.6, 0.035, this.amb);
+    // the wind is gusty (swells and lulls, its pitch rising with each gust): a steady band of noise sounds like water
+    this.windBed = this.loopNoise(380, 1.1, 0.0, this.amb);
     this.air = this.loopNoise(2400, 0.8, 0.0, this.amb);
     this.windWhoosh = this.winds.map(() => this.loopNoise(650, 0.9, 0.0, this.amb));
     this.water = this.loopNoise(1100, 0.45, 0.0, this.amb);   // waterfall hiss
@@ -61,10 +62,10 @@ export class GameAudio {
     this.hollowLow = this.loopNoise(140, 0.8, 0.0, this.amb);  // Whispering Hollow: a low hollow wind
     this.hollowAir = this.loopNoise(900, 2.5, 0.0, this.amb);  // and a thin moan over it
     this.lastCreak = 0; this.lastWhisper = 0;
-    this.peakWind = this.loopNoise(520, 0.5, 0.0, this.amb);   // Snowy Peak: a cold wind, gustier the higher you climb
+    this.peakWind = this.loopNoise(520, 1.0, 0.0, this.amb);   // Snowy Peak: a cold wind, gustier the higher you climb
     this.peakHowl = this.loopNoise(1500, 6, 0.0, this.amb);    // and a thin whistle over the ridge
     this.fire = this.loopNoise(2600, 0.7, 0.0, this.amb);      // a lit brazier or the cabin's hearth: soft crackling hiss
-    this.towerAir = this.loopNoise(1700, 0.6, 0.0, this.amb);  // the Cloud Kingdom: high, soft open air
+    this.towerAir = this.loopNoise(900, 1.4, 0.0, this.amb);   // the Cloud Kingdom: high, soft open air
     this.lastCrackle = 0;
   }
 
@@ -427,6 +428,12 @@ export class GameAudio {
     g.linearRampToValueAtTime(MUSIC_VOL, t + secs);
   }
 
+  /** a gust of wind, 0..1: silent about half the time, swelling now and then (seed: a different wind) */
+  gust(now, seed) {
+    const a = Math.sin(now * 0.21 + seed) * 0.5 + Math.sin(now * 0.083 + seed * 2.3) * 0.35 + Math.sin(now * 0.37 + seed * 0.7) * 0.15;
+    return Math.max(0, a) ** 1.5;
+  }
+
   /** called every frame */
   update(dt, s) {
     if (!this.ctx) return;
@@ -437,17 +444,19 @@ export class GameAudio {
     // ambience
     const k = 1 - Math.exp(-dt * 2);
     const edge = Math.max(0, Math.min(1, (s.distFromCenter - 14) / 12));
-    this.windBed.g.gain.value += ((0.03 + Math.sin(now * 0.23) * 0.012 + edge * 0.02) - this.windBed.g.gain.value) * k;
+    const gust = this.gust(now, 0);
+    this.windBed.g.gain.value += ((0.004 + gust * 0.035) * (1 + edge * 0.6) - this.windBed.g.gain.value) * k;
+    this.windBed.f.frequency.value = 260 + gust * 380;
     this.air.g.gain.value += ((edge * 0.025 + (s.airborne ? 0.02 : 0)) - this.air.g.gain.value) * k;
     this.windWhoosh.forEach((w, i) => {
       const d = s.windDist[i] ?? 99;
-      const target = s.inWind === i ? 0.16 : 0.05 / (1 + d * 0.25);
+      const target = s.inWind === i ? 0.16 : d > 30 ? 0 : 0.05 / (1 + d * 0.3) ** 2; // only heard close by
       w.g.gain.value += (target - w.g.gain.value) * k;
       w.f.frequency.value = 500 + Math.sin(now * 0.7 + i) * 150 + (s.inWind === i ? 300 : 0);
     });
-    const wd = s.waterDist ?? 99; // the grotto waterfall
-    this.water.g.gain.value += (0.11 / (1 + Math.max(0, wd - 2) * 0.35) ** 2 - this.water.g.gain.value) * k;
-    this.waterLow.g.gain.value += (0.08 / (1 + Math.max(0, wd - 2) * 0.3) ** 2 - this.waterLow.g.gain.value) * k;
+    const wd = s.waterDist ?? 99, near = wd < 30 ? 1 : 0; // the grotto waterfall: heard only near it
+    this.water.g.gain.value += (near * 0.11 / (1 + Math.max(0, wd - 2) * 0.35) ** 2 - this.water.g.gain.value) * k;
+    this.waterLow.g.gain.value += (near * 0.08 / (1 + Math.max(0, wd - 2) * 0.3) ** 2 - this.waterLow.g.gain.value) * k;
     // Whispering Hollow: the music hushes, a hollow wind, creaks and whispers just out of sight
     const hk = s.hollow || 0;
     this.duck.gain.value += ((1 - 0.72 * hk) - this.duck.gain.value) * k;
@@ -466,13 +475,15 @@ export class GameAudio {
     }
     // the Snowy Peak: a cold wind (quiet inside the cabin), and fires crackling near you
     const pk = s.peak || 0, hi = s.peakHigh || 0, warm = s.inCabin ? 0.25 : 1;
-    this.peakWind.g.gain.value += ((0.05 + 0.04 * hi + Math.sin(now * 0.37) * 0.015) * pk * warm - this.peakWind.g.gain.value) * k;
-    this.peakWind.f.frequency.value = 450 + hi * 200 + Math.sin(now * 0.29) * 120;
+    const pg = this.gust(now * 1.3, 4.2); // gustier up here
+    this.peakWind.g.gain.value += ((0.012 + 0.025 * hi + 0.06 * pg) * pk * warm - this.peakWind.g.gain.value) * k;
+    this.peakWind.f.frequency.value = 380 + hi * 200 + pg * 420;
     this.peakHowl.g.gain.value += ((0.004 + 0.01 * hi) * (0.6 + Math.sin(now * 0.21) * 0.4) * pk * warm - this.peakHowl.g.gain.value) * k;
     this.peakHowl.f.frequency.value = 1300 + Math.sin(now * 0.13) * 350;
     // the Cloud Kingdom: open air up high, softer once the sun is up
-    this.towerAir.g.gain.value += ((0.035 + Math.sin(now * 0.27) * 0.012) * (s.tower || 0) - this.towerAir.g.gain.value) * k;
-    this.towerAir.f.frequency.value = 1500 + Math.sin(now * 0.11) * 300;
+    const tg = this.gust(now, 2.1);
+    this.towerAir.g.gain.value += ((0.003 + tg * 0.03) * (s.tower || 0) - this.towerAir.g.gain.value) * k;
+    this.towerAir.f.frequency.value = 650 + tg * 700;
     const fd = s.fireDist ?? 99, fire = 1 / (1 + Math.max(0, fd - 1) * 0.5) ** 2;
     this.fire.g.gain.value += (0.03 * fire - this.fire.g.gain.value) * k;
     if (fire > 0.08 && now - this.lastCrackle > 0.15 + Math.random() * 0.5) { this.lastCrackle = now; this.play('crackle', { vol: Math.min(1, fire * 1.5) }); }

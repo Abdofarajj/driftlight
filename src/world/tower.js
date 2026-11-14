@@ -152,9 +152,12 @@ const BEAM_VERT = (n) => /* glsl */ `
 const BEAM_FRAG = /* glsl */ `
   uniform vec3 uC; uniform float uTime; varying vec2 vUv; varying float vK;
   void main(){
-    float x = abs(vUv.x - 0.5) * 2.0;
-    float a = pow(1.0 - x, 2.5) * smoothstep(1.0, 0.05, vUv.y) * smoothstep(0.0, 0.012, vUv.y);
-    a *= (0.8 + 0.2 * sin(uTime * 2.0 + vUv.y * 40.0)) * vK;
+    // clamp before pow: at the quad's edges x can land a hair over 1, and pow of a negative number is NaN, which
+    // the bloom spreads into big black blocks (Windows/ANGLE)
+    float x = clamp(abs(vUv.x - 0.5) * 2.0, 0.0, 1.0);
+    float w = 1.0 - x;
+    float a = w * w * sqrt(w) * (1.0 - smoothstep(0.05, 1.0, vUv.y)) * smoothstep(0.0, 0.012, vUv.y);
+    a *= (0.8 + 0.2 * sin(uTime * 2.0 + vUv.y * 40.0)) * clamp(vK, 0.0, 1.0);
     gl_FragColor = vec4(uC * a, 1.0);
   }`;
 // ---- the bridges of light across the gaps: a shimmering floor and a glowing rail; a dotted line of sparks while unlit ----
@@ -165,9 +168,9 @@ const BRIDGE_FRAG = /* glsl */ `
   uniform float uK; uniform float uTime; uniform vec3 uCore; uniform vec3 uHalo; varying vec3 vB;
   void main(){
     float u = vB.x, v = vB.y;
-    float ends = smoothstep(0.0, 0.03, u) * smoothstep(1.0, 0.97, u);
+    float ends = smoothstep(0.0, 0.03, u) * (1.0 - smoothstep(0.97, 1.0, u));
     // unlit: a dotted line of soft sparks along each edge, drifting across, so you can see where the floor will be
-    float dots = smoothstep(0.32, 0.0, abs(fract(u * 18.0 - uTime * 0.4) - 0.5));
+    float dots = 1.0 - smoothstep(0.0, 0.32, abs(fract(u * 18.0 - uTime * 0.4) - 0.5));
     float a;
     if (vB.z < 0.5) {
       float d = abs(v - 0.5) * 2.0;

@@ -26,7 +26,11 @@ export class Post {
       uniforms: { tSrc: { value: null }, uThr: { value: 0.9 } },
       vertexShader: QUAD_VERT,
       fragmentShader: /* glsl */ `uniform sampler2D tSrc; uniform float uThr; varying vec2 vUv;
-        void main(){ vec3 c = texture2D(tSrc, vUv).rgb; float l = max(c.r, max(c.g, c.b));
+        void main(){ vec3 c = texture2D(tSrc, vUv).rgb;
+          // one stray NaN/Inf pixel would be blurred into big black blocks: drop it here, before the blur
+          if (any(isnan(c)) || any(isinf(c))) c = vec3(0.0);
+          c = clamp(c, 0.0, 16.0);
+          float l = max(c.r, max(c.g, c.b));
           float k = smoothstep(uThr, uThr + 0.35, l); gl_FragColor = vec4(c * k, 1.0); }`,
     });
     this.blur = new ShaderMaterial({

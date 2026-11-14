@@ -8,6 +8,15 @@ function place(t, world, x, z, heading, opts = {}) {
   t.animate(0.016, opts.t ?? 2, opts.speed ?? 0, !!opts.air, !!opts.glide);
 }
 
+/** the two of them holding hands (side: which side of `me` the friend is on); takes effect from the next frame */
+function hold(me, friend, side) {
+  me.holdSide = side; friend.holdSide = -side;
+  for (const t of [me, friend]) {
+    t.holdAmt = 1; t.holdAim = true;
+    me.constructor.holdPoint(me.root.position, me.root.rotation.y, friend.root.position, friend.root.rotation.y, t.holdAt);
+  }
+}
+
 function cam(camera, p, look, fov) {
   camera.position.set(...p);
   camera.lookAt(...look);
@@ -64,6 +73,28 @@ export const SHOTS = {
       place(friend, world, 1.8, 9.0, -0.35, { t: 3.1 });
       const y = world.floorAt(1.1, 9) ?? 0;
       cam(camera, [1.1, y + 1.5, 13.4], [1.1, y + 0.9, 9], 40);
+    },
+  },
+
+  // holding hands, from the front and from behind (the usual play view)
+  hands: {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world }) {
+      place(me, world, 0.62, 9.0, 0.12);
+      place(friend, world, 1.58, 9.0, -0.12, { t: 3.1 });
+      hold(me, friend, 1);
+      const y = world.floorAt(1.1, 9) ?? 0;
+      cam(camera, [1.1, y + 1.3, 12.2], [1.1, y + 0.85, 9], 34);
+    },
+  },
+  'hands-back': {
+    viewport: 'portrait',
+    apply({ me, friend, camera, world }) {
+      place(me, world, 0.62, 9.0, Math.PI, { speed: 0.8 });
+      place(friend, world, 1.58, 9.0, Math.PI, { t: 3.1, speed: 0.8 });
+      hold(me, friend, -1);
+      const y = world.floorAt(1.1, 9) ?? 0;
+      cam(camera, [2.6, y + 2.5, 15.2], [1.1, y + 0.6, 9], 34);
     },
   },
 
@@ -193,7 +224,7 @@ export const SHOTS = {
       Q.sun.state = 1; Q.sun.pos.set(s.x - 0.2, s.y + 2.0, s.z + 0.9); Q.sun.yaw = Math.PI;
       place(me, world, s.x + 0.45, s.z, Math.PI, { t: 2 });
       place(friend, world, s.x - 0.5, s.z, Math.PI, { t: 2.6 });
-      me.holdSide = -1; friend.holdSide = 1;
+      hold(me, friend, -1);
       cam(camera, [s.x + 2.4, s.y + 4.6, s.z + 10], [s.x - 0.2, s.y + 0.8, s.z - 4], 50);
     },
   },
@@ -205,7 +236,7 @@ export const SHOTS = {
       const D = world.desert, p = D.dialPos;
       place(me, world, p.x - 2.6, p.z - 1.3, 0.75, { t: 2 });
       place(friend, world, p.x - 1.7, p.z - 2.0, 0.75, { t: 3.1 });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       cam(camera, [p.x - 6.5, p.y + 3.2, p.z - 6.0], [p.x + 3.5, p.y + 1.4, p.z + 4.5], 62);
     },
   },
@@ -228,7 +259,7 @@ export const SHOTS = {
       const h = Math.atan2(b.to.x - a.x, b.to.z - a.z);
       place(me, world, a.x + Math.sin(h) * 2.5 + 0.5, a.z + Math.cos(h) * 2.5, h, { t: 2 });
       place(friend, world, a.x + Math.sin(h) * 2.2 - 0.4, a.z + Math.cos(h) * 2.2 + 0.4, h, { t: 3.1 });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       cam(camera, [a.x - Math.sin(h) * 6, a.y + 5.5, a.z - Math.cos(h) * 6], [c.x, c.y + 3, c.z], 50);
     },
   },
@@ -242,7 +273,7 @@ export const SHOTS = {
       const px = L.x + Math.sin(h) * 3.2, pz = L.z + Math.cos(h) * 3.2;
       place(me, world, px + Math.cos(h) * 0.45, pz - Math.sin(h) * 0.45, h, { t: 2 });
       place(friend, world, px - Math.cos(h) * 0.45, pz + Math.sin(h) * 0.45, h, { t: 3.1 });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       [[2.4, -4.5], [-2.6, -5.5], [4.6, -2.0]].forEach(([sx, sz], i) => {
         const s = Q.shadows[i]; s.pos.set(px + Math.sin(h) * sz + Math.cos(h) * sx, (world.floorAt(px, pz) ?? 2) + 1.0, pz + Math.cos(h) * sz - Math.sin(h) * sx); s.look.set(px, 0, pz);
       });
@@ -260,7 +291,7 @@ export const SHOTS = {
       const px = L.x - Math.sin(h) * 1.8, pz = L.z - Math.cos(h) * 1.8;
       place(me, world, px + Math.cos(h) * 0.45, pz - Math.sin(h) * 0.45, h, { t: 2 });
       place(friend, world, px - Math.cos(h) * 0.45, pz + Math.sin(h) * 0.45, h, { t: 3.1 });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       const y = world.floorAt(px, pz) ?? 2;
       cam(camera, [px - Math.sin(h) * 6, y + 4, pz - Math.cos(h) * 6], [L.x, y + 1.2, L.z], 62);
     },
@@ -289,7 +320,7 @@ export const SHOTS = {
       const H = world.hollow, c = H.heart;
       place(me, world, c.x + 0.45, c.z + 0.6, Math.PI * 0.8, { t: 2 });
       place(friend, world, c.x - 0.45, c.z + 0.6, Math.PI * 0.8, { t: 3.1 });
-      me.holdSide = -1; friend.holdSide = 1;
+      hold(me, friend, -1);
       cam(camera, [c.x + 3.2, c.y + 6.8, c.z + 7.2], [c.x - 0.6, c.y + 0.8, c.z - 1.2], 54);
     },
   },
@@ -302,7 +333,7 @@ export const SHOTS = {
       const h = Math.atan2(e.x - c.x, e.z - c.z);
       place(me, world, c.x + Math.cos(h) * 0.45, c.z - Math.sin(h) * 0.45, h, { t: 2 });
       place(friend, world, c.x - Math.cos(h) * 0.45, c.z + Math.sin(h) * 0.45, h, { t: 3.1 });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       cam(camera, [c.x - Math.sin(h) * 7, c.y + 5, c.z - Math.cos(h) * 7], [c.x + Math.sin(h) * 8, c.y + 1, c.z + Math.cos(h) * 8], 52);
     },
   },
@@ -330,7 +361,7 @@ export const SHOTS = {
       const h = Math.atan2(b.to.x - a.x, b.to.z - a.z);
       place(me, world, a.x + Math.sin(h) * 3.0 + Math.cos(h) * 0.45, a.z + Math.cos(h) * 3.0 - Math.sin(h) * 0.45, h, { t: 2 });
       place(friend, world, a.x + Math.sin(h) * 3.0 - Math.cos(h) * 0.45, a.z + Math.cos(h) * 3.0 + Math.sin(h) * 0.45, h, { t: 3.1 });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       cam(camera, [a.x - Math.sin(h) * 5, a.y + 4.5, a.z - Math.cos(h) * 5], [c.x, 7.5, c.z], 50);
     },
   },
@@ -343,7 +374,7 @@ export const SHOTS = {
       const h = Math.atan2(st.x - cp.x, st.z - cp.z);
       place(me, world, cp.x + Math.cos(h) * 0.45, cp.z - Math.sin(h) * 0.45, h, { t: 2 });
       place(friend, world, cp.x - Math.cos(h) * 0.45, cp.z + Math.sin(h) * 0.45, h, { t: 3.1 });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       // from behind the lit brazier, out over the edge of the terrace: the fire, the two of you, the frost step ahead
       const out = Math.atan2(Z.pos.x - K.mc.x, Z.pos.z - K.mc.z);
       cam(camera, [Z.pos.x - Math.sin(h) * 3.2 + Math.sin(out) * 3.0, cp.y + 3.6, Z.pos.z - Math.cos(h) * 3.2 + Math.cos(out) * 3.0], [st.x, cp.y + 1.0, st.z], 62);
@@ -359,7 +390,7 @@ export const SHOTS = {
       const px = st.x - Math.sin(h) * 2.1, pz = st.z - Math.cos(h) * 2.1;
       place(me, world, px + Math.cos(h) * 0.45, pz - Math.sin(h) * 0.45, h, { t: 2, lift: 1.7, air: true });
       place(friend, world, px - Math.cos(h) * 0.45, pz + Math.sin(h) * 0.45, h, { t: 3.1, lift: 1.6, air: true });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       const out = Math.atan2(st.x - K.mc.x, st.z - K.mc.z);
       cam(camera, [px - Math.sin(h) * 4.5 + Math.sin(out) * 3.2, st.y + 1.6, pz - Math.cos(h) * 4.5 + Math.cos(out) * 3.2], [st.x, st.y + 0.4, st.z], 54);
     },
@@ -372,7 +403,7 @@ export const SHOTS = {
       const K = world.peak, c = K.summit;
       place(me, world, c.x + 0.45, c.z + 0.2, Math.PI, { t: 2, lift: 1.0, air: true });
       place(friend, world, c.x - 0.45, c.z + 0.2, Math.PI, { t: 3.1, lift: 0.95, air: true });
-      me.holdSide = -1; friend.holdSide = 1;
+      hold(me, friend, -1);
       cam(camera, [c.x + 1.2, c.y + 1.6, c.z + 5.2], [c.x - 0.6, c.y + 5.5, c.z - 8], 62);
     },
   },
@@ -401,7 +432,7 @@ export const SHOTS = {
       const bx = s0.x - Math.sin(h) * 1.0, bz = s0.z - Math.cos(h) * 1.0;
       place(me, world, bx + Math.cos(h) * 0.45, bz - Math.sin(h) * 0.45, h, { t: 2, y: s0.y });
       place(friend, world, bx - Math.cos(h) * 0.45, bz + Math.sin(h) * 0.45, h, { t: 3.1, y: s0.y });
-      me.holdSide = -1; friend.holdSide = 1;
+      hold(me, friend, -1);
       // from behind you on the summit, a little to the south of the bell's arch: the clouds climbing away to the tower
       const sx = Math.cos(h), sz = -Math.sin(h), mid = T.stepAt(3); // (sx, sz): sideways, away from the arch
       cam(camera, [bx - Math.sin(h) * 4 + sx * 1.5, s0.y + 2.6, bz - Math.cos(h) * 4 + sz * 1.5], [mid.x, mid.y - 1.2, mid.z], 60);
@@ -415,7 +446,7 @@ export const SHOTS = {
       const T = world.tower, n = T.steps.length, a = T.stepAt(n - 3), b = T.stepAt(n - 2), h = Math.atan2(b.x - a.x, b.z - a.z);
       place(me, world, a.x + Math.cos(h) * 0.45 + Math.sin(h) * 0.6, a.z - Math.sin(h) * 0.45 + Math.cos(h) * 0.6, h, { t: 2, y: a.y + 0.7, lift: 0.7, air: true, glide: true });
       place(friend, world, a.x - Math.cos(h) * 0.45 + Math.sin(h) * 0.6, a.z + Math.sin(h) * 0.45 + Math.cos(h) * 0.6, h, { t: 3.1, y: a.y + 0.7, lift: 0.65, air: true, glide: true });
-      me.holdSide = -1; friend.holdSide = 1;
+      hold(me, friend, -1);
       cam(camera, [a.x - Math.sin(h) * 5.2, a.y + 2.8, a.z - Math.cos(h) * 5.2], [T.center.x, a.y + 6.5, T.center.z], 66);
     },
   },
@@ -428,7 +459,7 @@ export const SHOTS = {
       const a = T.rampAt(f, -0.45), b = T.rampAt(f, 0.45);
       place(me, world, a.x, a.z, h, { t: 2, y: a.y, speed: 0.6 });
       place(friend, world, b.x, b.z, h, { t: 3.1, y: b.y, speed: 0.6 });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       // from out in the air beside the tower: the two of you crossing the gap on the light
       const out = T.rampAt(f - 0.06, 9);
       cam(camera, [out.x, p.y + 4.5, out.z], [p.x, p.y + 0.6, p.z], 50);
@@ -442,7 +473,7 @@ export const SHOTS = {
       const T = world.tower, c = T.beacon.pos, h = Math.atan2(c.x - (c.x + 1), c.z - (c.z + 2.2));
       place(me, world, c.x + 1.0 + Math.cos(h) * 0.45, c.z + 1.9 - Math.sin(h) * 0.45, h, { t: 2, y: c.y });
       place(friend, world, c.x + 1.0 - Math.cos(h) * 0.45, c.z + 1.9 + Math.sin(h) * 0.45, h, { t: 3.1, y: c.y });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       cam(camera, [c.x + 5.5, c.y + 3.2, c.z + 8.5], [c.x - 1.5, c.y + 4.5, c.z - 3], 58);
     },
   },
@@ -454,7 +485,7 @@ export const SHOTS = {
       const T = world.tower, L = T.lookout, B = T.bench, h = Math.atan2(L.x - B.x, L.z - B.z);
       place(me, world, L.x + Math.cos(h) * 0.45, L.z - Math.sin(h) * 0.45, h, { t: 2 });
       place(friend, world, L.x - Math.cos(h) * 0.45, L.z + Math.sin(h) * 0.45, h, { t: 3.1 });
-      me.holdSide = 1; friend.holdSide = -1;
+      hold(me, friend, 1);
       cam(camera, [B.x - Math.sin(h) * 3.2, B.y + 2.4, B.z - Math.cos(h) * 3.2], [L.x + Math.sin(h) * 30, L.y - 10, L.z + Math.cos(h) * 30], 54);
     },
   },

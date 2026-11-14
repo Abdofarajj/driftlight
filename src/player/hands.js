@@ -5,6 +5,7 @@ import { Vector3, Mesh, PlaneGeometry } from 'three';
 import { makeSoftMaterial } from '../look/material.js';
 import { PAL } from '../look/palette.js';
 import { RUN, JUMP } from './actor.js';
+import { Traveler } from './traveler.js';
 
 const SPACING = 0.95;   // distance between the two travelers when holding hands
 const LINK_RANGE = 2.6; // how close you must be to take hands
@@ -17,7 +18,7 @@ export class Hands {
     this.a = a; this.b = b;
     this.linked = false;
     this.side = 1; // which local side of `a` the partner is on
-    this.spark = new Mesh(new PlaneGeometry(0.7, 0.7), makeSoftMaterial(PAL.glowCore, 0.9, true));
+    this.spark = new Mesh(new PlaneGeometry(0.42, 0.42), makeSoftMaterial(PAL.glowCore, 0.75, true));
     this.spark.visible = false;
     scene.add(this.spark);
     this._v = new Vector3(); this._w = new Vector3(); this._x = new Vector3();
@@ -175,6 +176,15 @@ export class Hands {
     this.pullUp(leader, f, side, world, at);
   }
 
+  /** before both travelers are animated: tell their holding arms where the hands meet */
+  beforeAnimate() {
+    const { a, b } = this;
+    a.t.holdAim = b.t.holdAim = this.linked;
+    if (!this.linked) return;
+    Traveler.holdPoint(a.pos, a.heading, b.pos, b.heading, a.t.holdAt);
+    b.t.holdAt.copy(a.t.holdAt);
+  }
+
   /** after both travelers are animated: place the spark of light between the clasped hands */
   afterAnimate(t, camera) {
     this.spark.visible = this.linked;
@@ -182,7 +192,7 @@ export class Hands {
     this.a.t.handWorld(this.side, this._v);
     this.b.t.handWorld(-this.side, this._w);
     this.spark.position.copy(this._v).lerp(this._w, 0.5);
-    this.spark.scale.setScalar(0.8 + Math.sin(t * 4) * 0.12);
+    this.spark.scale.setScalar(0.85 + Math.sin(t * 4) * 0.1);
     this.spark.quaternion.copy(camera.quaternion);
   }
 }

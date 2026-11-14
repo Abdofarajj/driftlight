@@ -1,6 +1,6 @@
 // A small caped traveler built from primitives, with cheap procedural animation.
 // Two characters: 'him' (blue cape, short dark curls) and 'her' (red cape, long light hair, flower clip).
-import { Group, Mesh, SphereGeometry, CylinderGeometry, CapsuleGeometry, LatheGeometry, TorusGeometry, ConeGeometry, PlaneGeometry, Vector2, Vector3, IcosahedronGeometry, Color } from 'three';
+import { Group, Mesh, SphereGeometry, CylinderGeometry, CapsuleGeometry, LatheGeometry, TorusGeometry, ConeGeometry, PlaneGeometry, Vector2, Vector3, IcosahedronGeometry, Color, Quaternion, Euler } from 'three';
 import { PAL } from '../look/palette.js';
 import { makeWatercolorMaterial, makeGlowMaterial, makeOutlineMaterial, makeSoftMaterial } from '../look/material.js';
 import { displace } from '../world/shapes.js';
@@ -10,6 +10,10 @@ const VARIANTS = {
   him: { cape: PAL.capeBlue, hair: PAL.hairDark, scale: 1.45, capeTop: 0.16, capeFlare: 0.24, capeLen: 0.5, tunicFlare: 0.2 },
   her: { cape: PAL.capeRed, hair: PAL.hairLight, scale: 1.36, capeTop: 0.13, capeFlare: 0.22, capeLen: 0.52, tunicFlare: 0.25 },
 };
+
+// the cape is open at the front (this wide, in radians) so the chest and arms show; it covers the back and sides
+const CAPE_GAP = 2.0;
+const ARM_LEN = 0.27; // shoulder to the middle of the hand (model units, before the traveler's scale)
 
 export class Traveler {
   constructor(kind = 'him') {
@@ -50,6 +54,14 @@ export class Traveler {
     }
     // tunic (hers flares a little like a dress)
     body.add(new Mesh(new CylinderGeometry(0.13, v.tunicFlare, 0.34, 14, 2).translate(0, 0.45, 0), m.tunic));
+    // upper body: a rounded chest and shoulders under the head, and a belt, so the traveler isn't just a head on a cape
+    const chest = new Mesh(new SphereGeometry(1, 16, 12), m.tunic);
+    chest.scale.set(0.158, 0.14, 0.125); chest.position.y = 0.63;
+    body.add(chest);
+    const beltR = 0.13 + (0.1 / 0.34) * (v.tunicFlare - 0.13) + 0.006;
+    const belt = new Mesh(new TorusGeometry(beltR, 0.02, 6, 28), m.trim);
+    belt.rotation.x = Math.PI / 2; belt.position.y = 0.52;
+    body.add(belt);
 
     // cape: lathe profile, open at the front
     const prof = [];
@@ -57,7 +69,7 @@ export class Traveler {
       const t = i / 10;
       prof.push(new Vector2(v.capeTop + Math.pow(t, 1.15) * v.capeFlare, 0.76 - t * v.capeLen));
     }
-    const capeGeo = new LatheGeometry(prof, 28, 0.3, Math.PI * 2 - 0.6);
+    const capeGeo = new LatheGeometry(prof, 28, CAPE_GAP / 2, Math.PI * 2 - CAPE_GAP);
     const cp = capeGeo.attributes.position;
     for (let i = 0; i < cp.count; i++) { // wavy hem
       const y = cp.getY(i);
@@ -72,8 +84,8 @@ export class Traveler {
     body.add(capePivot);
     this.capePivot = capePivot;
     const hemR = v.capeTop + v.capeFlare;
-    const hem = new Mesh(new TorusGeometry(hemR, 0.016, 5, 40, Math.PI * 2 - 0.6), m.trim);
-    hem.rotation.set(Math.PI / 2, 0, Math.PI / 2 + 0.3);
+    const hem = new Mesh(new TorusGeometry(hemR, 0.016, 5, 40, Math.PI * 2 - CAPE_GAP), m.trim);
+    hem.rotation.set(Math.PI / 2, 0, Math.PI / 2 + CAPE_GAP / 2);
     hem.position.y = 0.76 - v.capeLen; // the cape mesh is already shifted down by 0.74 (it used to sit 0.74 too low, under the ground)
     cape.add(hem);
     const diamond = new Mesh(new ConeGeometry(0.05, 0.12, 4), m.trim);
@@ -81,11 +93,12 @@ export class Traveler {
     capePivot.add(diamond);
     const diamond2 = diamond.clone(); diamond2.rotation.z = Math.PI; diamond2.position.y -= 0.1; diamond2.position.z -= 0.04;
     capePivot.add(diamond2);
-    const collar = new Mesh(new TorusGeometry(0.12, 0.05, 8, 18), m.cape);
-    collar.rotation.x = Math.PI / 2; collar.position.y = 0.73;
+    // the cape's collar wraps the back of the neck, tied at the front with a little gold clasp on the chest
+    const collar = new Mesh(new TorusGeometry(0.13, 0.042, 8, 18, Math.PI * 2 - CAPE_GAP * 0.55), m.cape);
+    collar.rotation.set(Math.PI / 2, 0, Math.PI / 2 + CAPE_GAP * 0.275); collar.position.y = 0.735;
     body.add(collar);
     const clasp = new Mesh(new SphereGeometry(0.03, 8, 6), m.trim);
-    clasp.position.set(0, 0.71, 0.155);
+    clasp.position.set(0, 0.69, 0.115);
     body.add(clasp);
 
     // arms: shoulder pivots so a hand can reach out to hold the other traveler's hand
@@ -93,10 +106,10 @@ export class Traveler {
     this.hands = [];
     for (const sx of [-1, 1]) {
       const arm = new Group();
-      arm.position.set(sx * 0.15, 0.66, 0.02);
-      const sleeve = new Mesh(new CapsuleGeometry(0.04, 0.2, 4, 8).translate(0, -0.12, 0), m.cape);
-      const hand = new Mesh(new SphereGeometry(0.045, 8, 6), m.skin);
-      hand.position.y = -0.27;
+      arm.position.set(sx * 0.16, 0.665, 0.03);
+      const sleeve = new Mesh(new CapsuleGeometry(0.042, 0.17, 4, 8).translate(0, -0.11, 0), m.tunic);
+      const hand = new Mesh(new SphereGeometry(0.05, 10, 8), m.skin);
+      hand.position.y = -ARM_LEN;
       arm.add(sleeve, hand);
       arm.rotation.z = sx * 0.35;
       body.add(arm);
@@ -199,6 +212,8 @@ export class Traveler {
     this.phase = 0;
     this.holdSide = 0;   // -1: holding with left hand, +1: right hand, 0: not holding
     this.holdAmt = 0;    // eased 0..1
+    this.holdAt = new Vector3(); // where the clasped hands meet (world), set by Hands each frame while holding
+    this.holdAim = false;
     this.lanternSide = 1;
   }
 
@@ -231,15 +246,28 @@ export class Traveler {
     this.holdAmt += ((this.holdSide !== 0 ? 1 : 0) - this.holdAmt) * Math.min(1, dt * 10);
     const targetLs = this.holdSide !== 0 ? -this.holdSide : this.lanternSide;
     this.lanternSide = targetLs;
+    // the holding hand reaches for the point between you where the two hands meet (in this body's space)
+    if (this.holdSide !== 0 && this.holdAim) { this.body.updateWorldMatrix(true, false); _t.copy(this.holdAt); this.body.worldToLocal(_t); }
     for (let i = 0; i < 2; i++) {
       const sx = i === 0 ? -1 : 1;
       const arm = this.arms[i];
       const holding = this.holdSide === sx ? this.holdAmt : 0;
       let rz = sx * 0.35, rx = -Math.sin(ph) * sx * 0.5 * walk;
       if (glide) { rz = sx * 1.35; rx = 0; }
-      rz = rz + (sx * 1.15 - rz) * holding;
-      rx = rx * (1 - holding) - 0.25 * holding;
-      arm.rotation.set(rx, 0, rz);
+      _q.setFromEuler(_e.set(rx, 0, rz));
+      let stretch = 1;
+      if (holding > 0.001) {
+        if (this.holdAim) {
+          _d.subVectors(_t, arm.position);
+          const len = _d.length();
+          stretch = Math.min(1.3, Math.max(0.85, len / ARM_LEN));
+          _qh.setFromUnitVectors(_down, _d.multiplyScalar(1 / Math.max(len, 1e-4)));
+        } else _qh.setFromEuler(_e.set(-0.2, 0, sx * 0.8));
+        _q.slerp(_qh, holding);
+      }
+      arm.quaternion.copy(_q);
+      arm.scale.y = 1 + (stretch - 1) * holding;
+      this.hands[i].scale.y = 1 / arm.scale.y; // stretch the sleeve, not the hand
     }
     // lantern hangs from the outer hand
     const li = this.lanternSide < 0 ? 0 : 1;
@@ -252,6 +280,21 @@ export class Traveler {
     this.head.position.y = 0.95 + Math.sin(ph * 2) * 0.01 * walk;
   }
 
+  /**
+   * Where two travelers' clasped hands meet: between them, a little in front, at a height that keeps both arms
+   * comfortably reaching (lower when you stand close, up to shoulder height when you're further apart).
+   * pa/pb: their feet (world), ha/hb: their headings.
+   */
+  static holdPoint(pa, ha, pb, hb, out) {
+    out.addVectors(pa, pb).multiplyScalar(0.5);
+    const half = Math.hypot(pa.x - pb.x, pa.z - pb.z) / 2;
+    const h = Math.max(0, half - 0.22), reach = 0.38; // shoulder offset and arm length, in metres
+    out.y += 0.93 - Math.sqrt(Math.max(0, reach * reach - h * h)) * 0.95;
+    const fx = Math.sin(ha) + Math.sin(hb), fz = Math.cos(ha) + Math.cos(hb), fl = Math.hypot(fx, fz);
+    if (fl > 0.1) { out.x += (fx / fl) * 0.07; out.z += (fz / fl) * 0.07; }
+    return out;
+  }
+
   /** World position of the hand on the given side (-1 left, +1 right). */
   handWorld(side, out) { return this.hands[side < 0 ? 0 : 1].getWorldPosition(out); }
 
@@ -259,3 +302,5 @@ export class Traveler {
 }
 const _v = new Vector3();
 const _off = new Vector3();
+const _t = new Vector3(), _d = new Vector3(), _down = new Vector3(0, -1, 0);
+const _q = new Quaternion(), _qh = new Quaternion(), _e = new Euler();

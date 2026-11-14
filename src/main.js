@@ -864,6 +864,7 @@ function frame(now) {
     for (let k = 0; k < n; k++) {
       t += sdt;
       step(sdt);
+      hands.beforeAnimate();
       A.apply(sdt, t);
       B.apply(sdt, t + 1.3);
     }
