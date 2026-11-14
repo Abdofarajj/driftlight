@@ -18,7 +18,7 @@ const v3 = (v) => [r2(v.x), r2(v.y), r2(v.z)];
 export class NetPlay {
   /**
    * ctx: { A (you), B (partner), hands, quest, lake, desert, hollow, peak, tower, stars, secrets, playAs, peerOpts, lag,
-   *        on: { connected(back), left(reason), hello(kind), hands(linked), error(e) } }
+   *        on: { connected(back), left(reason), hello(kind), hands(linked), error(e), waiting(n), trouble(n), gaveup() } }
    */
   constructor(ctx) {
     Object.assign(this, ctx);
@@ -39,7 +39,10 @@ export class NetPlay {
       .on('open', () => this.onOpen())
       .on('close', () => this.onClose())
       .on('msg', (m) => this.onMsg(m))
-      .on('error', (e) => this.on.error?.(e));
+      .on('error', (e) => this.on.error?.(e))
+      .on('waiting', (n) => this.on.waiting?.(n))   // guest: the host isn't there right now; still knocking
+      .on('trouble', (n) => this.on.trouble?.(n))   // guest: the two networks didn't link this time; trying again
+      .on('gaveup', () => this.on.gaveup?.());
   }
 
   get role() { return this.session.role; }

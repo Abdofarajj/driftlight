@@ -8,7 +8,8 @@
     "preview": "vite preview --host",
     "capture": "node tools/capture.mjs",
     "playtest": "node tools/playtest.mjs",
-    "nettest": "node tools/nettest.mjs"
+    "nettest": "node tools/nettest.mjs",
+    "jointest": "node tools/jointest.mjs"
   },
   "keywords": [],
   "author": "",
@@ -18,6 +19,7 @@
     "three": "^0.180.0"
   },
   "devDependencies": {
+    "node-turn": "^0.0.6",
     "peer": "^1.0.2",
     "vite": "^6.3.5"
   },

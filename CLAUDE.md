@@ -6,6 +6,7 @@ Art director: Abdo. Targets: iPhone 15 Pro Safari (portrait + landscape) and Win
 ## Stack
 - Three.js + Vite, plain JS modules. `npm run dev`, `npm run build` (output `dist/`, hosted on GitHub Pages).
 - Multiplayer: peer-to-peer WebRTC via PeerJS (free public broker). One player hosts, the other joins by link (`?room=CODE`). Code in `src/net/`.
+  PeerJS's free TURN relay closed in 2024, so `src/net/ice.js` brings STUN + a relay (Open Relay, or our own account in `OWN_TURN`); without one, players on different networks often can't connect. `npm run jointest` checks relay-only links and a host whose phone slept while sending the link.
 - No imported 3D models in the MVP: everything is built from primitives in code through the shared look recipe.
 
 ## Look rules (full version: docs/LOOK.md — read it before touching visuals)
