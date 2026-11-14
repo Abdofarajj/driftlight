@@ -4,13 +4,12 @@
 // 2. A sleeping host: on a phone, sending the link means leaving the game, and the page sleeps and drops off
 //    the broker. The guest who opens the link meanwhile must wait instead of giving up, and the two must find
 //    each other once the host is back, under the same room code.
-// Also: a guest who reloads finds the host again, and the public relay's passwords are made correctly.
+// Also: a guest who reloads finds the host again, and the game's ICE config carries our relay.
 // Usage: node tools/jointest.mjs   (run it alone: timing checks flake when another headless browser is busy)
 import { createServer } from 'vite';
 import { createRequire } from 'node:module';
-import { createHmac } from 'node:crypto';
 import { PeerServer } from 'peer';
-import { openRelay, iceConfig } from '../src/net/ice.js';
+import { iceConfig } from '../src/net/ice.js';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 const Turn = require('node-turn');
@@ -18,13 +17,8 @@ const Turn = require('node-turn');
 let fails = 0;
 const check = (name, ok, note = '') => { if (!ok) fails++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}  ${note}`); };
 
-// the public relay's login: user "expiry:name", password = base64 HMAC-SHA1 of the user with the shared secret
-const now = Date.UTC(2026, 10, 14, 12);
-const r = await openRelay(now);
-const want = createHmac('sha1', 'openrelayprojectsecret').update(r.username).digest('base64');
-check('public relay password is the HMAC of the username', r.credential === want && r.username === `${now / 1000 + 2 * 86400}:driftlight`, r.username);
 const cfg = await iceConfig();
-check('ICE config has STUN and a relay', cfg.iceServers.some((s) => [].concat(s.urls).some((u) => u.startsWith('stun:'))) && cfg.iceServers.some((s) => [].concat(s.urls).some((u) => u.startsWith('turn'))), JSON.stringify(cfg.iceServers.map((s) => s.urls)));
+check('ICE config has STUN and a relay with its login', cfg.iceServers.some((s) => [].concat(s.urls).some((u) => u.startsWith('stun:'))) && cfg.iceServers.some((s) => [].concat(s.urls).some((u) => u.startsWith('turn')) && s.username && s.credential), JSON.stringify(cfg.iceServers.map((s) => s.urls)));
 
 const signal = PeerServer({ port: 9001, host: '127.0.0.1', path: '/' });
 const turn = new Turn({ listeningPort: 3479, listeningIps: ['127.0.0.1'], relayIps: ['127.0.0.1'], authMech: 'long-term', credentials: { drift: 'light' }, debugLevel: 'OFF' });

@@ -1,40 +1,23 @@
 // How the two browsers find a path to each other across the internet.
 // STUN tells each browser its public address, which is enough on most home Wi-Fi. When the networks won't
 // allow a direct link (phones on mobile data, many routers, two different countries), the game data goes
-// through a TURN relay instead. PeerJS used to lend everyone a free relay but shut it down in 2024, so
-// without one of our own, two players on different networks often never connect.
+// through a TURN relay instead. PeerJS used to lend everyone a free relay but shut it down in 2024, and the
+// public Open Relay we tried next no longer exists either (its address doesn't resolve), so we use our own.
 
 export const STUN = { urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] };
 
-// Our own relay account, tried first when filled in: { urls: ['turn:…:3478', …], username: '…', credential: '…' }.
-// A free plan is plenty for the two of us: a game sends some tens of MB an hour when it has to go through a relay.
-export const OWN_TURN = null;
-
-// Open Relay (metered.ca): a free public relay that needs no account. It takes passwords that expire, made
-// from a secret the service publishes for this kind of use.
-const OPEN_RELAY = { host: 'staticauth.openrelay.metered.ca', secret: 'openrelayprojectsecret' };
-
-async function hmacBase64(secret, text) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey('raw', enc.encode(secret), { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
-  const sig = new Uint8Array(await crypto.subtle.sign('HMAC', key, enc.encode(text)));
-  return btoa(String.fromCharCode(...sig));
-}
-
-/** time-limited Open Relay login (the TURN "REST API" scheme: user = expiry:name, password = HMAC of user) */
-export async function openRelay(now = Date.now()) {
-  const username = `${Math.floor(now / 1000) + 2 * 86400}:driftlight`;
-  const credential = await hmacBase64(OPEN_RELAY.secret, username);
-  const h = OPEN_RELAY.host;
-  return { urls: [`turn:${h}:80`, `turn:${h}:80?transport=tcp`, `turn:${h}:443`, `turns:${h}:443?transport=tcp`], username, credential };
-}
+// Abdo's free ExpressTURN account (1 TB a month; the free plan serves port 3478 only). A browser game can't
+// hide a TURN login, so this one is public: if it's ever abused, refresh the password in the ExpressTURN
+// dashboard and paste the new one here. Check it works with netcheck.html.
+export const OWN_TURN = {
+  urls: ['turn:free.expressturn.com:3478?transport=udp', 'turn:free.expressturn.com:3478?transport=tcp'],
+  username: '000000002110106662',
+  credential: 'YeYrui45E5V9BsNJQNiTSTUun2Q=',
+};
 
 /** the relays to try, best first, each with a name for the connection check page */
 export async function relays() {
-  const list = [];
-  if (OWN_TURN) list.push({ name: 'our relay', ...OWN_TURN });
-  try { if (globalThis.crypto?.subtle) list.push({ name: 'Open Relay', ...(await openRelay()) }); } catch { /* no relay: direct links only */ }
-  return list;
+  return OWN_TURN ? [{ name: 'ExpressTURN', ...OWN_TURN }] : [];
 }
 
 /** the RTCPeerConnection config for a new connection */
