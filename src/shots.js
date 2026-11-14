@@ -568,6 +568,16 @@ export const SHOTS = {
       cam(camera, [cx, (world.floorAt(cx, cz, p.y + 0.5) ?? p.y) + 1.9, cz], [p.x + sx * 0.6, p.y + 0.6, p.z + sz * 0.6], 46);
     },
   }])),
+  // the swing from above and to one side, the way the game camera often sees it (Abdo's screenshot, 2026-11-14)
+  'more-swing-high': {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, more }) {
+      const p = more.spots.swing;
+      place(me, world, p.x - 3.2, p.z - 2.0, 0.6, { t: 2 });
+      place(friend, world, p.x - 3.9, p.z - 1.4, 0.7, { t: 3.1 });
+      cam(camera, [p.x - 4.2, p.y + 5.2, p.z - 3.6], [p.x, p.y + 1.0, p.z], 46);
+    },
+  },
   ...Object.fromEntries(['forest', 'lake', 'desert', 'hollow', 'peak', 'tower'].map((id) => [`keep-${id}`, {
     viewport: 'landscape',
     apply({ me, friend, camera, world, keepsakes: K }) {
