@@ -112,7 +112,7 @@ async function walkTogether(leaderPage, followerPage, key, ms) {
   const L = (fn) => leaderPage.evaluate(fn), F = (fn) => followerPage.evaluate(fn);
   const snap = async () => {
     const [l, f] = await Promise.all([L(() => ({ ...window.__game.pos(), cam: window.__game.camPos() })), F(() => ({ ...window.__game.pos(), cam: window.__game.camPos() }))]);
-    return { l, f };
+    return { l, f, ts: Date.now() };
   };
   const fr0 = await L(() => window.__game.frames());
   const trace = [];
@@ -135,17 +135,19 @@ async function walkTogether(leaderPage, followerPage, key, ms) {
   let back = 0; const relAlong = along(rel.l.me);
   for (let i = releasedAt; i < trace.length; i++) back = Math.max(back, relAlong - along(trace[i].l.me));
   // the partner on the leader's screen should glide, never jump around
-  let snapL = 0, snapF = 0;
+  // (beyond what walking covers between two samples: on a slow machine the samples can be 0.3 s apart)
+  let snapL = 0, snapF = 0, gapMs = 0;
   for (let i = 1; i < trace.length; i++) {
-    snapL = Math.max(snapL, dist(trace[i].l.friend, trace[i - 1].l.friend));
-    snapF = Math.max(snapF, dist(trace[i].f.me, trace[i - 1].f.me));
+    const allow = 4.2 * (trace[i].ts - trace[i - 1].ts) / 1000; gapMs = Math.max(gapMs, trace[i].ts - trace[i - 1].ts);
+    snapL = Math.max(snapL, dist(trace[i].l.friend, trace[i - 1].l.friend) - allow);
+    snapF = Math.max(snapF, dist(trace[i].f.me, trace[i - 1].f.me) - allow);
   }
   const fMoved = dist(last.f.me, first.f.me), camMoved = dist(last.f.cam, first.f.cam);
   const agreeLeader = dist(last.l.me, last.f.friend), agreeFollower = dist(last.l.friend, last.f.me);
   const gap = dist(last.l.me, last.l.friend);
   const linked = last.l.linked && last.f.linked;
-  const pass = linked && walked > 3 && back < 0.4 && snapL < 1.2 && snapF < 1.2 && fMoved > walked * 0.7 && camMoved > walked * 0.6 && agreeLeader < 0.6 && agreeFollower < 0.6 && gap < 1.6;
-  return { pass, note: `${fps.toFixed(0)} fps; walked ${walked.toFixed(1)}; leader dragged back ${back.toFixed(2)}; biggest partner jump: leader screen ${snapL.toFixed(2)}, follower screen ${snapF.toFixed(2)}; follower moved ${fMoved.toFixed(1)} cam ${camMoved.toFixed(1)}; screens disagree by ${agreeLeader.toFixed(2)}/${agreeFollower.toFixed(2)}; gap ${gap.toFixed(2)}; linked ${linked}` };
+  const pass = linked && walked > 3 && back < 0.4 && snapL < 0.8 && snapF < 0.8 && fMoved > walked * 0.7 && camMoved > walked * 0.6 && agreeLeader < 0.6 && agreeFollower < 0.6 && gap < 1.6;
+  return { pass, note: `${fps.toFixed(0)} fps; walked ${walked.toFixed(1)}; leader dragged back ${back.toFixed(2)}; biggest partner jump beyond walking: leader screen ${snapL.toFixed(2)}, follower screen ${snapF.toFixed(2)} (samples up to ${gapMs} ms apart); follower moved ${fMoved.toFixed(1)} cam ${camMoved.toFixed(1)}; screens disagree by ${agreeLeader.toFixed(2)}/${agreeFollower.toFixed(2)}; gap ${gap.toFixed(2)}; linked ${linked}` };
 }
 
 await objective('holding hands over the internet: he walks, she is pulled along, he stops, nobody snaps back', async () => {
