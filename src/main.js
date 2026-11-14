@@ -23,7 +23,11 @@ import { NetPlay } from './net/netplay.js';
 import { cleanCode } from './net/session.js';
 import { Invite } from './ui/invite.js';
 import { WorldMap } from './ui/map.js';
+import { Satchel } from './ui/satchel.js';
+import { loadSave, writeSave, clearSave, progressOf } from './save.js';
 import { Secrets } from './world/secrets.js';
+import { Keepsakes } from './world/keepsakes.js';
+import { MoreSecrets } from './world/moresecrets.js';
 import { SECRET_HINTS } from './world/jokes.js';
 import { mergeStatic, mergeSiblings, Instancer } from './look/merge.js';
 import { bakeSunShadow } from './look/shadow.js';
@@ -55,8 +59,12 @@ scene.add(world.root);
 const sparkles = makeSparkles();
 scene.add(sparkles);
 
-// players: him = you (Abdo), her = your girlfriend. ?as=her swaps who you control.
-const playAs = params.get('as') === 'her' ? 'her' : 'him';
+// your journey is saved on this device (src/save.js); not in captures or test runs unless ?save
+const SAVE_ON = !shot && (params.has('save') || !(params.has('fast') || params.has('peerhost')));
+const saved = SAVE_ON && !params.get('room') ? loadSave() : null; // joining: you play in their world
+
+// players: him = you (Abdo), her = your girlfriend. ?as=her swaps who you control (and a save remembers it).
+const playAs = (params.get('as') ?? saved?.as) === 'her' ? 'her' : 'him';
 const meT = new Traveler(playAs);
 const friendT = new Traveler(playAs === 'him' ? 'her' : 'him');
 const me = meT, friend = friendT; // shots.js names
@@ -83,6 +91,41 @@ const desertQuest = new DesertQuest(world, events, secrets, lakeQuest);
 const hollowQuest = new HollowQuest(world, events, secrets, desertQuest);
 const peakQuest = new PeakQuest(world, events, secrets, hollowQuest);
 const towerQuest = new TowerQuest(world, events, secrets, peakQuest);
+const moreSecrets = new MoreSecrets(world, scene, secrets);
+// keepsakes: three per island, placed together at a stone by the way on; each bridge waits for them too
+const keepsakes = (() => {
+  const L1 = world.lake, D1 = world.desert;
+  // a little way back from a bridge's foot and off to its side, so it never stands in the way
+  const back = (from, towards, k, side = 2.4) => { const d = new Vector3(towards.x - from.x, 0, towards.z - from.z).normalize(); return new Vector3(from.x + d.x * k - d.z * side, from.y, from.z + d.z * k + d.x * side); };
+  const ride = L1.ride.getPoint(0.45).add(L1.center);
+  const sh = D1.shelters[1];
+  const H1 = world.hollow, P1 = world.peak, T1 = world.tower, rest = T1.stepAt(T1.restIndex), [, l1, l2, l3] = P1.levels;
+  return new Keepsakes(world, scene, events, secrets.motes, {
+    spots: {
+      forest: [[-13.5, -13], [17.5, 12], [-46.5, -4]],                     // roots of the big north-west tree, the east fence, the meadow island
+      lake: [[-38, -104], [-12, -80], [ride.x, ride.z]],                    // north shore reeds, east shore, out on the rowboat's drift
+      desert: [[D1.oasisWorld.x + 2.4, D1.oasisWorld.z], [sh.x, sh.z, sh.y], [8, -122]], // the oasis, behind a pass shelter, the south-west dunes
+      hollow: [[72.5, -139], [83, -166], [101, -152]],                     // by the crooked house, far south past a lamp, near the east bell
+      peak: [[86, -92, P1.levels[0]], [104, -72.8, l1], [101, -88, l2]],    // west meadow, the first terrace (north), the second (south)
+      tower: [[rest.x + 1.3, rest.z + 0.6], [45, -98.5, T1.levelY]],      // the big resting cloud, the Cloud Kingdom's north rim
+    },
+    floating: { lake2: L1.waterY + 0.3, tower0: rest.y + 0.05 },
+    sockets: {
+      forest: back(world.northBridge.data.from, new Vector3(0, 0, 0), 2.8),
+      lake: back(D1.bridge.data.from, L1.center, 2.8),
+      desert: back(D1.hollowEnd, D1.terrace, 2.8),
+      hollow: back(P1.bridge.data.from, H1.heart, 2.8),
+      peak: (() => { const v = back(T1.stepsFrom, P1.summit, 1.2, 1.8); v.y = l3; return v; })(),
+    },
+  });
+})();
+quest.gate = () => keepsakes.placed('forest');
+desertQuest.gate = () => keepsakes.placed('lake');
+hollowQuest.gate = () => keepsakes.placed('desert');
+peakQuest.gate = () => keepsakes.placed('hollow');
+towerQuest.gate = () => keepsakes.placed('peak');
+towerQuest.beaconGate = () => keepsakes.all('tower');
+towerQuest.onLit = (quiet) => keepsakes.place(keepsakes.set('tower'), quiet);
 // fewer, bigger draws (phones pay for every separate one): bake the still pieces into one mesh per
 // material and area, and draw the swinging lanterns instanced. ?nomerge turns it off to compare.
 const baked = new Group(); scene.add(baked);
@@ -93,12 +136,12 @@ if (!params.has('nomerge')) {
   mergeStatic([world.hollow.root], baked, { cell: 64 });
   mergeStatic([world.peak.root], baked, { cell: 64 });
   mergeStatic([world.tower.root], baked, { cell: 64 });
-  mergeStatic([world.root, secrets.grottoGroup, secrets.ringGroup, secrets.gardenGroup], baked);
+  mergeStatic([world.root, secrets.grottoGroup, secrets.ringGroup, secrets.gardenGroup, moreSecrets.group], baked);
   instancer.add(world.swingParts);
   for (const model of [meT.root, friendT.root, secrets.roro, secrets.gardenGroup, world.lake.boat, world.desert.spirit.rays, ...world.hollow.shadows.map((c) => c.group), world.hollow.lonely.group, world.hollow.cloud, ...world.peak.braziers.map((Z) => Z.fire), world.peak.hearthFire, world.tower.beacon.flames]) mergeSiblings(model); // hair curls, eyes, stems + leaves
 }
 // soft sun shadows of the still world, baked once (?noshadow turns them off to compare)
-const sunShadow = params.has('noshadow') ? null : bakeSunShadow(renderer, scene, [world.root, secrets.grottoGroup, secrets.ringGroup, secrets.gardenGroup, baked]);
+const sunShadow = params.has('noshadow') ? null : bakeSunShadow(renderer, scene, [world.root, secrets.grottoGroup, secrets.ringGroup, secrets.gardenGroup, moreSecrets.group, baked]);
 window.__shadowInfo = sunShadow && { casters: sunShadow.casters, texel: sunShadow.texel }; // tests
 const hud = { stars: document.getElementById('stars'), secrets: document.getElementById('secrets'), secIcon: document.querySelector('.pill .sec') };
 
@@ -106,6 +149,9 @@ const hud = { stars: document.getElementById('stars'), secrets: document.getElem
 const touchUI = matchMedia('(hover: none), (pointer: coarse)').matches;
 const partner = playAs === 'him' ? 'her' : 'him', partnerHer = playAs === 'him' ? 'her' : 'his';
 const objectives = new Objectives(document.getElementById('objectives'), { instant: !!shot, limit: document.getElementById('joy') });
+// the satchel (bag button / B): keepsakes per island, stars, and the secrets you've found
+const satchel = new Satchel({ keepsakes, secrets, stars,
+  reached: (id) => ({ forest: true, lake: lakeQuest.opened || lakeQuest.awake, desert: desertQuest.opened, hollow: hollowQuest.opened, peak: peakQuest.opened, tower: towerQuest.opened })[id] });
 const westIsle = world.isles.find((i) => i.x < -40);
 const shrineIsle = world.isles.find((i) => i.z < -40);
 const OBJ = {
@@ -113,7 +159,7 @@ const OBJ = {
   lanterns: { title: 'Light the lanterns', progress: '0/5', detail: 'Five stone lanterns sleep in the forest. Hold hands and stand together beside one until its golden ring fills. Light all five to wake the shrine.' },
   wind: { title: 'Ride the warm wind', detail: `On the west edge of the forest a ring of drifting petals marks a warm current. Step in${touchUI ? '' : ' (hold Space to glide)'} and it carries you to the meadow island.` },
   stars: { title: 'Find the stars', progress: '0/8', detail: 'Eight stars are hidden: one past the east rope bridge, one on the meadow island, one waiting by the shrine, one in the middle of Crystal Lake, one behind the sun gate in the desert, one on a mossy boulder in Whispering Hollow, one on a frozen pillar on the Snowy Peak, and one over a little stair of cloud puffs in the Cloud Kingdom.' },
-  secrets: { title: 'Find the secrets', progress: '0/9', detail: SECRET_HINTS },
+  secrets: { title: 'Find the secrets', progress: `0/${secrets.items.length}`, detail: SECRET_HINTS },
   shrine: { title: 'Visit the shrine', detail: 'A bridge of light now leads north from the forest. Cross it together to reach the shrine.' },
   lake: { title: 'Cross to Crystal Lake', detail: 'The shrine woke a crystal bridge. It leads west from the shrine island to Crystal Lake.' },
   heart: () => ({ title: 'Wake the crystal heart', progress: `${lakeQuest.count}/3`, detail: 'Three crystals sleep round the lake, each with two lotus stones in front of it. '
@@ -137,9 +183,15 @@ const OBJ = {
   bell: { title: 'Ring the aurora bell', detail: 'The bell hangs under a stone arch at the very top, too high for one of you to reach. Hold hands under it and jump together.' },
   clouds: { title: 'Look up', detail: 'The aurora spreads over the sky. Far to the west, high above the clouds, the cloud tower waits. Stay up on the summit: the way there opens soon.' },
   steps: { title: 'Climb the cloud steps', detail: `The aurora lifted a stair of clouds from the summit, rising west to the Cloud Kingdom. Jump from cloud to cloud${touchUI ? '' : ' (hold Space to glide)'}. Holding hands, you jump together. Halfway up, a big resting cloud has a waystone.` },
+  keep: (id) => { const s = keepsakes.set(id); return { title: `Find the ${s.name.toLowerCase()}`, progress: `${keepsakes.count(id)}/${keepsakes.of(id)}`,
+    detail: `${['', 'One', 'Two', 'Three'][keepsakes.of(id)]} ${s.many} are hidden on this island, and they shimmer and ${s.chime === 'hum' ? 'hum' : 'chime'} softly when you're close. ${s.hint} `
+      + (s.noStone ? 'Light the beacon together and the two halves join into one locket.'
+        : `Bring them to the keepsake stone ${s.where} and stand there together, holding hands, to place them. The way on only opens once they're in.`) }; },
   beacon: { title: 'Light the beacon', detail: 'Climb the tower together. Its ramp breaks in three places, where a bridge of light holds only while you hold hands. At the very top, stand by the beacon together, holding hands, until it catches.' },
 };
 for (const id of ['hands', 'lanterns', 'wind', 'stars', 'secrets']) objectives.add(id, OBJ[id]);
+function addKeep(id) { if (!keepsakes.placed(id) && !objectives.has(`keep-${id}`)) objectives.add(`keep-${id}`, OBJ.keep(id)); }
+addKeep('forest');
 if (params.get('open')) objectives.setOpen(params.get('open')); // captures: show a row expanded
 requestAnimationFrame(() => objectives.layout()); // again once the page has its real size
 
@@ -149,17 +201,19 @@ const peerOpts = {};
 if (params.get('peerhost')) Object.assign(peerOpts, { host: params.get('peerhost'), port: Number(params.get('peerport')) || 9000, path: '/', secure: false });
 if (params.get('ice') === 'none') peerOpts.config = { iceServers: [] }; // local tests
 const online = () => !!net && net.online;
+let warpToHost = false, joinedAt = 0; // joining: you appear beside your partner, wherever they are
 const net = shot ? null : new NetPlay({
-  A, B, hands, quest, lake: lakeQuest, desert: desertQuest, hollow: hollowQuest, peak: peakQuest, tower: towerQuest, stars, secrets, playAs, peerOpts,
+  A, B, hands, quest, lake: lakeQuest, desert: desertQuest, hollow: hollowQuest, peak: peakQuest, tower: towerQuest, stars, secrets, keepsakes, playAs, peerOpts,
   lag: params.get('lag') ? { ms: Number(params.get('lag')), jitter: Number(params.get('jitter')) || 0 } : null, // tests: fake internet delay
   on: {
     connected(back) {
-      quest.remote = lakeQuest.remote = desertQuest.remote = hollowQuest.remote = peakQuest.remote = towerQuest.remote = net.role === 'guest';
+      quest.remote = keepsakes.remote = lakeQuest.remote = desertQuest.remote = hollowQuest.remote = peakQuest.remote = towerQuest.remote = net.role === 'guest';
+      if (net.role === 'guest' && !back) { warpToHost = true; joinedAt = performance.now(); }
       toast(back ? `${She}'s back ✦` : net.role === 'host' ? `${She} joined your world ✦` : `You're together ✦`);
       audio.play('checkpoint', { pos: A.pos });
       invite.refresh();
     },
-    left(reason) { quest.remote = lakeQuest.remote = desertQuest.remote = hollowQuest.remote = peakQuest.remote = towerQuest.remote = false; hollowQuest.lv[1] = 1; toast(reason === 'quiet' ? `${She} lost connection…` : `${She} left the game`); invite.refresh(); },
+    left(reason) { quest.remote = keepsakes.remote = lakeQuest.remote = desertQuest.remote = hollowQuest.remote = peakQuest.remote = towerQuest.remote = false; hollowQuest.lv[1] = 1; toast(reason === 'quiet' ? `${She} lost connection…` : `${She} left the game`); invite.refresh(); },
     hello(kind) {
       // the invite link says who you are; if both of you picked the same traveler, take the other one
       if (net.role === 'guest' && kind === playAs) { const u = new URL(location.href); u.searchParams.set('as', kind === 'him' ? 'her' : 'him'); location.replace(u); }
@@ -195,18 +249,29 @@ const MAP_LOOKS = {
   tower: { edge: PAL.cloud[1], top: [PAL.cloudStone[0], PAL.cloud[0]], dots: [[45, -85, 6.4, '#f2dce4'], [45, -85, 1.6, '#ffd98a']] },
   peak: { edge: PAL.rockCold[1], top: [PAL.snow[0], PAL.rockCold[0]], dots: [[K0.mc.x, K0.mc.z, 7.5, '#d9d1ea'], [K0.mc.x, K0.mc.z, 4.2, '#f7f3fc'], ...K0.braziers.map((Z) => [Z.pos.x, Z.pos.z, 1.1, '#ff9c50']), [K0.cabinWorld.x, K0.cabinWorld.z, 1.6, '#d19f80']] },
 };
+/** the next keepsake to find on an island, or its stone once you have them all (null when placed) */
+function keepGoal(id) {
+  if (keepsakes.placed(id)) return null;
+  const set = keepsakes.set(id), n = keepsakes.count(id);
+  if (n >= keepsakes.of(id)) return set.stone ? { x: set.pos.x, z: set.pos.z, text: `Place the ${set.many} at the stone, holding hands` } : null;
+  let best = null, bd = Infinity;
+  for (const it of keepsakes.items) if (it.set === set && !it.got) { const d = it.pos.distanceTo(A.pos); if (d < bd) { bd = d; best = it; } }
+  return { x: best.pos.x, z: best.pos.z, text: `Find the ${set.many} (${n}/${keepsakes.of(id)})` };
+}
 function nextGoal() {
   if (quest.count < quest.items.length) {
     let best = null, bd = Infinity;
     for (const it of quest.items) if (!it.lit) { const d = it.pos.distanceTo(A.pos); if (d < bd) { bd = d; best = it; } }
     return { x: best.pos.x, z: best.pos.z, text: 'Light the lanterns, holding hands' };
   }
+  const kf = keepGoal('forest'); if (kf) return kf;
   const lakeOpen = lakeQuest.opened || lakeQuest.awake;
   if (!lakeOpen) return { x: shrineIsle.x, z: shrineIsle.z, text: 'Visit the shrine together' };
   if (!lakeQuest.awake) {
     const p = lakeQuest.pairs.find((q) => !q.lit);
     return { x: p.pos.x, z: p.pos.z, text: `Wake the crystals (${lakeQuest.count}/3)` };
   }
+  const kl = keepGoal('lake'); if (kl) return kl;
   if (!desertQuest.opened) return { x: L0.lakeCenter.x, z: L0.lakeCenter.z, text: 'The heart is waking…' };
   const S = desertQuest.sun;
   if (!desertQuest.done) {
@@ -214,6 +279,7 @@ function nextGoal() {
     return { x: S.pos.x, z: S.pos.z, text: S.state === SUN.SLEEP ? 'Find the lost sun spirit' : 'The little sun is waiting for you' };
   }
   if (!stars.items[4].got && !hollowQuest.opened) return { x: D0.starPos.x, z: D0.starPos.z, text: 'Something shines past the sun gate' };
+  const kd = keepGoal('desert'); if (kd) return kd;
   if (!world.hollow.onIsland(A.pos) && hollowQuest.count === 0) return { x: H0.arrive.x, z: H0.arrive.z, text: 'Cross the old rope bridge into the dark' };
   if (hollowQuest.count < 3) {
     let best = null, bd = Infinity;
@@ -222,13 +288,16 @@ function nextGoal() {
   }
   if (!hollowQuest.rung) return { x: H0.heart.x, z: H0.heart.z, text: 'Ring both bells at the same moment' };
   if (!hollowQuest.done) return { x: H0.heart.x, z: H0.heart.z, text: 'Comfort the Lonely Shadow' };
+  const kh = keepGoal('hollow'); if (kh) return kh;
   if (!peakQuest.opened || peakQuest.rise < 1) return { x: H0.exit.x, z: H0.exit.z, text: 'The way on opens soon…' };
   if (!K0.onIsland(A.pos) && peakQuest.count === 0) return { x: K0.arrive.x, z: K0.arrive.z, text: 'Cross the stone bridge to the Snowy Peak' };
   if (peakQuest.count < 3) { const Z = K0.braziers[peakQuest.braziers.findIndex((q) => !q.lit)]; return { x: Z.pos.x, z: Z.pos.z, text: `Light the braziers together (${peakQuest.count}/3)` }; }
   if (!peakQuest.rung) return { x: K0.summit.x, z: K0.summit.z, text: 'Ring the aurora bell together' };
   const T0 = world.tower;
+  const kp = keepGoal('peak'); if (kp) return kp;
   if (!towerQuest.opened) return { x: K0.summit.x, z: K0.summit.z, text: 'The cloud tower waits. The way opens soon…' };
   if (!towerQuest.arrived && !T0.onIsland(A.pos)) return { x: T0.stepsTo.x, z: T0.stepsTo.z, text: 'Climb the cloud steps to the Cloud Kingdom' };
+  const kt = !towerQuest.lit && keepGoal('tower'); if (kt) return kt;
   if (!towerQuest.lit) return { x: T0.center.x, z: T0.center.z, text: 'Climb the tower together and light the beacon' };
   return { x: T0.center.x, z: T0.center.z, text: 'Every island is lit. Keep exploring together ✦' };
 }
@@ -289,6 +358,44 @@ addEventListener('resize', resize);
 resize();
 
 const input = shot ? null : new Input(canvas);
+// ---- the title card: shown on every fresh visit (not in captures or bot runs) ----
+if (!shot && !params.has('fast') && !params.has('peerhost') && !params.has('notitle')) {
+  const tEl = document.getElementById('title');
+  document.body.classList.add('titled');
+  const play = document.getElementById('title-play'), together = document.getElementById('title-together');
+  const tap = (el, fn) => {
+    el.addEventListener('click', (e) => { e.stopPropagation(); e.preventDefault(); fn(); });
+    el.addEventListener('touchend', (e) => { e.stopPropagation(); e.preventDefault(); fn(); });
+  };
+  if (room) {
+    document.getElementById('title-sub').textContent = `${She}'s waiting for you`;
+    play.textContent = 'Join'; together.hidden = true;
+  }
+  if (!net) together.hidden = true;
+  if (saved) { // welcome back: carry on, or (two taps, so it can't happen by accident) start over
+    document.getElementById('title-sub').textContent = 'Welcome back ✦ Your journey is right where you left it';
+    play.textContent = 'Continue';
+    const fresh = document.getElementById('title-new');
+    fresh.hidden = false;
+    tap(fresh, () => {
+      if (!fresh.classList.contains('sure')) { fresh.classList.add('sure'); fresh.textContent = 'Tap again to start over'; return; }
+      saving = false; clearSave(); location.reload();
+    });
+  }
+  let gone = false;
+  const go = (then) => {
+    if (gone) return; gone = true;
+    audio.start();
+    tEl.style.display = 'grid'; tEl.classList.add('out'); // fade the card while the HUD comes in
+    document.body.classList.remove('titled');
+    setTimeout(() => { tEl.style.display = ''; }, 1150);
+    if (then) setTimeout(then, 350);
+  };
+  tap(play, () => go());
+  tap(together, () => go(() => invite.open()));
+  for (const ev of ['touchstart', 'touchmove', 'mousedown']) tEl.addEventListener(ev, (e) => e.stopPropagation(), { passive: true });
+  addEventListener('keydown', (e) => { if (!gone && (e.code === 'Enter' || e.code === 'Space')) { e.preventDefault(); go(); } });
+}
 if (!shot) {
   const startAudio = () => audio.start();
   for (const ev of ['pointerdown', 'touchend', 'keydown']) addEventListener(ev, startAudio, { capture: true });
@@ -304,7 +411,7 @@ const toastEl = document.getElementById('toast');
 let toastTimer = 0;
 function toast(msg) {
   toastEl.textContent = msg; toastEl.classList.add('on');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), 1800);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.classList.remove('on'), Math.max(1800, msg.length * 55)); // long ones stay long enough to read
 }
 
 // ---- lights: the two player lanterns + the lanterns nearest to what you are looking at ----
@@ -419,13 +526,38 @@ function onEvent(name, d) {
       if (!d.quiet) { toast(`Lantern ${d.n} / ${d.of} lit ✦`); audio.play('lantern', { pos: d.pos }); }
       objectives.update('lanterns', { progress: `${d.n}/${d.of}` });
       break;
-    case 'quest-complete': if (!d.quiet) { toast('All lanterns lit! The way north opens…'); audio.play('complete'); } objectives.complete('lanterns'); break;
+    case 'quest-complete':
+      if (!d.quiet) { toast(keepsakes.placed('forest') ? 'All lanterns lit! The way north opens…' : 'All lanterns lit! Now the firefly jars, at the stone by the north bridge…'); audio.play('complete'); }
+      objectives.complete('lanterns'); break;
+    // ---- keepsakes ----
+    case 'keepsake': {
+      addKeep(d.set);
+      objectives.update(`keep-${d.set}`, { progress: `${d.n}/${d.of}` });
+      if (d.quiet) break;
+      satchel.ping();
+      audio.play('keepsake', { pos: d.pos });
+      const One = d.one[0].toUpperCase() + d.one.slice(1);
+      toast(d.n < d.of ? `${One} found (${d.n}/${d.of}) ✦` : d.set === 'tower' ? 'Both halves of the locket! Light the beacon together to join them ✦'
+        : `All ${d.of} ${d.many}! Place them together at the stone ${d.where} ✦`);
+      break;
+    }
+    case 'keepsake-placed': {
+      objectives.complete(`keep-${d.set}`);
+      if (d.quiet || d.set === 'tower') break; // the locket joins as the beacon lights: that moment has its own fanfare
+      audio.play('socket', { pos: d.pos });
+      secrets.motes.emit(d.pos.clone().setY(d.pos.y + 0.8), 40, { speed: 2.6, up: 3, life: 1.8, size: 0.22, spread: 0.5, grav: -0.3 });
+      const qDone = { forest: quest.done, lake: lakeQuest.awake, desert: desertQuest.done, hollow: hollowQuest.done, peak: peakQuest.rung }[d.set];
+      const what = { forest: 'Light the five lanterns', lake: 'Wake the crystal heart', desert: 'Bring the little sun home', hollow: 'Comfort the Lonely Shadow', peak: 'Ring the aurora bell' }[d.set];
+      toast(qDone ? `The ${d.many} settle into the stone, and the way on wakes ✦` : `The ${d.many} settle into the stone ✦ ${what} to open the way on`);
+      break;
+    }
     case 'bridge-open': toast('A bridge of light leads to the shrine ✦'); objectives.add('shrine', OBJ.shrine); break;
     case 'secret':
       hud.secrets.textContent = `${d.n}/${d.of}`;
       objectives.update('secrets', { progress: `${d.n}/${d.of}` });
       if (d.n >= d.of) objectives.complete('secrets');
       if (!d.quiet) {
+        satchel.ping();
         audio.play('secret', { pos: d.pos });
         discover(`Secret ${d.n} of ${d.of}`, d.title, d.line);
         hud.secIcon.classList.remove('found'); void hud.secIcon.getBoundingClientRect(); hud.secIcon.classList.add('found');
@@ -435,6 +567,7 @@ function onEvent(name, d) {
     // ---- Crystal Lake ----
     case 'lake-bridge': toast('The shrine wakes, and a crystal bridge rises to the west ✦'); audio.play('complete'); break;
     case 'lake-open':
+      addKeep('lake');
       if (!d.quiet) toast('A crystal bridge leads to Crystal Lake ✦');
       if (!world.lake.onIsland(A.pos) && !objectives.has('heart') && lakeQuest.count === 0) objectives.add('lake', OBJ.lake);
       break;
@@ -445,6 +578,7 @@ function onEvent(name, d) {
       break;
     case 'lake-heart':
       objectives.complete('lake'); objectives.complete('heart');
+      if (!d.quiet && !keepsakes.placed('lake')) setTimeout(() => toast('Now the moon pearls, at the stone on the north-east shore…'), 3500);
       if (!d.quiet) { toast('The crystal heart wakes! ✦'); audio.play('heart', { pos: d.pos }); secrets.motes.emit(d.pos, 50, { speed: 3, up: 3, life: 2.2, size: 0.26, spread: 0.8, grav: -0.3 }); }
       break;
     case 'lake-steps': toast('Stepping stones lead to the heart ✦'); break;
@@ -456,6 +590,7 @@ function onEvent(name, d) {
     // ---- Sunset Desert ----
     case 'desert-bridge': toast('The heart\'s light reaches the north-east shore, and a sandstone bridge rises ✦'); audio.play('complete'); break;
     case 'desert-open':
+      addKeep('desert');
       if (!d.quiet) toast('A sandstone bridge leads to the Sunset Desert ✦');
       if (!world.desert.onIsland(A.pos) && desertQuest.sun.state === SUN.SLEEP) objectives.add('desert', OBJ.desert);
       break;
@@ -471,6 +606,7 @@ function onEvent(name, d) {
     case 'sun-home': if (!d.quiet) toast('Home at last ✦'); break;
     case 'desert-sundial':
       objectives.complete('desert'); objectives.complete('sun');
+      if (!d.quiet && !keepsakes.placed('desert')) setTimeout(() => toast('Now the sun-glass, at the stone on the sun terrace…'), 3500);
       if (!d.quiet) { toast('The sundial wakes, the wind settles and the sun gate opens ✦'); audio.play('sunhome', { pos: d.pos }); secrets.motes.emit(world.desert.sunHome, 50, { speed: 3, up: 3, life: 2.2, size: 0.26, spread: 0.8, grav: -0.3 }); }
       break;
     case 'desert-gate': toast('Something shines past the sun gate…'); break;
@@ -484,6 +620,7 @@ function onEvent(name, d) {
     // ---- Whispering Hollow ----
     case 'hollow-bridge': if (!d.quiet) { toast('Far off, an old rope bridge sways out of the fog…'); audio.play('creak', { pos: world.hollow.bridge.data.to }); } break;
     case 'hollow-open':
+      addKeep('hollow');
       if (!world.hollow.onIsland(A.pos) && hollowQuest.count === 0) objectives.add('hollow', OBJ.hollow);
       break;
     case 'hollow-dark':
@@ -521,7 +658,7 @@ function onEvent(name, d) {
         toast(`It wasn't scary at all. It only wanted company ✦`);
         audio.play('fireflies', { pos: d.pos });
         secrets.motes.emit(d.pos.clone().setY(d.pos.y + 1.6), 80, { speed: 3.5, up: 2.5, life: 2.6, size: 0.2, spread: 1.2, grav: -0.25 });
-        setTimeout(() => { toast('The fireflies light the way on'); objectives.add('wayOn', OBJ.wayOn); }, 5200);
+        setTimeout(() => { toast(keepsakes.placed('hollow') ? 'The fireflies light the way on' : `The fireflies light the way on. It waits for the lullaby notes (${keepsakes.count('hollow')}/3)`); objectives.add('wayOn', OBJ.wayOn); }, 5200);
       } else objectives.add('wayOn', OBJ.wayOn);
       break;
     case 'lantern-dim':
@@ -553,6 +690,7 @@ function onEvent(name, d) {
     // ---- Snowy Aurora Peak ----
     case 'peak-bridge': if (!d.quiet) { toast('Out past the fireflies, a stone bridge rises towards a snowy peak…'); audio.play('complete'); } break;
     case 'peak-open':
+      addKeep('peak');
       objectives.complete('wayOn');
       if (!world.peak.onIsland(A.pos) && peakQuest.count === 0) objectives.add('peak', OBJ.peak);
       break;
@@ -585,6 +723,7 @@ function onEvent(name, d) {
         secrets.motes.emit(d.pos, 60, { speed: 3.2, up: 2.8, life: 2.4, size: 0.24, spread: 1.0, grav: -0.2 });
         setTimeout(() => { audio.play('aurora'); toast('Look up…'); }, 2600);
         setTimeout(() => { toast('The cold eases. Far to the west, the cloud tower waits'); objectives.add('clouds', OBJ.clouds); }, 8000);
+        if (!keepsakes.placed('peak')) setTimeout(() => toast('The way up waits for the aurora feathers, at the stone by the bell…'), 11500);
       } else objectives.add('clouds', OBJ.clouds);
       break;
     case 'cold-dim':
@@ -595,6 +734,7 @@ function onEvent(name, d) {
     case 'cocoa': audio.play('cocoa', { pos: d.pos }); break;
     // ---- the Cloud Kingdom ----
     case 'tower-steps':
+      addKeep('tower');
       objectives.complete('clouds');
       if (!towerQuest.arrived && !towerQuest.lit) objectives.add('steps', OBJ.steps);
       if (!d.quiet) { toast('The aurora lifts a stair of clouds from the summit ✦'); audio.play('cloudsteps', { pos: world.tower.stepsFrom }); }
@@ -606,6 +746,7 @@ function onEvent(name, d) {
     case 'tower-hint':
       if (d.kind === 'bridge') toast(`A bridge of light… it only holds while you hold ${partnerHer} hand`);
       else if (d.kind === 'bridge-go') toast('The light holds for two ✦');
+      else if (d.kind === 'locket') toast(`There's a little locket-shaped hollow in the beacon. ${keepsakes.count('tower') ? 'Half' : 'Both halves'} of the locket still missing…`);
       else if (d.kind === 'beacon') toast(online() ? `The beacon needs you both: stand by it with ${partner}, holding hands` : `Bring ${partner} by the hand and stand by the beacon together`);
       break;
     case 'tower-fall': {
@@ -620,7 +761,7 @@ function onEvent(name, d) {
     case 'tower-beacon':
       objectives.complete('beacon'); objectives.complete('steps');
       if (!d.quiet) {
-        toast('The beacon is lit ✦');
+        toast('The beacon is lit, and the two halves of the locket click together ✦');
         audio.play('beacon', { pos: d.pos });
         secrets.motes.emit(d.pos, 80, { speed: 3.6, up: 3.4, life: 2.8, size: 0.26, spread: 1.0, grav: -0.25 });
         setTimeout(() => audio.play('sunrise'), 1500);
@@ -728,6 +869,7 @@ function step(dt) {
   if (!online()) secrets.lift(B, dt);
   if (online()) {
     net.updateRemote(dt); // your partner's traveler, from the network
+    if (warpToHost && net.buf.length) { warpToHost = false; warpBeside(net.buf[net.buf.length - 1].p); }
     if (hands.stepOnline(dt, world, carry) === 'broke') net.sendHands();
   } else hands.step(dt, world);
   if (hands.linked !== wasLinked) {
@@ -770,6 +912,8 @@ function step(dt) {
   if (ch > 0.05 && Math.floor(ch * 6) !== Math.floor(lastCharge * 6)) audio.play('charge', { k: ch, pos: A.pos });
   lastCharge = ch;
   stars.update(dt, t, online() ? [A] : [A, B], camera, onStar);
+  keepsakes.update(dt, t, [A, B], hands.linked, camera, online() ? [A] : [A, B]);
+  moreSecrets.update(dt, t, [A, B]);
   secrets.update(dt, t, [A, B], camera); // either of you can find a secret; the fairy ring needs you both
   // place-based objectives: land on the meadow island / reach the shrine
   if (A.grounded) {
@@ -856,7 +1000,8 @@ function frame(now) {
   last = now;
   if (shot) {
     t = shot.time ?? 2.0;
-    shot.apply({ me: meT, friend: friendT, camera, world, secrets, lake: lakeQuest, desert: desertQuest, hollow: hollowQuest, peak: peakQuest, tower: towerQuest, ending: showEnding });
+    shot.apply({ me: meT, friend: friendT, camera, world, secrets, more: moreSecrets, keepsakes, lake: lakeQuest, desert: desertQuest, hollow: hollowQuest, peak: peakQuest, tower: towerQuest, ending: showEnding });
+    moreSecrets.update(0, t, []); keepsakes.update(0, t, [], false, camera, []);
     secrets.update(0, t, [], camera); // still poses (shots can set e.g. secrets.roroK)
     lakeQuest.update(0, t, A, B, () => false);
     desertQuest.update(0, t, A, B, false, [], () => {}, camera);
@@ -946,23 +1091,87 @@ window.__game = {
   jumpHold(on) { botJumpHeld = on; },
   holdHands() { input.handsPressed = true; },
   handsPending() { return input.handsPressed; },
-  worldMap, quest, lakeQuest, desertQuest, hollowQuest, peakQuest, towerQuest, stars, secrets, winds, audio, objectives, net, invite, playAs,
+  worldMap, keepsakes, moreSecrets, quest, lakeQuest, desertQuest, hollowQuest, peakQuest, towerQuest, stars, secrets, winds, audio, objectives, net, invite, playAs,
   camPos() { return camera.position.toArray().map((v) => +v.toFixed(2)); },
   frames() { return frames; },
   setRender(on) { renderOn = on; },
   redraw() { updateLights(shot ? camera.position : A.pos); instancer.sync(); post.render(scene, camera, t); }, // tests: draw one frame now
   scene, camera, renderer,
   res() { return { dpr: curDpr, ...res }; }, setDpr, // adaptive resolution (tests)
-  lightAll() { quest.completeNow(); },
-  lakeAll() { lakeQuest.completeNow(); },
-  desertAll() { desertQuest.completeNow(); },
-  hollowAll() { hollowQuest.completeNow(); },
-  peakAll() { peakQuest.completeNow(); },
-  towerAll() { towerQuest.completeNow(); },
+  lightAll() { quest.completeNow(); keepsakes.completeNow('forest'); },
+  keepAll(id) { keepsakes.completeNow(id); },
+  lakeAll() { lakeQuest.completeNow(); keepsakes.completeNow('lake'); },
+  desertAll() { desertQuest.completeNow(); keepsakes.completeNow('desert'); },
+  hollowAll() { hollowQuest.completeNow(); keepsakes.completeNow('hollow'); },
+  peakAll() { peakQuest.completeNow(); keepsakes.completeNow('peak'); },
+  towerAll() { keepsakes.completeNow('tower'); towerQuest.completeNow(); },
   ending() { return document.getElementById('ending').classList.contains('on'); },
   teleport(x, z, heading = Math.PI, y) { A.pos.set(x, world.floorAt(x, z, y) ?? 0, z); A.vel.set(0, 0, 0); A.heading = heading; cam.yaw = heading + Math.PI; camPos.set(0, 0, 0); },
   pos() { return { lanterns: quest.count, stars: stars.count, secrets: secrets.count, inWind: A.inWind, me: A.pos.toArray().map((v) => +v.toFixed(2)), friend: B.pos.toArray().map((v) => +v.toFixed(2)), linked: hands.linked, grounded: A.grounded, glide: A.glide, cp: this.checkpoint, yaw: +cam.yaw.toFixed(2), heading: +A.heading.toFixed(2) }; },
 };
+
+// ---- the saved journey: restore it now, then keep it up to date ----
+function snapshot() {
+  const ls = lakeQuest.state();
+  return {
+    v: 1, at: Date.now(), as: playAs, cp: world.checkpoints.indexOf(checkpoint),
+    q: quest.state().l,
+    lk: lakeQuest.opened || lakeQuest.count ? { o: 1, l: ls.l } : 0, // any lake progress means its bridge is up
+    ds: desertQuest.done ? desertQuest.state() : desertQuest.opened ? { o: 1 } : 0,
+    hw: hollowQuest.opened ? { o: 1, l: hollowQuest.state().l, r: hollowQuest.rung ? 1 : 0, ls: hollowQuest.done ? 2 : 0 } : 0,
+    pk: peakQuest.opened ? peakQuest.state() : 0,
+    tw: towerQuest.opened ? towerQuest.state() : 0,
+    st: stars.mask(), sc: secrets.mask(), kp: keepsakes.mask(), kx: keepsakes.placedMask(),
+  };
+}
+function restore(s) {
+  for (const Q of [lakeQuest, desertQuest, hollowQuest, peakQuest, towerQuest]) Q.lastT ??= t;
+  keepsakes.items.forEach((_, i) => { if (s.kp & (1 << i)) keepsakes.take(i, true); });
+  keepsakes.applyPlaced(s.kx ?? 0, true);
+  stars.items.forEach((_, i) => { if (s.st & (1 << i)) stars.take(i, true); });
+  secrets.items.forEach((_, i) => { if (s.sc & (1 << i)) secrets.take(i, true); });
+  if (s.q) { quest.applyState({ c: [], l: s.q }, true); objectives.complete('hands'); }
+  if (quest.done && keepsakes.placed('forest')) { // the north bridge is already up
+    quest.rise = 1; world.northBridge.setRise(1); world.shrine.userData.setGlow(1);
+    if (!s.lk?.o) objectives.add('shrine', OBJ.shrine);
+  }
+  if (s.lk) lakeQuest.applyState({ o: s.lk.o, l: s.lk.l, c: [], br: -1 }, true);
+  if (s.ds?.d) desertQuest.applyState(s.ds, true); else if (s.ds?.o) desertQuest.open(true);
+  if (s.hw) hollowQuest.applyState(s.hw, true);
+  if (s.pk) peakQuest.applyState(s.pk, true);
+  if (s.tw) towerQuest.applyState(s.tw, true);
+  const c = world.checkpoints[s.cp];
+  if (c) {
+    c.activate(); checkpoint = c;
+    const p = c.pos;
+    A.pos.set(p.x, p.y + 0.1, p.z); A.vel.set(0, 0, 0); A.heading = Math.PI; cam.yaw = 0;
+    B.pos.set(p.x - 1.0, p.y + 0.1, p.z + 0.6); B.vel.set(0, 0, 0); B.heading = Math.PI;
+  }
+}
+/** joining: stand beside your partner, wherever in the world they are */
+function warpBeside(p) {
+  if (!p || Math.hypot(A.pos.x - p[0], A.pos.z - p[2]) < 25) return;
+  const y = world.floorAt(p[0] + 1, p[2], p[1] + 1);
+  A.pos.set(p[0] + 1, (y ?? p[1]) + 0.1, p[2]); A.vel.set(0, 0, 0); camPos.set(0, 0, 0);
+}
+let saving = SAVE_ON, lastSaved = '';
+function saveNow() {
+  if (!saving) return false;
+  if (room && (!joinedAt || performance.now() - joinedAt < 4000)) return false; // joining: wait for their world first
+  const s = snapshot(), key = JSON.stringify({ ...s, at: 0 });
+  if (key === lastSaved) return true;
+  if (!s.q && !s.st && !s.sc && !s.kp && s.cp <= 0 && !loadSave()) return false; // nothing done yet: no Continue
+  if (room && progressOf(s) < progressOf(loadSave())) return false; // never swap a longer journey for a shorter one
+  lastSaved = key;
+  return writeSave(s);
+}
+if (saved) { try { restore(saved); } catch (e) { console.error('save could not be restored', e); } }
+if (SAVE_ON) {
+  setInterval(saveNow, 4000);
+  addEventListener('visibilitychange', () => { if (document.hidden) saveNow(); });
+  addEventListener('pagehide', saveNow);
+}
+Object.assign(window.__game, { toast, saveNow, snapshot, restoreFrom: restore, loadSave, clearSave, stopSaving() { saving = false; } });
 
 // tiny FPS readout with ?fps
 if (SHOW_FPS) {

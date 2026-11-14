@@ -356,6 +356,17 @@ export class GameAudio {
         this.swell(0.7, 12);
         break;
       }
+      case 'twinkle': // a keepsake nearby: two tiny high bells, quiet, so it draws you in without nagging
+        this.bell(NOTE(93), t, 0.018, dest, 1.2); this.bell(NOTE(98), t + 0.14, 0.014, dest, 1.0); break;
+      case 'hum': // a lullaby note nearby in the dark: a soft wordless three-note hum
+        [67, 71, 64].forEach((n, i) => this.tone(NOTE(n), t + i * 0.32, 0.6, 0.016, 'sine', dest, 0.15)); break;
+      case 'keepsake': // picked up: a little climbing harp figure and a soft bell
+        [74, 78, 81, 86].forEach((n, i) => this.tone(NOTE(n), t + i * 0.06, 1.2, 0.045, 'triangle', dest, 0.004));
+        this.bell(NOTE(90), t + 0.28, 0.05, dest, 2.2); break;
+      case 'socket': // keepsakes settle into their stone: three bells, one per cup, then a warm chord
+        [79, 83, 86].forEach((n, i) => this.bell(NOTE(n), t + i * 0.45, 0.06, dest, 2.6));
+        [55, 62, 67].forEach((n) => this.tone(NOTE(n), t + 1.35, 3, 0.04, 'triangle', dest, 0.8));
+        this.swell(0.35, 5); break;
       case 'cocoa': { // two mugs of cocoa: a cosy little clink and a warm two-note chime
         this.tone(NOTE(96), t, 0.4, 0.035, 'sine', dest, 0.002); this.tone(NOTE(99), t + 0.09, 0.5, 0.03, 'sine', dest, 0.002);
         [67, 71, 74, 79].forEach((n, i) => this.bell(NOTE(n), t + 0.4 + i * 0.16, 0.04, dest, 2.4));

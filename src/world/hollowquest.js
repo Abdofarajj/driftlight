@@ -34,6 +34,7 @@ export class HollowQuest {
     this.H = world.hollow; this.events = events; this.secrets = secrets; this.desertQuest = desertQuest;
     this.remote = false;   // guest: the host keeps the score and moves the shadows
     this.opened = false; this.rise = 0;
+    this.gate = () => true; // the desert's keepsakes must be placed too (keepsakes.js)
     this.lamps = this.H.lamps.map(() => ({ lit: false, k: 0 }));
     this.rung = false; this.ringT = -99; this.plates = [false, false]; this.plateT = [-99, -99];
     this.lonely = { state: 0, k: 0, ang: 0 }; // 0 waiting, 1 circling in, 2 turned to fireflies
@@ -62,7 +63,7 @@ export class HollowQuest {
     const H = this.H;
     this.lastT = t;
     // ---- the old rope bridge rises once the little sun is home ----
-    if (!this.opened && this.desertQuest.done && !this.remote) this.open(false);
+    if (!this.opened && this.desertQuest.done && this.gate() && !this.remote) this.open(false);
     if (this.opened && this.rise < 1) {
       this.rise = Math.min(1, this.rise + dt / RISE);
       H.bridge.setRise(this.rise);

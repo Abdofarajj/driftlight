@@ -550,4 +550,33 @@ export const SHOTS = {
       cam(camera, [g.x + 8.5, g.y + 2.6, g.z + 2.4], [g.x, g.y + 1.2, g.z], 46);
     },
   },
+  // keepsakes and the new secrets (2026-11-14): a close look at each, the two of them beside it
+  ...Object.fromEntries([
+    ['heartstone', 3.2, 0.6], ['swing', 4.5, 0.4], ['boats', 5.5, 0.2], ['cairn', 3.4, 0.5], ['picnic', 4.2, 0.5], ['castles', 4.0, 0.5],
+    ['owl', 4.2, 0.5], ['letterbox', 3.0, 0.6], ['snowmen', 4.8, 0.4], ['angels', 3.6, 0.3], ['bottle', 2.8, 0.5], ['telescope', 3.4, 0.5],
+  ].map(([id, d, turn]) => [`more-${id}`, {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, more }) {
+      const p = more.spots[id], W = world, c = W.lake.onIsland(p) ? W.lake.lakeCenter : W.desert.onIsland(p) ? W.desert.center : W.hollow.onIsland(p) ? W.hollow.center : W.peak.onIsland(p) ? W.peak.mc : W.tower.onIsland(p) ? W.tower.center : { x: 0, z: 0 };
+      // the camera on the island-centre side, looking at it; the two of them stand beside it, off to one side
+      let ux = c.x - p.x, uz = c.z - p.z; const n = Math.hypot(ux, uz) || 1, flip = ['snowmen', 'angels', 'bottle'].includes(id) ? -1 : 1; ux *= flip / n; uz *= flip / n; // on the peak the slope rises inwards: look from outside
+      const sx = -uz, sz = ux, side = id === 'boats' ? 2.2 : 1.5, back = id === 'boats' ? 3.2 : 0.6;
+      const mx = p.x + sx * side + ux * back, mz = p.z + sz * side + uz * back, o = { y: p.y + 0.5 };
+      place(me, world, mx, mz, Math.atan2(p.x - mx, p.z - mz), { t: 2, ...o });
+      place(friend, world, mx + sx * 0.8, mz + sz * 0.8, Math.atan2(p.x - mx, p.z - mz) - 0.15, { t: 3.1, ...o });
+      const cx = p.x + ux * d - sx * d * turn, cz = p.z + uz * d - sz * d * turn;
+      cam(camera, [cx, (world.floorAt(cx, cz, p.y + 0.5) ?? p.y) + 1.9, cz], [p.x + sx * 0.6, p.y + 0.6, p.z + sz * 0.6], 46);
+    },
+  }])),
+  ...Object.fromEntries(['forest', 'lake', 'desert', 'hollow', 'peak', 'tower'].map((id) => [`keep-${id}`, {
+    viewport: 'landscape',
+    apply({ me, friend, camera, world, keepsakes: K }) {
+      const s = K.set(id), it = K.items.filter((i) => i.set === s)[id === 'tower' ? 1 : 0], p = it.pos, q = s.pos;
+      const near = id === 'forest' || id === 'tower', f = near ? p : q, o = { y: f.y + 0.5 };
+      place(me, world, f.x + 1.4, f.z + 1.0, Math.PI * 0.75, { t: 2, ...o });
+      place(friend, world, f.x + 0.4, f.z + 1.6, Math.PI * 0.9, { t: 3.1, ...o });
+      if (!near) { cam(camera, [q.x + 4.5, q.y + 2.4, q.z + 4.0], [q.x, q.y + 0.6, q.z], 46); return; }
+      cam(camera, [p.x + 2.6, p.y + 1.3, p.z + 2.2], [p.x, p.y + 0.4, p.z], 46); // forest: a jar up close
+    },
+  }])),
 };

@@ -105,6 +105,8 @@ export class NetPlay {
     // stars: anything either of you collected
     for (let i = 0; i < this.stars.items.length; i++) if (m.st & (1 << i)) this.stars.take(i, this.first);
     // secrets too: found by one of you counts for both
+    if (this.keepsakes && m.kp) for (let i = 0; i < this.keepsakes.items.length; i++) if (m.kp & (1 << i)) this.keepsakes.take(i, this.first);
+    if (this.keepsakes && m.kx && this.role === 'guest') this.keepsakes.applyPlaced(m.kx, this.first);
     if (this.secrets && m.sc) for (let i = 0; i < this.secrets.items.length; i++) if (m.sc & (1 << i)) this.secrets.take(i, this.first);
     // lanterns: the host keeps the score
     if (m.q && this.role === 'guest') this.quest.applyState(m.q, this.first);
@@ -129,13 +131,13 @@ export class NetPlay {
       g: A.grounded ? 1 : 0, gl: A.glide ? 1 : 0, w: A.inWind ? 1 : 0,
       i: [r2(it.x), r2(it.z)], r: it.run ? 1 : 0, jh: it.jumpHeld ? 1 : 0, j: this.myJumps,
       hl: hands.linked ? 1 : 0, hd: hands.side, hs: this.hseq,
-      st: this.stars.mask(), sc: this.secrets ? this.secrets.mask() : 0,
+      st: this.stars.mask(), sc: this.secrets ? this.secrets.mask() : 0, kp: this.keepsakes ? this.keepsakes.mask() : 0,
       ll: this.hollow ? r2(this.hollow.lv[0]) : 1,
     };
     if (hands.carrying) { // you're walking them: say where they are on your screen
       Object.assign(m, { fp: v3(B.pos), fv: v3(B.vel), fh: Math.round(B.heading * 1000) / 1000, fg: B.grounded ? 1 : 0, fgl: B.glide ? 1 : 0 });
     }
-    if (this.role === 'host') { m.q = this.quest.state(); if (this.lake) m.lk = this.lake.state(); if (this.desert) m.ds = this.desert.state(); if (this.hollow) m.hw = this.hollow.state(); if (this.peak) m.pk = this.peak.state(); if (this.tower) m.tw = this.tower.state(); }
+    if (this.role === 'host') { if (this.keepsakes) m.kx = this.keepsakes.placedMask(); m.q = this.quest.state(); if (this.lake) m.lk = this.lake.state(); if (this.desert) m.ds = this.desert.state(); if (this.hollow) m.hw = this.hollow.state(); if (this.peak) m.pk = this.peak.state(); if (this.tower) m.tw = this.tower.state(); }
     this.session.send(m);
   }
 

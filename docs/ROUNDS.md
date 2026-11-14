@@ -193,3 +193,50 @@ vines, layered rock), with no seams on the grass and under 20% more vertices.
 - Desert: a welcome arch over the arrival path, ruined arches, a watchtower with arched windows, red banners.
 **Done when:** `tower-steps`, `peak` and `desert` read like the castle, the mountain and the sunset ruins in
 `other-zones.png`, and Abdo has picked a hair style.
+
+## Keepsakes and more secrets (started 2026-11-14, Abdo: "more to explore… collect items on each island to unlock the next")
+Abdo picked: keepsakes are **required, together with the island's quest**, to open the way on.
+- **Keepsakes** (`src/world/keepsakes.js`): three per island, hidden round it. Either of you picks one up by walking into
+  it (shared satchel, an objectives row "Find the …" with a hint per piece). They shimmer and chime softly within 8 m,
+  so it's a wander, not a hunt. A keepsake stone with three cups stands beside the bridge foot: stand at it together,
+  holding hands, and they float into the cups. The bridge rises once the quest is done AND the stone is filled.
+  Forest: firefly jars (north bridge). Lake: moon pearls, one floats on the rowboat's drift (desert bridge).
+  Desert: sun-glass, one in the oasis, one behind a pass shelter (Hollow bridge).
+  Online: whoever touches one gets it for both (mask like stars); the host fills stones (`kx` in the update).
+- **Six more secrets** (`src/world/moresecrets.js`, appended to the list in secrets.js, text in jokes.js): the painted
+  heart stone and the swing for two (forest, both of you), two paper boats and the tall little stone tower (lake),
+  the picnic for two at the end of two trails of footprints and two sandcastles, hers taller (desert).
+- Tools: `node tools/keepcheck.mjs` picks up every keepsake, fills each stone, finds each new secret (with shots);
+  `node tools/scan.mjs cx cz r` prints an ASCII map of free ground for placing things.
+**Done when (round 1, forest/lake/desert):** keepcheck passes, the zone playtests (`--from-lake`, `--from-desert`) pass
+with the new keepsake checks, nettest passes, and the shots show the keepsakes and secrets sitting on the ground.
+**Round 2 (Hollow, peak, tower), built 2026-11-14:**
+- Keepsakes: three lullaby notes in the Hollow (they hum in the dark; stone by the stone bridge out), three aurora
+  feathers on the peak (meadow, first and second terrace; stone on the summit by the bell, it opens the cloud steps),
+  and two halves of a locket in the Cloud Kingdom (one on the big resting cloud, one on the north rim). The locket has
+  no stone: the beacon only lights once both halves are found, and lighting it joins them. The closing card shows the
+  joined locket (blue and red stones) in place of the star.
+- Six more secrets: the owl in the dead tree (cold eyes from afar, warm and blinking up close), a letter for two in a
+  crooked letterbox (Hollow), two snowmen with a blue and a red scarf, two snow angels (peak), a message in a bottle in
+  a cloud tuft and a telescope you look through together (Cloud Kingdom). 21 secrets in all.
+**Done when (round 2):** keepcheck passes for all six islands and all 12 new secrets, the long playtest from the lake
+(`playtest -- name --from-lake`, which runs on to the ending) and nettest pass, and the shots show everything grounded.
+
+## Title screen and HUD polish (unparked 2026-11-14, Abdo: "continue with everything else that's missing… let's finish this")
+- **Title card** over the live world: DriftLight, "A little journey for two", Play and Play together (opens the invite
+  card). Opening an invite link shows "She's/He's waiting for you" with a Join button. Not shown in captures, bot runs
+  (`?fast`), net tests (`?peerhost`) or with `?notitle`. Enter/Space also starts.
+- **HUD restyle** (from `parked/hud-restyle`): cream pills, a joystick ring with arrows, a glowing hands button with
+  twinkles, jump above it in portrait and left of it in landscape, cream round buttons top right.
+- **Satchel** (`src/ui/satchel.js`, bag button or B): one row per island you've reached with its keepsakes (lit once
+  found, a tick once in the stone), the next island as "? ? ?", then stars, secrets and the names of the ones found.
+  A little dot on the bag when something new goes in.
+- Tool: `node tools/hudcheck.mjs` shoots the title, HUD, satchel and map in portrait and landscape at iPhone size into
+  `captures/hud/` and fails if any two HUD controls overlap or one runs off screen.
+**Done when:** hudcheck passes in both orientations and the shots read cleanly.
+- **Your journey is saved** on the device (`src/save.js`, localStorage): islands done, keepsakes, stars, secrets,
+  last checkpoint and who you play. Only milestones are kept, never half a moment. A reload or a closed tab brings it
+  all back quietly at your checkpoint; the title card then says Continue, with "Start a new journey" (two taps).
+  Joining by link plays in your partner's world (your save isn't loaded) and you appear beside them; a guest only
+  saves the shared journey once connected, and never over a longer one of their own. Saves are off in captures and
+  bot runs unless `?save`. Tool: `node tools/savecheck.mjs`.

@@ -33,7 +33,7 @@ export class Secrets {
     this.world = world;
     this.events = events;
     this.motes = new Motes(scene, 220);
-    this.items = ['grotto', 'fox', 'ring', 'garden', 'boat', 'oasis', 'musicbox', 'cocoa', 'lookout'].map((id) => ({ id, found: false, pos: new Vector3() }));
+    this.items = ['grotto', 'fox', 'ring', 'garden', 'boat', 'oasis', 'musicbox', 'cocoa', 'lookout', 'heartstone', 'swing', 'boats', 'cairn', 'picnic', 'castles', 'owl', 'letterbox', 'snowmen', 'angels', 'bottle', 'telescope'].map((id) => ({ id, found: false, pos: new Vector3() }));
     this.count = 0;
     this.buildGrotto(scene);
     this.fox = new LightFox(scene, FOX_NEST[0], FOX_NEST[1], -2.2, world.colliders, this.motes);

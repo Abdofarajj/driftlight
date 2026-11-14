@@ -16,6 +16,7 @@ is north at z = -49). The sun sits low in the north-west.
 Rules for every new island:
 - One co-op quest that needs both players (or a hand-held partner who can be parked, for solo play).
 - One star, one secret, one checkpoint just past the arrival bridge.
+- Three keepsakes and a keepsake stone by the way on; the next bridge waits for the quest AND the stone (keepsakes.js).
 - Keep cloud tops out of its circle and its bridge corridor (`CLEAR` / `CORRIDORS` in `src/look/sky.js`).
 - Bake it with its own `mergeStatic` call if it's far from the forest (see `main.js`), and check draws with `?fps`.
 - The host keeps the quest score online and sends it with every update (see `lakequest.js` `state()` / `applyState()`).

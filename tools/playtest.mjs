@@ -23,7 +23,7 @@ const pos = () => G(() => window.__game.pos());
 const goTo = (x, z, opts = {}) => G(([x, z, o]) => window.__game.goTo(x, z, o), [x, z, opts]);
 const wait = (ms) => page.waitForTimeout(ms);
 let shotN = 0;
-const shot = async (name) => { const f = `${out}/${String(++shotN).padStart(2, '0')}-${name}.png`; await page.screenshot({ path: f }); return f; };
+const shot = async (name) => { const f = `${out}/${String(++shotN).padStart(2, '0')}-${name}.png`; await page.screenshot({ path: f, timeout: 120000 }); return f; };
 const results = [];
 // --from-lake: skip straight to the Crystal Lake checks (set up as if the lantern quest and shrine were done)
 // --from-desert: skip to the Sunset Desert checks (the crystal heart already awake)
@@ -90,7 +90,7 @@ await objective('objectives panel: tap a row to see its details, tap again to cl
   await page.click('.obj[data-id="lanterns"]');
   await wait(1500);
   const o2 = await openNow(), h2 = await settle((h) => h < 2);
-  return { pass: before === 'hands,lanterns,wind,stars,secrets' && o1 === 'lanterns' && h1 > 20 && o2 === null && h2 < 2, note: `rows=${before} open=${o1} (${h1.toFixed(0)}px) then ${o2} (${h2.toFixed(0)}px)` };
+  return { pass: before === 'hands,lanterns,wind,stars,secrets,keep-forest' && o1 === 'lanterns' && h1 > 20 && o2 === null && h2 < 2, note: `rows=${before} open=${o1} (${h1.toFixed(0)}px) then ${o2} (${h2.toFixed(0)}px)` };
 });
 
 await objective('walk the path to the arch checkpoint', async () => {
@@ -214,6 +214,43 @@ await objective('lantern quest: light all 5 lanterns together, holding hands', a
   return { pass: p.lanterns === 5, note: `lit=${p.lanterns} ${log.join(' ')}` };
 });
 
+// ---- keepsakes (2026-11-14): each island's three, placed together at its stone, open the way on ----
+const ks = (id) => G((id) => { const K = window.__game.keepsakes; return { n: K.count(id), of: K.of(id), placed: K.placed(id), stone: K.set(id).pos.toArray(),
+  left: K.items.filter((it) => it.set.id === id && !it.got).map((it) => [it.key, ...it.pos.toArray()]) }; }, id);
+const stoneWhy = (id) => G((id) => { const g = window.__game, s = g.keepsakes.set(id), d = (p) => Math.hypot(p.x - s.pos.x, p.z - s.pos.z).toFixed(1);
+  return `linked=${g.hands.linked} me ${d(g.A.pos)} m / her ${d(g.B.pos)} m from the stone, charge=${s.charge.toFixed(2)}`; }, id);
+/** walk hand in hand to the stone and wait for the keepsakes to settle in */
+async function fillStone(id, via = []) {
+  const k = await ks(id);
+  // take her hand first (holdHands toggles, so only if you're not already holding it); she's brought beside you if she wandered off
+  await G(() => { const g = window.__game, a = g.A.pos; if (g.hands.linked) return;
+    if (a.distanceTo(g.B.pos) > 2) { g.B.pos.set(a.x + 0.9, g.world.floorAt(a.x + 0.9, a.z, a.y + 0.5) ?? a.y, a.z); g.B.vel.set(0, 0, 0); }
+    g.holdHands(); });
+  await wait(900);
+  for (const [x, z] of via) await goTo(x, z, { tol: 0.8, timeout: 30 });
+  const r = await goTo(k.stone[0] + 1.6, k.stone[2] + 0.6, { tol: 0.6, timeout: 30 });
+  if (!(await pos()).linked) { await G(() => window.__game.holdHands()); await wait(900); }
+  // wait on the game, not the clock: on a slow headless GPU a few seconds of play can take a minute
+  await page.waitForFunction((id) => window.__game.keepsakes.placed(id), id, { timeout: 90000 }).catch(() => {});
+  await shot(`stone-${id}`);
+  return { r, k: { ...(await ks(id)), why: await stoneWhy(id) } };
+}
+
+await objective('keepsakes: the bridge waits for the firefly jars; gather all three and place them at the stone together', async () => {
+  await wait(2500);
+  const shut = await G(() => window.__game.quest.done && window.__game.quest.rise === 0);
+  const log = [];
+  for (const [x, z] of [[-6.5, -11], [-13.5, -13], [-4, -6], [8, 2], [17.5, 12]]) { const r = await goTo(x, z, { tol: 0.6, timeout: 30 }); log.push(r.reason); }
+  // the third rode the warm wind to the meadow island (the wind ride itself is covered by its own check): hop there and back
+  await G(() => { const g = window.__game; g.teleport(-45, -4, -Math.PI / 2); g.B.pos.set(-45, g.world.floorAt(-45, -3.2), -3.2); g.B.vel.set(0, 0, 0); });
+  await wait(600); const r3 = await goTo(-46.5, -4, { tol: 0.4, timeout: 10 }); log.push(r3.reason);
+  await wait(800); await shot('meadow-jar');
+  await G(() => { const g = window.__game; g.teleport(2, -12, Math.PI); g.B.pos.set(3, g.world.floorAt(3, -12), -12); g.B.vel.set(0, 0, 0); });
+  await wait(600);
+  const { k } = await fillStone('forest');
+  return { pass: shut && k.n === 3 && k.placed, note: `bridge waited=${shut} jars=${k.n}/${k.of} placed=${k.placed} (${k.why}) left=${JSON.stringify(k.left)} walks=${log.join(',')}` };
+});
+
 await objective('bridge of light rises and leads to the shrine star', async () => {
   for (let k = 0; k < 40; k++) { const open = await G(() => window.__game.world.northBridge && window.__game.quest.rise >= 1); if (open) break; await wait(800); }
   await shot('bridge-risen');
@@ -301,7 +338,7 @@ await objective('wake the three crystals: lead her onto one lotus stone, let go,
     if (!q.lit[i]) return { pass: false, note: log.join(' | ') };
   }
   let q = await lk();
-  for (let k = 0; k < 20 && !q.steps; k++) { await wait(700); q = await lk(); }
+  for (let k = 0; k < 40 && !q.steps; k++) { await wait(700); q = await lk(); } // slow machines: the stones take a while
   await shot('heart-awake');
   return { pass: q.count === 3 && q.awake && q.steps, note: `${log.join(' | ')} | heart awake=${q.awake} stones up=${q.steps}` };
 });
@@ -373,6 +410,19 @@ async function fetchHerD() {
   return (await pos()).linked;
 }
 const local = (p) => [p[0] - DS.c[0], p[2] - DS.c[2]];
+
+await objective('keepsakes: the rowboat brought back a moon pearl; find the other two on the shore and place all three at the stone together', async () => {
+  const k0 = await ks('lake');
+  const shut = await G(() => window.__game.lakeQuest.awake && !window.__game.desertQuest.opened);
+  const boatPearl = !k0.left.some((l) => l[0] === 'lake2');
+  if (!(await fetchHer())) return { pass: false, note: 'could not take her hand' };
+  const log = [];
+  for (const [key, x, , z] of k0.left) { if (key === 'lake2') continue; let r = await shoreTo(lakeAng(x, z)); if (r.ok) r = await goTo(x, z, { tol: 0.4, timeout: 20 }); log.push(`${key}:${r.reason ?? 'ok'}`); await wait(500); }
+  const st = (await ks('lake')).stone;
+  await shoreTo(lakeAng(st[0], st[2]));
+  const { k } = await fillStone('lake');
+  return { pass: shut && boatPearl && k.n === 3 && k.placed, note: `bridge waited=${shut} pearl from the boat=${boatPearl} pearls=${k.n}/${k.of} placed=${k.placed} (${k.why}) left=${JSON.stringify(k.left)} walks=${log.join(',')}` };
+});
 
 await objective('the crystal heart raises a sandstone bridge; cross it hand in hand to the Sunset Desert', async () => {
   let q = await ds();
@@ -577,6 +627,23 @@ async function fetchHerH() {
   }
   return (await pos()).linked;
 }
+
+await objective('keepsakes: gather the three pieces of sun-glass and place them at the stone on the sun terrace together', async () => {
+  const k0 = await ks('desert');
+  const shut = await G(() => window.__game.desertQuest.done && !window.__game.hollowQuest.opened);
+  const log = [];
+  // the walks between the desert's corners are covered above: start a few metres from each piece and walk the rest
+  for (const [key, x, y, z] of k0.left) {
+    const dx = key === 'desert0' ? -2.2 : 2.5;
+    await G(([x, y, z]) => { const g = window.__game; if (g.hands.linked) g.holdHands(); g.teleport(x, z, -Math.PI / 2, y + 0.5); }, [x + dx, y, z]);
+    await wait(700); const r = await goTo(x, z, { tol: 0.4, timeout: 12 }); log.push(`${key}:${r.reason}`); await wait(500);
+  }
+  const st = (await ks('desert')).stone;
+  await G(([x, y, z]) => { const g = window.__game; g.teleport(x + 1.6, z + 2.2, 0, y + 0.5); g.B.pos.set(x + 2.4, g.world.floorAt(x + 2.4, z + 2.4, y + 0.5) ?? y, z + 2.4); g.B.vel.set(0, 0, 0); }, st);
+  await wait(800); if (!(await pos()).linked) { await G(() => window.__game.holdHands()); await wait(900); }
+  const { k } = await fillStone('desert');
+  return { pass: shut && k.n === 3 && k.placed, note: `bridge waited=${shut} sun-glass=${k.n}/${k.of} placed=${k.placed} (${k.why}) left=${JSON.stringify(k.left)} walks=${log.join(',')}` };
+});
 
 await objective('the little sun home raises an old rope bridge; cross it hand in hand into the dark Hollow', async () => {
   let q = await hq();
@@ -854,6 +921,33 @@ async function hopTo(to, opts = {}) {
   return { r, ...hop };
 }
 
+/** keepsakes on the far islands: the walks between their corners are covered by the zone checks, so start a few
+ *  metres from each one with her by the hand, and walk the rest together; then the same at the stone */
+async function gatherNear(id, y0) {
+  const k0 = await ks(id), log = [];
+  for (const [key, x, y, z] of k0.left) {
+    await G(([x, y, z]) => { const g = window.__game; if (g.hands.linked) g.holdHands(); }, [x, y, z]); await wait(400);
+    await G(([x, y, z]) => { const g = window.__game; g.teleport(x + 2.4, z, -Math.PI / 2, y + 0.5); g.B.pos.set(x + 2.4, g.world.floorAt(x + 2.4, z + 0.9, y + 0.5) ?? y, z + 0.9); g.B.vel.set(0, 0, 0); }, [x, y, z]);
+    await wait(700); await G(() => window.__game.holdHands()); await wait(900);
+    const r = await goTo(x, z, { tol: 0.4, timeout: 12 }); log.push(`${key}:${r.reason}`); await wait(600);
+  }
+  const st = (await ks(id)).stone;
+  await G(() => { const g = window.__game; if (g.hands.linked) g.holdHands(); }); await wait(400);
+  await G(([x, y, z]) => { const g = window.__game; g.teleport(x + 1.6, z + 1.6, 0, y + 0.5); g.B.pos.set(x + 2.3, g.world.floorAt(x + 2.3, z + 2.2, y + 0.5) ?? y, z + 2.2); g.B.vel.set(0, 0, 0); }, st);
+  await wait(800); await G(() => window.__game.holdHands()); await wait(900);
+  await page.waitForFunction((id) => window.__game.keepsakes.placed(id), id, { timeout: 90000 }).catch(() => {});
+  await shot(`stone-${id}`);
+  return { k: { ...(await ks(id)), why: await stoneWhy(id) }, log };
+}
+
+await objective('keepsakes: follow the humming to the three lullaby notes, and place them at the stone by the way on together', async () => {
+  const shut = await G(() => window.__game.hollowQuest.done && !window.__game.peakQuest.opened);
+  const { k, log } = await gatherNear('hollow');
+  for (let i = 0; i < 20 && !(await G(() => window.__game.peakQuest.opened)); i++) await wait(600);
+  const opened = await G(() => window.__game.peakQuest.opened);
+  return { pass: shut && k.n === 3 && k.placed && opened, note: `bridge waited=${shut} notes=${k.n}/${k.of} placed=${k.placed} (${k.why}) bridge opens after=${opened} walks=${log.join(',')}` };
+});
+
 await objective('the fireflies raise a stone bridge; cross it hand in hand to the Snowy Peak', async () => {
   let q = await pq();
   for (let k = 0; k < 40 && q.rise < 1; k++) { await wait(800); q = await pq(); }
@@ -1053,6 +1147,12 @@ async function fetchHerT() {
   return (await pos()).linked;
 }
 
+await objective('keepsakes: the three aurora feathers, placed together at the stone on the summit', async () => {
+  const shut = await G(() => window.__game.peakQuest.rung && !window.__game.towerQuest.opened);
+  const { k, log } = await gatherNear('peak');
+  return { pass: shut && k.n === 3 && k.placed, note: `steps waited=${shut} feathers=${k.n}/${k.of} placed=${k.placed} (${k.why}) walks=${log.join(',')}` };
+});
+
 await objective('the aurora lifts a stair of cloud steps from the summit', async () => {
   let q = await tq();
   if (!q.formed) { await G(() => window.__game.setRender(false)); await page.waitForFunction(() => window.__game.towerQuest.formed, null, { timeout: 240000 }).catch(() => {}); await G(() => window.__game.setRender(true)); }
@@ -1112,6 +1212,16 @@ await objective('hop on up the clouds together to the Cloud Kingdom; its wayston
     note: `hops ${log.join(' ')} island: ${hop ? `${hop.r.reason} y=${hop.q.me[1]}` : '-'} arrived=${q.arrived} "${msg}" objectives=${rows} waystone=${r.reason} checkpoint=${p.cp} (way ${TW.cpWay})` };
 });
 
+await objective('keepsakes: half a locket on the resting cloud, the other half on the north rim', async () => {
+  const k0 = await ks('tower');
+  const onCloud = !k0.left.some((l) => l[0] === 'tower0');
+  const r1 = await legs([[56, -96], [45, -98.5]], { tol: 0.4, timeout: 20 });
+  await wait(800); await shot('locket-half');
+  const k = await ks('tower'), rows = await objIds();
+  const r2 = await legs([[56, -96], [TW.way[0], TW.way[2]]], { tol: 0.6, timeout: 20 });
+  return { pass: onCloud && k.n === 2 && !k.placed && r1.ok && r2.ok && rows.includes('keep-tower'), note: `half on the resting cloud picked up on the way=${onCloud} halves=${k.n}/${k.of} rim walk=${JSON.stringify(r1)} back=${r2.ok} objectives=${rows}` };
+});
+
 await objective('alone, the ramp\'s first break has no bridge: you drop to the turn below', async () => {
   await unlink();
   let r = await goTo(TW.entry[0], TW.entry[2], { tol: 0.6, timeout: 15 });
@@ -1161,7 +1271,7 @@ await objective('the beacon won\'t light alone; holding hands beside it, it ligh
   if (!(await fetchHerT())) return { pass: false, note: 'could not take her hand' };
   await goTo(bc[0], bc[2], { tol: 0.3, timeout: 10 });
   await page.waitForFunction(() => window.__game.towerQuest.lit, null, { timeout: 60000 }).catch(() => {});
-  const lit = await tq(), msg = await toast(), rows = await objIds();
+  const lit = await tq(), msg = await toast(), rows = await objIds(), locket = (await ks('tower')).placed;
   await G(() => window.__game.setRender(false));
   await page.waitForFunction(() => window.__game.towerQuest.sun >= 1 && window.__game.ending(), null, { timeout: 240000 }).catch(() => {});
   await G(() => window.__game.setRender(true)); await wait(2500);
@@ -1171,8 +1281,8 @@ await objective('the beacon won\'t light alone; holding hands beside it, it ligh
   await page.click('#end-go'); await wait(2000);
   const closed = !(await G(() => window.__game.ending()));
   await shot('sunrise-after');
-  return { pass: alone.k === 0 && !alone.lit && /beacon/.test(hint) && lit.lit && /beacon is lit|sun is rising/.test(msg) && !rows.includes('beacon') && q.sun >= 1 && card.on && /Nobody reaches the top alone/.test(card.last) && /secrets/.test(card.tally) && card.beams && card.beamK[0] > 0.9 && card.hudHidden && closed,
-    note: `alone: charge=${alone.k} "${hint}" | together: lit=${lit.lit} "${msg}" objectives=${rows} sun=${q.sun.toFixed(2)} card=${card.on} "${card.tally}" beams=${card.beams} ${card.beamK} hud hidden=${card.hudHidden} closed=${closed}` };
+  return { pass: alone.k === 0 && !alone.lit && /beacon/.test(hint) && lit.lit && locket && /beacon is lit|sun is rising/.test(msg) && !rows.includes('beacon') && q.sun >= 1 && card.on && /Nobody reaches the top alone/.test(card.last) && /secrets/.test(card.tally) && card.beams && card.beamK[0] > 0.9 && card.hudHidden && closed,
+    note: `alone: charge=${alone.k} "${hint}" | together: lit=${lit.lit} locket joined=${locket} "${msg}" objectives=${rows} sun=${q.sun.toFixed(2)} card=${card.on} "${card.tally}" beams=${card.beams} ${card.beamK} hud hidden=${card.hudHidden} closed=${closed}` };
 });
 
 await objective('star 8: down the tower together, then hop up the three cloud puffs', async () => {
@@ -1346,6 +1456,8 @@ await objective('collect the star on the east island', async () => {
 });
 
 await objective('objectives panel: every finished goal has been removed', async () => {
+  // the twelve newer secrets sit off this route (tools/keepcheck.mjs finds each one): count them found here
+  await G(() => { const S = window.__game.secrets; S.items.forEach((it, i) => { if (!it.found) S.take(i, true); }); });
   await wait(2600);
   const left = await G(() => window.__game.objectives.list());
   const rows = await page.$$eval('.obj', (els) => els.length);

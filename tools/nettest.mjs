@@ -112,7 +112,7 @@ async function walkTogether(leaderPage, followerPage, key, ms) {
   const L = (fn) => leaderPage.evaluate(fn), F = (fn) => followerPage.evaluate(fn);
   const snap = async () => {
     const [l, f] = await Promise.all([L(() => ({ ...window.__game.pos(), cam: window.__game.camPos() })), F(() => ({ ...window.__game.pos(), cam: window.__game.camPos() }))]);
-    return { l, f };
+    return { l, f, ts: Date.now() };
   };
   const fr0 = await L(() => window.__game.frames());
   const trace = [];
@@ -135,17 +135,19 @@ async function walkTogether(leaderPage, followerPage, key, ms) {
   let back = 0; const relAlong = along(rel.l.me);
   for (let i = releasedAt; i < trace.length; i++) back = Math.max(back, relAlong - along(trace[i].l.me));
   // the partner on the leader's screen should glide, never jump around
-  let snapL = 0, snapF = 0;
+  // (beyond what walking covers between two samples: on a slow machine the samples can be 0.3 s apart)
+  let snapL = 0, snapF = 0, gapMs = 0;
   for (let i = 1; i < trace.length; i++) {
-    snapL = Math.max(snapL, dist(trace[i].l.friend, trace[i - 1].l.friend));
-    snapF = Math.max(snapF, dist(trace[i].f.me, trace[i - 1].f.me));
+    const allow = 4.2 * (trace[i].ts - trace[i - 1].ts) / 1000; gapMs = Math.max(gapMs, trace[i].ts - trace[i - 1].ts);
+    snapL = Math.max(snapL, dist(trace[i].l.friend, trace[i - 1].l.friend) - allow);
+    snapF = Math.max(snapF, dist(trace[i].f.me, trace[i - 1].f.me) - allow);
   }
   const fMoved = dist(last.f.me, first.f.me), camMoved = dist(last.f.cam, first.f.cam);
   const agreeLeader = dist(last.l.me, last.f.friend), agreeFollower = dist(last.l.friend, last.f.me);
   const gap = dist(last.l.me, last.l.friend);
   const linked = last.l.linked && last.f.linked;
-  const pass = linked && walked > 3 && back < 0.4 && snapL < 1.2 && snapF < 1.2 && fMoved > walked * 0.7 && camMoved > walked * 0.6 && agreeLeader < 0.6 && agreeFollower < 0.6 && gap < 1.6;
-  return { pass, note: `${fps.toFixed(0)} fps; walked ${walked.toFixed(1)}; leader dragged back ${back.toFixed(2)}; biggest partner jump: leader screen ${snapL.toFixed(2)}, follower screen ${snapF.toFixed(2)}; follower moved ${fMoved.toFixed(1)} cam ${camMoved.toFixed(1)}; screens disagree by ${agreeLeader.toFixed(2)}/${agreeFollower.toFixed(2)}; gap ${gap.toFixed(2)}; linked ${linked}` };
+  const pass = linked && walked > 3 && back < 0.4 && snapL < 0.8 && snapF < 0.8 && fMoved > walked * 0.7 && camMoved > walked * 0.6 && agreeLeader < 0.6 && agreeFollower < 0.6 && gap < 1.6;
+  return { pass, note: `${fps.toFixed(0)} fps; walked ${walked.toFixed(1)}; leader dragged back ${back.toFixed(2)}; biggest partner jump beyond walking: leader screen ${snapL.toFixed(2)}, follower screen ${snapF.toFixed(2)} (samples up to ${gapMs} ms apart); follower moved ${fMoved.toFixed(1)} cam ${camMoved.toFixed(1)}; screens disagree by ${agreeLeader.toFixed(2)}/${agreeFollower.toFixed(2)}; gap ${gap.toFixed(2)}; linked ${linked}` };
 }
 
 await objective('holding hands over the internet: he walks, she is pulled along, he stops, nobody snaps back', async () => {
@@ -229,7 +231,7 @@ await objective('rowboat online: sit in it together, it drifts on both screens a
   await both('10-rowboat');
   const back = await until(async () => !(await H(() => window.__game.lakeQuest.boat.riding)) && !(await guest.evaluate(() => window.__game.lakeQuest.boat.riding)), 60000);
   const n = [await H(() => window.__game.secrets.count), await guest.evaluate(() => window.__game.secrets.count)];
-  return { pass: ok && mid.inBoat && Math.abs(mid.u - hu) < 0.08 && back && n[0] === 3 && n[1] === 3, note: `riding on both=${ok}, guest still in the boat mid-ride=${mid.inBoat}, ride position host/guest=${hu.toFixed(2)}/${mid.u.toFixed(2)}, back at the dock=${back}, secrets host/guest=${n.join('/')}` };
+  return { pass: ok && mid.inBoat && Math.abs(mid.u - hu) < 0.08 && back && n[0] >= 3 && n[0] === n[1], note: `riding on both=${ok}, guest still in the boat mid-ride=${mid.inBoat}, ride position host/guest=${hu.toFixed(2)}/${mid.u.toFixed(2)}, back at the dock=${back}, secrets host/guest=${n.join('/')}` };
 });
 
 // ---- round 7: Sunset Desert ----
@@ -289,6 +291,23 @@ await objective('sundial online: bring the little sun home together and the sun 
   const ph = [await H(() => window.__game.desertQuest.phase), await guest.evaluate(() => window.__game.desertQuest.phase)];
   await both('12-sundial');
   return { pass: follows && walk.ok && home && ph.every((p) => p === 'calm'), note: `follows=${follows} walk=${walk.reason} home, dial lit and gate open on both=${home}, wind host/guest=${ph.join('/')}` };
+});
+
+// ---- keepsakes (2026-11-14) ----
+await objective('keepsakes online: the guest picks up the sun-glass and the host counts it; placed at the stone together, it fills on both screens', async () => {
+  await letGo();
+  const items = await H(() => window.__game.keepsakes.items.filter((it) => it.set.id === 'desert').map((it) => it.pos.toArray()));
+  for (const p of items) { await guest.evaluate(([x, y, z]) => window.__game.teleport(x + 0.6, z, Math.PI, y + 0.5), p); await wait(1200); }
+  const counted = await until(() => onBoth(() => window.__game.keepsakes.count('desert') === 3), 10000);
+  const st = await H(() => window.__game.keepsakes.set('desert').pos.toArray());
+  await H(([x, y, z]) => window.__game.teleport(x + 1.4, z + 1.0, Math.PI, y + 0.5), st);
+  await guest.evaluate(([x, y, z]) => window.__game.teleport(x + 2.2, z + 1.2, Math.PI, y + 0.5), st);
+  await wait(1500);
+  await H(() => window.__game.holdHands());
+  await until(() => onBoth(() => window.__game.hands.linked), 6000);
+  const placed = await until(() => onBoth(() => window.__game.keepsakes.placed('desert')), 15000);
+  await both('12b-keepsakes');
+  return { pass: counted && placed, note: `guest's pickups counted on both=${counted}, stone filled on both=${placed}` };
 });
 
 // ---- round 8: Whispering Hollow ----
@@ -351,6 +370,7 @@ const KWN = await H(() => { const K = window.__game.world.peak, a = (v) => v.toA
 
 await objective('Snowy Peak online: the stone bridge rises on both screens, a brazier you light together burns on both, and each of you feels your own cold', async () => {
   await letGo();
+  await H(() => window.__game.keepAll('hollow')); // the keepsakes online are covered in the desert
   const risen = await until(() => onBoth(() => window.__game.peakQuest.rise >= 1), 40000);
   const C = KWN.cps[0];
   await H(([x, z]) => window.__game.teleport(x, z, Math.PI), [C[0], C[2]]);
@@ -392,6 +412,7 @@ await objective('the aurora bell online: holding hands you both jump higher, and
 // ---- round 10: the Cloud Kingdom ----
 await objective('Cloud Kingdom online: the cloud steps form on both screens, and hand in hand a bridge of light holds you both', async () => {
   await letGo();
+  await H(() => window.__game.keepAll('peak'));
   const formed = await until(() => onBoth(() => window.__game.towerQuest.formed), 45000);
   const g0 = await H(() => window.__game.world.tower.gaps[0][0]);
   const at = (f, dr) => H(([f, dr]) => window.__game.world.tower.rampAt(f, dr).toArray(), [f, dr]);
@@ -417,6 +438,7 @@ await objective('the beacon online: lit together, the sun rises and the closing 
   const at = (f, dr) => H(([f, dr]) => window.__game.world.tower.rampAt(f, dr).toArray(), [f, dr]);
   const a = await at(T.ftop - 0.07, -3.7), b = await at(T.ftop - 0.03, -3.9);
   await letGo();
+  for (let i = 0; i < 2; i++) await H((i) => { const K = window.__game.keepsakes; K.take(K.items.findIndex((it) => it.key === `tower${i}`)); }, i); // both halves of the locket
   await H(([x, z, y]) => window.__game.teleport(x, z, Math.PI, y), [a[0], a[2], T.top]);
   await guest.evaluate(([x, z, y]) => window.__game.teleport(x, z, Math.PI, y), [b[0], b[2], T.top]);
   await wait(1500);
