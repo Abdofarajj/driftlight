@@ -1,20 +1,16 @@
 // A small caped traveler built from primitives, with cheap procedural animation.
 // Two characters: 'him' (blue cape, short dark curls) and 'her' (red cape, long light hair, flower clip).
-import { Group, Mesh, SphereGeometry, CylinderGeometry, CapsuleGeometry, LatheGeometry, TorusGeometry, ConeGeometry, PlaneGeometry, TubeGeometry, CatmullRomCurve3, BufferGeometry, Float32BufferAttribute, Vector2, Vector3, IcosahedronGeometry, Color, Quaternion, Euler } from 'three';
+import { Group, Mesh, SphereGeometry, CylinderGeometry, CapsuleGeometry, TorusGeometry, ConeGeometry, PlaneGeometry, TubeGeometry, CatmullRomCurve3, BufferGeometry, Float32BufferAttribute, Vector3, IcosahedronGeometry, Color, Quaternion, Euler } from 'three';
 import { PAL } from '../look/palette.js';
 import { makeWatercolorMaterial, makeGlowMaterial, makeOutlineMaterial, makeSoftMaterial } from '../look/material.js';
 import { displace } from '../world/shapes.js';
 import { rng } from '../world/rng.js';
 
 const VARIANTS = {
-  him: { cape: PAL.capeBlue, hair: PAL.hairDark, scale: 1.45, capeTop: 0.16, capeFlare: 0.24, capeLen: 0.5, tunicFlare: 0.2 },
-  her: { cape: PAL.capeRed, hair: PAL.hairLight, scale: 1.36, capeTop: 0.13, capeFlare: 0.22, capeLen: 0.52, tunicFlare: 0.25 },
+  him: { cape: PAL.capeBlue, hair: PAL.hairDark, scale: 1.45, tunicFlare: 0.2 },
+  her: { cape: PAL.capeRed, hair: PAL.hairLight, scale: 1.36, tunicFlare: 0.25 },
 };
 
-// the cape is open at the front (this wide, in radians) so the chest and arms show; it covers the back and sides
-const CAPE_GAP = 2.0;
-// which cape (for Abdo to compare): 'open' (open at the front) or 'poncho' (as on the character sheet); ?cape=poncho
-const CAPE_STYLE = (typeof location !== 'undefined' && new URLSearchParams(location.search).get('cape')) || 'open';
 const ARM_LEN = 0.27; // shoulder to the middle of the hand (model units, before the traveler's scale)
 
 export class Traveler {
@@ -69,42 +65,7 @@ export class Traveler {
     capePivot.position.y = 0.74;
     body.add(capePivot);
     this.capePivot = capePivot;
-    if (CAPE_STYLE === 'poncho') this.buildPoncho(v, m, capePivot, body);
-    else {
-      // cape: lathe profile, open at the front
-      const prof = [];
-      for (let i = 0; i <= 10; i++) {
-        const t = i / 10;
-        prof.push(new Vector2(v.capeTop + Math.pow(t, 1.15) * v.capeFlare, 0.76 - t * v.capeLen));
-      }
-      const capeGeo = new LatheGeometry(prof, 28, CAPE_GAP / 2, Math.PI * 2 - CAPE_GAP);
-      const cp = capeGeo.attributes.position;
-      for (let i = 0; i < cp.count; i++) { // wavy hem
-        const y = cp.getY(i);
-        if (y < 0.35) { const a = Math.atan2(cp.getX(i), cp.getZ(i)); cp.setY(i, y + Math.sin(a * 5) * 0.015); }
-      }
-      capeGeo.computeVertexNormals();
-      const cape = new Mesh(capeGeo, m.cape);
-      cape.position.y = -0.74;
-      capePivot.add(cape);
-      const hemR = v.capeTop + v.capeFlare;
-      const hem = new Mesh(new TorusGeometry(hemR, 0.016, 5, 40, Math.PI * 2 - CAPE_GAP), m.trim);
-      hem.rotation.set(Math.PI / 2, 0, Math.PI / 2 + CAPE_GAP / 2);
-      hem.position.y = 0.76 - v.capeLen; // the cape mesh is already shifted down by 0.74 (it used to sit 0.74 too low, under the ground)
-      cape.add(hem);
-      const diamond = new Mesh(new ConeGeometry(0.05, 0.12, 4), m.trim);
-      diamond.scale.z = 0.25; diamond.position.set(0, 0.47 - 0.74, -0.25); diamond.rotation.x = -0.45;
-      capePivot.add(diamond);
-      const diamond2 = diamond.clone(); diamond2.rotation.z = Math.PI; diamond2.position.y -= 0.1; diamond2.position.z -= 0.04;
-      capePivot.add(diamond2);
-      // the cape's collar wraps the back of the neck, tied at the front with a little gold clasp on the chest
-      const collar = new Mesh(new TorusGeometry(0.13, 0.042, 8, 18, Math.PI * 2 - CAPE_GAP * 0.55), m.cape);
-      collar.rotation.set(Math.PI / 2, 0, Math.PI / 2 + CAPE_GAP * 0.275); collar.position.y = 0.735;
-      body.add(collar);
-      const clasp = new Mesh(new SphereGeometry(0.03, 8, 6), m.trim);
-      clasp.position.set(0, 0.69, 0.115);
-      body.add(clasp);
-    }
+    this.buildPoncho(v, m, capePivot, body); // Abdo picked the character-sheet poncho (2026-11-14)
 
     // arms: shoulder pivots so a hand can reach out to hold the other traveler's hand
     this.arms = [];
@@ -317,9 +278,10 @@ export class Traveler {
     this.legs[1].rotation.x = -Math.sin(ph) * swing * walk + (air ? -0.3 : 0);
 
     // cape trails BEHIND the direction of travel (character faces +z, so positive x-rotation sends the hem back)
-    const flare = 1 + walk * (0.1 + run * 0.12) + (glide ? 0.5 : air ? 0.15 : 0) + Math.sin(t * 8 + ph) * 0.025 * (walk + (glide ? 1 : 0));
-    this.capePivot.scale.set(flare, 1, flare * (glide ? 1.15 : 1));
-    this.capePivot.rotation.x = walk * (0.18 + run * 0.3) + (glide ? 0.75 : air ? 0.2 : 0) + Math.sin(t * 9 + ph) * 0.04 * (glide ? 1 : walk);
+    // (the poncho wraps all round, so gliding it billows out behind rather than flipping up)
+    const flare = 1 + walk * (0.06 + run * 0.08) + (glide ? 0.14 : air ? 0.08 : 0) + Math.sin(t * 8 + ph) * 0.025 * (walk + (glide ? 1 : 0));
+    this.capePivot.scale.set(flare, 1, flare * (glide ? 1.4 : 1 + run * 0.12));
+    this.capePivot.rotation.x = walk * (0.12 + run * 0.2) + (glide ? 0.38 : air ? 0.14 : 0) + Math.sin(t * 9 + ph) * 0.04 * (glide ? 1 : walk);
 
     // arms: swing when walking, spread when gliding, reach out when holding hands
     this.holdAmt += ((this.holdSide !== 0 ? 1 : 0) - this.holdAmt) * Math.min(1, dt * 10);

@@ -165,7 +165,8 @@ Gaps found in the first full capture (biggest first):
 
 ### Look round 1: shadows + travelers (2026-11-14)
 - Soft sun shadows baked once from the still world (`src/look/shadow.js`); every watercolour surface looks them up.
-- The travelers' cape: two options for Abdo (A open at the front, live; B poncho like the character sheet, `?cape=poncho`).
+- The travelers' cape: Abdo picked B, the poncho like the character sheet (rounded shoulders, a V at the front, gold
+  trim, a diamond on the back, a hood); the open cape is gone.
 **Done when:** the forest shot shows soft lavender shade under the trees, lanterns, rocks and walls with no speckles or
 blocky edges, and Abdo has picked a cape.
 
